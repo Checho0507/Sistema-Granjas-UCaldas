@@ -276,7 +276,7 @@ export const loteService = {
     // Obtener granjas disponibles
     async obtenerGranjasDisponibles(): Promise<any[]> {
         try {
-            const response = await fetch(`${API_BASE_URL}/granjas/`, {
+            const response = await fetch(`${API_BASE_URL}/granjas`, {
                 headers: getHeaders(),
             });
             
