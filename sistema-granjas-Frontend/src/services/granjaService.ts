@@ -37,7 +37,6 @@ const handleResponse = async (response: Response) => {
 
 export const granjaService = {
   // ========== OPERACIONES CRUD BÁSICAS ==========
-  
   // OBTENER todas las granjas
   async obtenerGranjas(): Promise<Granja[]> {
     try {
