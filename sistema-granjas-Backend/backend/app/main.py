@@ -29,6 +29,17 @@ import logging
 import time  # <-- Añade esto
 import sys   # <-- Añade esto
 import ssl   # <-- Añade esto
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class ForceHTTPSRedirectMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        # Si es redirección y Location comienza con http://, cámbiala a https://
+        if response.status_code in (301, 302, 307, 308):
+            location = response.headers.get("location")
+            if location and location.startswith("http://"):
+                response.headers["location"] = location.replace("http://", "https://", 1)
+        return response
 
 # Configurar logging detallado para Render
 logging.basicConfig(
@@ -76,6 +87,7 @@ app = FastAPI(
 # CORS - Añade tu dominio de frontend si está en producción
 app.add_middleware(
     CORSMiddleware,
+    ForceHTTPSRedirectMiddleware,
     allow_origins=["https://sistemagranjasucaldas-production.up.railway.app"],
     allow_credentials=True,
     allow_methods=["*"],
