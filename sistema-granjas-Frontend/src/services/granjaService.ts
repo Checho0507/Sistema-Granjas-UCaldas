@@ -1,6 +1,6 @@
 import type { Granja, Usuario, Programa } from '../types/granjaTypes';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 // Función para obtener headers con token
 const getHeaders = (): HeadersInit => {
