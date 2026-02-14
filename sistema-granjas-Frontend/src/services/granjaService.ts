@@ -41,12 +41,12 @@ export const granjaService = {
   async obtenerGranjas(): Promise<Granja[]> {
     try {
       console.log("API",API_BASE_URL);
-      console.log("API",API_BASE_URL);
+      console.log("API",API_BASE_URL,"granjas");
 
       const url = `${API_BASE_URL}/granjas`;
       
       const headers = getHeaders();
-      
+      console.log("peticion en granjas url en obtenerGranjas: ",url);
       const response = await fetch(url, {
         headers: headers
       });
