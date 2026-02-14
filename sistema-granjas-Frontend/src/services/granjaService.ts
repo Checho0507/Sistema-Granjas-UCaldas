@@ -41,6 +41,7 @@ export const granjaService = {
   // OBTENER todas las granjas
   async obtenerGranjas(): Promise<Granja[]> {
     try {
+      console.log("API",API_BASE_URL);
       const url = `${API_BASE_URL}/granjas`;
       
       const headers = getHeaders();
