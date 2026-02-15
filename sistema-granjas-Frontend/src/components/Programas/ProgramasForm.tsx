@@ -65,7 +65,6 @@ export const ProgramaForm: React.FC<ProgramaFormProps> = ({
             </h3>
 
             <form onSubmit={onSubmit} className="space-y-4">
-                {/* Nombre */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                         Nombre *
@@ -82,7 +81,6 @@ export const ProgramaForm: React.FC<ProgramaFormProps> = ({
                     />
                 </div>
 
-                {/* Tipo */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                         Tipo de Programa *
@@ -110,7 +108,6 @@ export const ProgramaForm: React.FC<ProgramaFormProps> = ({
                     </div>
                 </div>
 
-                {/* Descripción */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                         Descripción
@@ -126,7 +123,6 @@ export const ProgramaForm: React.FC<ProgramaFormProps> = ({
                     />
                 </div>
 
-                {/* Selección de granjas */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                         Granjas asociadas
@@ -156,7 +152,6 @@ export const ProgramaForm: React.FC<ProgramaFormProps> = ({
                     </p>
                 </div>
 
-                {/* Activo */}
                 <div className="flex items-center">
                     <input
                         type="checkbox"
@@ -169,7 +164,6 @@ export const ProgramaForm: React.FC<ProgramaFormProps> = ({
                     <label className="ml-2 text-sm text-gray-900">Programa activo</label>
                 </div>
 
-                {/* Botones */}
                 <div className="flex gap-2 justify-end pt-4">
                     <button
                         type="button"

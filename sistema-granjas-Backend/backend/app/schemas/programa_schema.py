@@ -38,7 +38,7 @@ class ProgramaBase(BaseModel):
 
     @model_validator(mode='after')
     def validar_coherencia_nombre_tipo(cls, values):
-        # Esta validación puede ajustarse según necesidades reales
+        # Puedes ajustar o eliminar esta validación según necesidades reales
         return values
 
 class ProgramaCreate(ProgramaBase):
@@ -93,7 +93,6 @@ class ProgramaResponse(ProgramaBase):
     class Config:
         from_attributes = True
 
-# Schemas para asignaciones (se mantienen)
 class AsignacionUsuarioPrograma(BaseModel):
     usuario_id: int
 

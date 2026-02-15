@@ -4,11 +4,12 @@ import usuarioService from "../services/usuarioService";
 import granjaService from "../services/granjaService";
 import exportService from "../services/exportService";
 import { StatsCard } from "../components/Common/StatsCard";
-import { ProgramaForm } from "../components/Programas/ProgramasForm";
+import { ProgramaForm } from "../components/Programas/ProgramasForm"; // Ajusta si es ProgramasForm
 import { DetallesPrograma } from "../components/Programas/DetallesPrograma";
 import { AsignarUsuarioModal } from "../components/Usuarios/AsignarUsuario";
 import { AsignarGranjaModal } from "../components/Granjas/AsignarGranja";
 import ProgramasTable from "../components/Programas/ProgramasTable";
+import DashboardHeader from "../components/Common/DashboardHeader";
 
 export default function GestionProgramas() {
     const [programas, setProgramas] = useState<any[]>([]);
@@ -41,7 +42,7 @@ export default function GestionProgramas() {
         descripcion: "",
         tipo: "agricola",
         activo: true,
-        granjas_ids: [] as number[], // Nuevo campo
+        granjas_ids: [] as number[],
     });
 
     const tiposPrograma = [
@@ -98,7 +99,6 @@ export default function GestionProgramas() {
     };
 
     const abrirEditar = async (programa: any) => {
-        // Obtener las granjas ya asignadas (si vienen en el objeto programa)
         const granjasAsignadas = programa.granjas?.map((g: any) => g.id) || [];
         setDatosFormulario({
             nombre: programa.nombre,
@@ -222,7 +222,11 @@ export default function GestionProgramas() {
 
     return (
         <div className="p-6">
-            <h1 className="text-2xl font-bold mb-6">Gestión de Programas</h1>
+            <DashboardHeader
+                title="Gestión de Programas"
+                selectedModule="programas"
+                onBack={() => window.history.back()}
+            />
             <div className="flex items-center space-x-3 m-2">
                 {exportMessage && (
                     <span className={`text-sm px-3 py-1 rounded ${
