@@ -1,6 +1,6 @@
-// src/components/ProgramaForm.tsx
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Modal from "../Common/Modal";
+import granjaService from "../../services/granjaService";
 
 interface TipoPrograma {
     value: string;
@@ -16,13 +16,9 @@ interface ProgramaFormProps {
         descripcion: string;
         tipo: string;
         activo: boolean;
+        granjas_ids?: number[];
     };
-    setDatosFormulario: React.Dispatch<React.SetStateAction<{
-        nombre: string;
-        descripcion: string;
-        tipo: string;
-        activo: boolean;
-    }>>;
+    setDatosFormulario: React.Dispatch<React.SetStateAction<any>>;
     onSubmit: (e: React.FormEvent) => void;
     editando: boolean;
     tiposPrograma: TipoPrograma[];
@@ -41,6 +37,27 @@ export const ProgramaForm: React.FC<ProgramaFormProps> = ({
         { value: "prueba", label: "Prueba", icon: "fas fa-flask" }
     ]
 }) => {
+    const [granjas, setGranjas] = useState<any[]>([]);
+    const [cargandoGranjas, setCargandoGranjas] = useState(false);
+
+    useEffect(() => {
+        if (isOpen) {
+            setCargandoGranjas(true);
+            granjaService.obtenerGranjas()
+                .then(data => setGranjas(data))
+                .catch(err => console.error("Error cargando granjas:", err))
+                .finally(() => setCargandoGranjas(false));
+        }
+    }, [isOpen]);
+
+    const handleGranjaChange = (granjaId: number) => {
+        const current = datosFormulario.granjas_ids || [];
+        const newIds = current.includes(granjaId)
+            ? current.filter(id => id !== granjaId)
+            : [...current, granjaId];
+        setDatosFormulario({ ...datosFormulario, granjas_ids: newIds });
+    };
+
     return (
         <Modal isOpen={isOpen} onClose={onClose}>
             <h3 className="text-xl font-bold mb-4">
@@ -48,6 +65,7 @@ export const ProgramaForm: React.FC<ProgramaFormProps> = ({
             </h3>
 
             <form onSubmit={onSubmit} className="space-y-4">
+                {/* Nombre */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                         Nombre *
@@ -64,6 +82,7 @@ export const ProgramaForm: React.FC<ProgramaFormProps> = ({
                     />
                 </div>
 
+                {/* Tipo */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                         Tipo de Programa *
@@ -76,19 +95,22 @@ export const ProgramaForm: React.FC<ProgramaFormProps> = ({
                                 onClick={() =>
                                     setDatosFormulario({ ...datosFormulario, tipo: tipo.value })
                                 }
-                                className={`flex flex-col items-center justify-center p-3 rounded-md border-2 transition-all ${datosFormulario.tipo === tipo.value
-                                    ? "border-blue-500 bg-blue-50"
-                                    : "border-gray-200 hover:border-blue-300 hover:bg-gray-50"
-                                    }`}
+                                className={`flex flex-col items-center justify-center p-3 rounded-md border-2 transition-all ${
+                                    datosFormulario.tipo === tipo.value
+                                        ? "border-blue-500 bg-blue-50"
+                                        : "border-gray-200 hover:border-blue-300 hover:bg-gray-50"
+                                }`}
                             >
-                                <i className={`${tipo.icon} text-lg mb-1 ${datosFormulario.tipo === tipo.value ? "text-blue-600" : "text-gray-500"
-                                    }`}></i>
+                                <i className={`${tipo.icon} text-lg mb-1 ${
+                                    datosFormulario.tipo === tipo.value ? "text-blue-600" : "text-gray-500"
+                                }`}></i>
                                 <span className="text-sm font-medium">{tipo.label}</span>
                             </button>
                         ))}
                     </div>
                 </div>
 
+                {/* Descripción */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                         Descripción
@@ -104,6 +126,37 @@ export const ProgramaForm: React.FC<ProgramaFormProps> = ({
                     />
                 </div>
 
+                {/* Selección de granjas */}
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Granjas asociadas
+                    </label>
+                    {cargandoGranjas ? (
+                        <div className="text-gray-500">Cargando granjas...</div>
+                    ) : (
+                        <div className="border border-gray-300 rounded-md p-2 max-h-40 overflow-y-auto">
+                            {granjas.map((granja) => (
+                                <label key={granja.id} className="flex items-center space-x-2 py-1">
+                                    <input
+                                        type="checkbox"
+                                        checked={(datosFormulario.granjas_ids || []).includes(granja.id)}
+                                        onChange={() => handleGranjaChange(granja.id)}
+                                        className="rounded text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span className="text-sm">{granja.nombre}</span>
+                                </label>
+                            ))}
+                            {granjas.length === 0 && (
+                                <p className="text-sm text-gray-500">No hay granjas disponibles</p>
+                            )}
+                        </div>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">
+                        Selecciona las granjas donde estará disponible este programa.
+                    </p>
+                </div>
+
+                {/* Activo */}
                 <div className="flex items-center">
                     <input
                         type="checkbox"
@@ -116,6 +169,7 @@ export const ProgramaForm: React.FC<ProgramaFormProps> = ({
                     <label className="ml-2 text-sm text-gray-900">Programa activo</label>
                 </div>
 
+                {/* Botones */}
                 <div className="flex gap-2 justify-end pt-4">
                     <button
                         type="button"
