@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from app.CRUD import programas as crud
-from app.schemas.programa import ProgramaCreate, ProgramaUpdate
+from app.schemas.programa_schema import ProgramaCreate, ProgramaUpdate
 
 class ProgramaService:
 
