@@ -160,12 +160,6 @@ const ProgramasTable: React.FC<ProgramasTableProps> = ({
                                     {programas.filter(p => p.tipo === 'pecuario').length}
                                 </span>
                             </span>
-                            <span className="flex items-center">
-                                <i className="fas fa-flask text-purple-600 mr-1"></i>
-                                <span className="font-medium text-purple-700">
-                                    {programas.filter(p => p.tipo === 'prueba').length}
-                                </span>
-                            </span>
                         </div>
                     </div>
                 </div>
