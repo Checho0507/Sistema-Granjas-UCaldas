@@ -46,9 +46,6 @@ const ProgramasTable: React.FC<ProgramasTableProps> = ({
                     <thead className="bg-gray-50">
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                ID
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Nombre
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -68,9 +65,6 @@ const ProgramasTable: React.FC<ProgramasTableProps> = ({
                     <tbody className="bg-white divide-y divide-gray-200">
                         {programas.map((programa) => (
                             <tr key={programa.id} className="hover:bg-gray-50 transition-colors">
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    {programa.id}
-                                </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div className="text-sm font-medium text-gray-900">
                                         {programa.nombre}
