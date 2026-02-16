@@ -25,7 +25,7 @@ class LoteBase(BaseModel):
             raise ValueError('El nombre del lote no puede tener más de 100 caracteres')
         
         # Validar formato del nombre (letras, números, espacios, puntos, guiones)
-        if not re.match(r'^[\p{L}0-9\s\-.,()]+$', v):
+        if not re.match(r'^[a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s\-.,()]+$', v):
             raise ValueError('El nombre del lote contiene caracteres no permitidos')
         
         return v.strip()
