@@ -84,7 +84,7 @@ export const ProgramaForm: React.FC<ProgramaFormProps> = ({
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                         Tipo de Programa *
                     </label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                         {tiposPrograma.map((tipo) => (
                             <button
                                 key={tipo.value}

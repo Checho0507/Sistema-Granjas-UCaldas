@@ -256,7 +256,7 @@ export default function GestionProgramas() {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
                 <StatsCard icon="fas fa-clipboard-list" color="bg-blue-600" value={programas.length} label="Programas Registrados" />
                 <StatsCard icon="fas fa-seedling" color="bg-green-600" value={programas.filter(p => p.tipo === 'agricola').length} label="Programas Agrícolas" />
                 <StatsCard icon="fas fa-paw" color="bg-amber-600" value={programas.filter(p => p.tipo === 'pecuario').length} label="Programas Pecuarios" />
