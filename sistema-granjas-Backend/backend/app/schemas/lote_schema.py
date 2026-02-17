@@ -7,6 +7,7 @@ class LoteBase(BaseModel):
     nombre: str
     tipo_lote_id: int
     granja_id: int
+    nombre_granja: Optional[str] = None
     programa_id: int
     cultivo_id: Optional[int] = None
     nombre_cultivo: Optional[str] = None
@@ -65,6 +66,20 @@ class LoteBase(BaseModel):
             
             if not re.match(r'^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s\-\'\.0-9]+$', v):
                 raise ValueError('El nombre del cultivo contiene caracteres no permitidos')
+        
+        return v
+    
+    @field_validator('nombre_granja')
+    def validar_nombre_cultivo(cls, v):
+        if v is not None:
+            if len(v.strip()) < 2:
+                raise ValueError('El nombre de la granja debe tener al menos 2 caracteres')
+            
+            if len(v) > 150:
+                raise ValueError('El nombre de la granja no puede tener más de 150 caracteres')
+            
+            if not re.match(r'^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s\-\'\.0-9]+$', v):
+                raise ValueError('El nombre de la granja contiene caracteres no permitidos')
         
         return v
 
