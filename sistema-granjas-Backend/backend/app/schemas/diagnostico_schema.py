@@ -4,11 +4,13 @@ from datetime import datetime
 from enum import Enum
 
 class TipoDiagnostico(str, Enum):
-    NUTRICIONAL = "nutricional"
-    PLAGAS = "plagas"
-    CONTROLADORES_BIOLÓGICOS = "controladores_biológicos"
-    FENOLOGÍA = "fenología"
     CENSO_POBLACIONAL = "censo_poblacional"
+    MONITOREO_FENOLOGICO = "monitoreo_fenologico"
+    ARTROPODOS = "artropodos"
+    ENFERMEDADES = "enfermedades"
+    ARVENSES = "arvenses"
+    CONTROLADORES_BIOLOGICOS = "controladores_biologicos"
+    POLINIZADORES = "polinizadores"
 
 class EstadoDiagnostico(str, Enum):
     ABIERTO = "abierto"
