@@ -114,17 +114,6 @@ class LoteBase(BaseModel):
             raise ValueError('Si especifica cultivo_id, debe proporcionar nombre_cultivo')
         
         return values
-    
-    @model_validator(mode='after')
-    def validar_granja_consistente(cls, values):
-        granja_id = values.granja_id
-        nombre_granja = values.nombre_granja
-        
-        # CORREGIDO: El mensaje ahora menciona granja_id en lugar de cultivo_id
-        if granja_id and not nombre_granja:
-            raise ValueError('Si especifica granja_id, debe proporcionar nombre_granja')
-        
-        return values
 
 class LoteCreate(LoteBase):
     pass
