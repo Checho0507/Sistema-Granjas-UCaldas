@@ -25,7 +25,7 @@ class LoteBase(BaseModel):
         if len(v) > 100:
             raise ValueError('El nombre del lote no puede tener más de 100 caracteres')
         
-        # Validar formato del nombre (letras, números, espacios, puntos, guiones)
+        # Validar formato del nombre (letras, números, espacios, puntos, guiones, paréntesis)
         if not re.match(r'^[a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s\-.,()]+$', v):
             raise ValueError('El nombre del lote contiene caracteres no permitidos')
         
@@ -70,7 +70,7 @@ class LoteBase(BaseModel):
         return v
     
     @field_validator('nombre_granja')
-    def validar_nombre_cultivo(cls, v):
+    def validar_nombre_granja(cls, v):
         if v is not None:
             if len(v.strip()) < 2:
                 raise ValueError('El nombre de la granja debe tener al menos 2 caracteres')
@@ -82,7 +82,6 @@ class LoteBase(BaseModel):
                 raise ValueError('El nombre de la granja contiene caracteres no permitidos')
         
         return v
-
     
     @field_validator('estado')
     def validar_estado(cls, v):
@@ -115,6 +114,17 @@ class LoteBase(BaseModel):
             raise ValueError('Si especifica cultivo_id, debe proporcionar nombre_cultivo')
         
         return values
+    
+    @model_validator(mode='after')
+    def validar_granja_consistente(cls, values):
+        granja_id = values.granja_id
+        nombre_granja = values.nombre_granja
+        
+        # CORREGIDO: El mensaje ahora menciona granja_id en lugar de cultivo_id
+        if granja_id and not nombre_granja:
+            raise ValueError('Si especifica granja_id, debe proporcionar nombre_granja')
+        
+        return values
 
 class LoteCreate(LoteBase):
     pass
@@ -123,6 +133,7 @@ class LoteUpdate(BaseModel):
     nombre: Optional[str] = None
     tipo_lote_id: Optional[int] = None
     granja_id: Optional[int] = None
+    nombre_granja: Optional[str] = None
     programa_id: Optional[int] = None
     cultivo_id: Optional[int] = None
     nombre_cultivo: Optional[str] = None
@@ -138,7 +149,8 @@ class LoteUpdate(BaseModel):
             if len(v) > 100:
                 raise ValueError('El nombre del lote no puede tener más de 100 caracteres')
             
-            if not re.match(r'^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s\-\_0-9]+$', v):
+            # CORREGIDO: Añadí paréntesis y puntos a los caracteres permitidos para mantener consistencia con LoteBase
+            if not re.match(r'^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s\-\_0-9.,()]+$', v):
                 raise ValueError('El nombre del lote contiene caracteres no permitidos')
             
         return v
@@ -156,7 +168,7 @@ class LoteUpdate(BaseModel):
     @model_validator(mode='after')
     def validar_al_menos_un_campo(cls, values):
         campos = [
-            values.nombre, values.tipo_lote_id, values.granja_id, 
+            values.nombre, values.tipo_lote_id, values.granja_id, values.nombre_granja,
             values.programa_id, values.cultivo_id, values.nombre_cultivo,
             values.fecha_inicio, values.estado
         ]
@@ -174,8 +186,17 @@ class LoteResponse(LoteBase):
     class Config:
         from_attributes = True
 
+# Nota: Estos imports deben estar disponibles cuando se usen estas clases
+# from app.schemas.cultivo_schema import CultivoEspecieResponse
+# from app.schemas.tipo_lote_schema import TipoLoteResponse
+# from app.schemas.granja_schema import GranjaResponse
+# from app.schemas.programa_schema import ProgramaResponse
+
 class LoteWithRelations(LoteResponse):
     cultivo: Optional['CultivoEspecieResponse'] = None
     tipo_lote: Optional['TipoLoteResponse'] = None
     granja: Optional['GranjaResponse'] = None
     programa: Optional['ProgramaResponse'] = None
+    
+    class Config:
+        from_attributes = True
