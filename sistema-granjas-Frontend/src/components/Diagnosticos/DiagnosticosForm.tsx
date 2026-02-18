@@ -406,14 +406,14 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         {/* Secciones específicas según el tipo de diagnóstico seleccionado */}
                         {formData.tipo && (
                             <div className="mt-4">
-                                {formData.tipo === 'censo' && (
+                                {formData.tipo === 'censo_poblaciona' && (
                                     <CensoSection
                                         plantas={plantasSeleccionadas}
                                         caracterizacion={caracterizacion}
                                         onCampoChange={handleCaracterizacionChange}
                                     />
                                 )}
-                                {formData.tipo === 'fenologico' && (
+                                {formData.tipo === 'monitoreo_fenologico' && (
                                     <FenologicoSection
                                         plantas={plantasSeleccionadas.map(p => ({ ...p, fase: '' }))}
                                         caracterizacion={caracterizacion}
