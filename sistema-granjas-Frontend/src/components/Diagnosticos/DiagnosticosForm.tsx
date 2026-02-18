@@ -406,7 +406,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         {/* Secciones específicas según el tipo de diagnóstico seleccionado */}
                         {formData.tipo && (
                             <div className="mt-4">
-                                {formData.tipo === 'censo_poblaciona' && (
+                                {formData.tipo === 'censo_poblacional' && (
                                     <CensoSection
                                         plantas={plantasSeleccionadas}
                                         caracterizacion={caracterizacion}
