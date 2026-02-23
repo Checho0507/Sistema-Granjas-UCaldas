@@ -5,6 +5,7 @@ import { FenologicoSection } from './FenologicoSection';
 import { ArthropodSection } from './ArthropodSection';
 import { EnfermedadesSection} from './EnfermedadesSection';
 import { ArvensesSection } from './ArvensesSection';
+import { ControladoresSection } from './ControladoresSection';
 
 const TIPOS_MONITOREO = [
     { value: 'citricos', label: 'MONITOREO EN CÍTRICOS' },
@@ -460,6 +461,14 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                     caracterizacion={caracterizacion}
                                     onCampoChange={handleCaracterizacionChange}/>
                                 )}
+                                {formData.tipo === 'controladores_biologicos' &&(
+                                    <ControladoresSection
+                                    plantas={plantasSeleccionadas}
+                                    caracterizacion={caracterizacion}
+                                    onCampoChange={handleCaracterizacionChange}
+                                    />
+                                )
+                                }
                             </div>
                         )}
 

@@ -25,6 +25,10 @@ export interface Arvenses {
   campos_requeridos: string[];
 }
 
+export interface Controladores {
+  campos_requeridos: string[];
+}
+
 export interface Formulario {
   id: string;
   caracterizacion_template: CaracterizacionTemplate;
@@ -33,6 +37,7 @@ export interface Formulario {
   artropodos: Artropodos;
   enfermedades: Enfermedades;
   arvenses: Arvenses;
+  controladores: Controladores;
 }
 
 export interface PlantaBase {
