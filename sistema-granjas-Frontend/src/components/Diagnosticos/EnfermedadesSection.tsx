@@ -1,7 +1,7 @@
 import React from 'react';
 import { PlantaBase } from '../../types/diagnosticoTypes';
 
-// Constantes (igual que antes)
+// Constantes
 const AGENTES = [
   { value: 'hongo', label: 'Hongo' },
   { value: 'bacteria', label: 'Bacteria' },
@@ -106,297 +106,258 @@ export const EnfermedadesSection: React.FC<EnfermedadesSectionProps> = ({
   caracterizacion,
   onCampoChange,
 }) => {
-  // Prefijo para todas las claves de esta sección
   const prefix = 'enfermedades';
 
-  // Obtener el agente seleccionado desde caracterizacion
-  const agente = caracterizacion[`${prefix}_agente`] || '';
-
-  // Obtener enfermedades seleccionadas (como array de ids)
-  const enfermedadesSeleccionadas = caracterizacion[`${prefix}_enfermedades`]
-    ? JSON.parse(caracterizacion[`${prefix}_enfermedades`] || '[]')
-    : [];
-
-  // Función auxiliar para actualizar un campo
+  // Función auxiliar para actualizar un campo (maneja arrays/objetos como JSON)
   const handleChange = (clave: string, valor: any) => {
-    // Si el valor es un array u objeto, lo convertimos a JSON para guardarlo como string
     const valorString = typeof valor === 'object' ? JSON.stringify(valor) : String(valor);
     onCampoChange(clave, valorString);
   };
 
-  // Manejar cambio de agente
-  const handleAgenteChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const nuevoAgente = e.target.value;
-    handleChange(`${prefix}_agente`, nuevoAgente);
-    // Limpiar enfermedades seleccionadas al cambiar agente
-    handleChange(`${prefix}_enfermedades`, []);
+  // Obtener agentes seleccionados para una planta
+  const getAgentesPlanta = (codigo: string): string[] => {
+    const key = `${prefix}_${codigo}_agentes`;
+    return caracterizacion[key] ? JSON.parse(caracterizacion[key]) : [];
   };
 
-  // Manejar toggle de enfermedad
-  const handleEnfermedadToggle = (enfermedadId: string, checked: boolean) => {
-    const nuevas = checked
-      ? [...enfermedadesSeleccionadas, enfermedadId]
-      : enfermedadesSeleccionadas.filter((id: string) => id !== enfermedadId);
-    handleChange(`${prefix}_enfermedades`, nuevas);
+  // Obtener enfermedades seleccionadas para una planta y agente
+  const getEnfermedadesPlantaAgente = (codigo: string, agente: string): string[] => {
+    const key = `${prefix}_${codigo}_${agente}_enfermedades`;
+    return caracterizacion[key] ? JSON.parse(caracterizacion[key]) : [];
   };
 
-  // Manejar checkboxes de síntomas (múltiples)
-  const handleSintomasChange = (enfermedadId: string, sintoma: string, checked: boolean) => {
-    const clave = `${prefix}_${enfermedadId}_sintomas`;
-    const current = caracterizacion[clave] ? JSON.parse(caracterizacion[clave]) : [];
+  // Manejar toggle de agente para una planta
+  const handleAgenteToggle = (codigo: string, agente: string, checked: boolean) => {
+    const key = `${prefix}_${codigo}_agentes`;
+    const actuales = getAgentesPlanta(codigo);
     const nuevos = checked
-      ? [...current, sintoma]
-      : current.filter((s: string) => s !== sintoma);
-    handleChange(clave, nuevos);
-  };
+      ? [...actuales, agente]
+      : actuales.filter((a: string) => a !== agente);
+    handleChange(key, nuevos);
 
-  // Manejar campo de texto para "Otro"
-  const handleOtroChange = (clave: string, valor: string) => {
-    handleChange(clave, valor);
-  };
-
-  // Manejar fotos (archivos) - Nota: esto debería integrarse con el manejo de archivos del padre
-  // Por simplicidad, aquí solo guardamos los nombres de los archivos o los manejamos de forma separada
-  const handleFotosChange = (enfermedadId: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files) {
-      // Aquí deberías subir los archivos y obtener URLs, o guardar los File objects en un estado global
-      // Por ahora, solo guardamos los nombres como ejemplo (no recomendado)
-      const nombres = Array.from(files).map(f => f.name);
-      handleChange(`${prefix}_${enfermedadId}_fotos`, nombres.join(', '));
+    // Si se deselecciona un agente, limpiar todas las enfermedades y datos asociados
+    if (!checked) {
+      // Eliminar todas las claves que comiencen con `${prefix}_${codigo}_${agente}_`
+      Object.keys(caracterizacion).forEach(k => {
+        if (k.startsWith(`${prefix}_${codigo}_${agente}_`)) {
+          // No podemos eliminar directamente de caracterizacion, pero podemos setear a vacío?
+          // onCampoChange(k, ''); // Esto dejaría claves vacías, mejor no hacer nada por ahora
+          // Nota: Como caracterizacion es un objeto controlado por el padre, no podemos eliminar propiedades directamente.
+          // En su lugar, podemos setearlas a vacío o a un valor por defecto.
+          handleChange(k, '');
+        }
+      });
     }
   };
 
-  // Obtener lista de códigos de plantas para mostrar como ayuda
-  const codigosValidos = plantas.map(p => p.codigo).join(', ');
+  // Manejar toggle de enfermedad para una planta y agente
+  const handleEnfermedadToggle = (codigo: string, agente: string, enfermedadId: string, checked: boolean) => {
+    const key = `${prefix}_${codigo}_${agente}_enfermedades`;
+    const actuales = getEnfermedadesPlantaAgente(codigo, agente);
+    const nuevos = checked
+      ? [...actuales, enfermedadId]
+      : actuales.filter((e: string) => e !== enfermedadId);
+    handleChange(key, nuevos);
 
-  // Renderizar campos para una enfermedad
-  const renderEnfermedadFields = (enfermedadId: string, enfermedadLabel: string) => {
-    const baseClave = `${prefix}_${enfermedadId}`;
-    const plantasClave = `${baseClave}_plantasAfectadas`;
+    // Si se deselecciona una enfermedad, limpiar sus campos específicos
+    if (!checked) {
+      const baseKey = `${prefix}_${codigo}_${agente}_${enfermedadId}`;
+      // Eliminar todas las claves que comiencen con baseKey + '_'
+      Object.keys(caracterizacion).forEach(k => {
+        if (k.startsWith(baseKey + '_')) {
+          handleChange(k, '');
+        }
+      });
+    }
+  };
 
-    // Para nematodos
+  // Renderizar campos para una enfermedad específica en una planta
+  const renderEnfermedadFields = (codigo: string, agente: string, enfermedadId: string, enfermedadLabel: string) => {
+    const baseKey = `${prefix}_${codigo}_${agente}_${enfermedadId}`;
+
+    // Campos comunes
+    const hojasKey = `${baseKey}_hojas`; // para enfermedades que requieren número de hojas
+    const presenteKey = `${baseKey}_presente`; // para enfermedades que solo requieren presencia (check)
+    const sintomasKey = `${baseKey}_sintomas`;
+    const otroKey = `${baseKey}_otro`;
+    const vectorKey = `${baseKey}_vector`; // para HLB
+
+    // Valores actuales
+    const hojas = caracterizacion[hojasKey] || '';
+    const presente = caracterizacion[presenteKey] === 'true';
+    const sintomas = caracterizacion[sintomasKey] ? JSON.parse(caracterizacion[sintomasKey]) : [];
+    const otro = caracterizacion[otroKey] || '';
+    const vector = caracterizacion[vectorKey] || '';
+
+    // Definir qué tipo de campos mostrar según la enfermedad
     if (enfermedadId === 'nematodos') {
-      const sintomasPlantaClave = `${baseClave}_sintomasPlanta`;
-      const sintomasRaizClave = `${baseClave}_sintomasRaiz`;
-      const posibleNematodoClave = `${baseClave}_posibleNematodo`;
-      const otroNematodoClave = `${baseClave}_otroNematodo`;
+      // Nematodos tiene estructura compleja
+      const sintomasPlantaKey = `${baseKey}_sintomasPlanta`;
+      const sintomasRaizKey = `${baseKey}_sintomasRaiz`;
+      const posibleNematodoKey = `${baseKey}_posibleNematodo`;
+      const otroNematodoKey = `${baseKey}_otroNematodo`;
 
-      // Valores actuales
-      const plantasAfectadas = caracterizacion[plantasClave] || '';
-      const sintomasPlanta = caracterizacion[sintomasPlantaClave]
-        ? JSON.parse(caracterizacion[sintomasPlantaClave])
-        : [];
-      const sintomasRaiz = caracterizacion[sintomasRaizClave]
-        ? JSON.parse(caracterizacion[sintomasRaizClave])
-        : [];
-      const posibleNematodo = caracterizacion[posibleNematodoClave] || '';
-      const otroNematodo = caracterizacion[otroNematodoClave] || '';
+      const sintomasPlanta = caracterizacion[sintomasPlantaKey] ? JSON.parse(caracterizacion[sintomasPlantaKey]) : [];
+      const sintomasRaiz = caracterizacion[sintomasRaizKey] ? JSON.parse(caracterizacion[sintomasRaizKey]) : [];
+      const posibleNematodo = caracterizacion[posibleNematodoKey] || '';
+      const otroNematodo = caracterizacion[otroNematodoKey] || '';
 
       return (
-        <div key={enfermedadId} className="border p-4 rounded-lg bg-white shadow-sm mb-4">
-          <h4 className="font-semibold text-lg mb-2">{enfermedadLabel}</h4>
+        <div key={enfermedadId} className="ml-4 mt-2 p-3 border-l-2 border-gray-300">
+          <h5 className="font-medium text-sm text-gray-700 mb-2">{enfermedadLabel}</h5>
 
-          {/* Plantas afectadas */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Plantas afectadas por NEMATODOS
+          {/* Checkbox de presencia (ya que es por planta) */}
+          <div className="mb-2">
+            <label className="flex items-center text-sm">
+              <input
+                type="checkbox"
+                checked={presente}
+                onChange={(e) => handleChange(presenteKey, e.target.checked)}
+                className="mr-2"
+              />
+              <span>¿Presente en esta planta?</span>
             </label>
-            <p className="text-xs text-gray-500 mb-2">
-              Formato: SURCO - PLANTA (separados por coma). Ej: 4-6, 2-4
-            </p>
-            <input
-              type="text"
-              value={plantasAfectadas}
-              onChange={(e) => handleChange(plantasClave, e.target.value)}
-              className="border rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Ej: 4-6, 2-4"
-            />
-            {codigosValidos && (
-              <p className="text-xs text-gray-400 mt-1">
-                Códigos válidos: {codigosValidos}
-              </p>
-            )}
           </div>
 
-          {/* Síntomas en la planta */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Síntomas observados en la planta
-            </label>
-            <div className="space-y-1">
-              {SINTOMAS_POR_ENFERMEDAD.nematodos.planta.map((sintoma) => (
-                <label key={sintoma} className="flex items-center">
+          {presente && (
+            <>
+              {/* Síntomas en la planta */}
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-600 mb-1">Síntomas en la planta</label>
+                <div className="space-y-1">
+                  {SINTOMAS_POR_ENFERMEDAD.nematodos.planta.map((sintoma) => (
+                    <label key={sintoma} className="flex items-center text-sm">
+                      <input
+                        type="checkbox"
+                        checked={sintomasPlanta.includes(sintoma)}
+                        onChange={(e) => {
+                          const nuevos = e.target.checked
+                            ? [...sintomasPlanta, sintoma]
+                            : sintomasPlanta.filter((s: string) => s !== sintoma);
+                          handleChange(sintomasPlantaKey, nuevos);
+                        }}
+                        className="mr-2"
+                      />
+                      {sintoma}
+                    </label>
+                  ))}
+                </div>
+                <div className="mt-1">
                   <input
-                    type="checkbox"
-                    checked={sintomasPlanta.includes(sintoma)}
-                    onChange={(e) => {
-                      const nuevos = e.target.checked
-                        ? [...sintomasPlanta, sintoma]
-                        : sintomasPlanta.filter((s: string) => s !== sintoma);
-                      handleChange(sintomasPlantaClave, nuevos);
-                    }}
-                    className="mr-2"
+                    type="text"
+                    value={caracterizacion[`${baseKey}_otroSintomaPlanta`] || ''}
+                    onChange={(e) => handleChange(`${baseKey}_otroSintomaPlanta`, e.target.value)}
+                    className="border rounded px-2 py-1 w-full text-sm"
+                    placeholder="Otro síntoma en planta"
                   />
-                  <span className="text-sm">{sintoma}</span>
-                </label>
-              ))}
-            </div>
-            <div className="mt-2">
-              <label className="block text-sm text-gray-600">Otro (especifique)</label>
-              <input
-                type="text"
-                value={caracterizacion[`${baseClave}_otroSintomaPlanta`] || ''}
-                onChange={(e) => handleChange(`${baseClave}_otroSintomaPlanta`, e.target.value)}
-                className="border rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Otro síntoma"
-              />
-            </div>
-          </div>
+                </div>
+              </div>
 
-          {/* Síntomas en raíces */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Síntomas observados en raíces
-            </label>
-            <div className="space-y-1">
-              {SINTOMAS_POR_ENFERMEDAD.nematodos.raiz.map((sintoma) => (
-                <label key={sintoma} className="flex items-center">
+              {/* Síntomas en raíces */}
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-600 mb-1">Síntomas en raíces</label>
+                <div className="space-y-1">
+                  {SINTOMAS_POR_ENFERMEDAD.nematodos.raiz.map((sintoma) => (
+                    <label key={sintoma} className="flex items-center text-sm">
+                      <input
+                        type="checkbox"
+                        checked={sintomasRaiz.includes(sintoma)}
+                        onChange={(e) => {
+                          const nuevos = e.target.checked
+                            ? [...sintomasRaiz, sintoma]
+                            : sintomasRaiz.filter((s: string) => s !== sintoma);
+                          handleChange(sintomasRaizKey, nuevos);
+                        }}
+                        className="mr-2"
+                      />
+                      {sintoma}
+                    </label>
+                  ))}
+                </div>
+                <div className="mt-1">
                   <input
-                    type="checkbox"
-                    checked={sintomasRaiz.includes(sintoma)}
-                    onChange={(e) => {
-                      const nuevos = e.target.checked
-                        ? [...sintomasRaiz, sintoma]
-                        : sintomasRaiz.filter((s: string) => s !== sintoma);
-                      handleChange(sintomasRaizClave, nuevos);
-                    }}
-                    className="mr-2"
+                    type="text"
+                    value={caracterizacion[`${baseKey}_otroSintomaRaiz`] || ''}
+                    onChange={(e) => handleChange(`${baseKey}_otroSintomaRaiz`, e.target.value)}
+                    className="border rounded px-2 py-1 w-full text-sm"
+                    placeholder="Otro síntoma en raíz"
                   />
-                  <span className="text-sm">{sintoma}</span>
-                </label>
-              ))}
-            </div>
-            <div className="mt-2">
-              <label className="block text-sm text-gray-600">Otro (especifique)</label>
-              <input
-                type="text"
-                value={caracterizacion[`${baseClave}_otroSintomaRaiz`] || ''}
-                onChange={(e) => handleChange(`${baseClave}_otroSintomaRaiz`, e.target.value)}
-                className="border rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Otro síntoma en raíces"
-              />
-            </div>
-          </div>
+                </div>
+              </div>
 
-          {/* Posible nematodo */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Según los síntomas, el posible nematodo es:
-            </label>
-            <select
-              value={posibleNematodo}
-              onChange={(e) => handleChange(posibleNematodoClave, e.target.value)}
-              className="border rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">-- Seleccione --</option>
-              {POSIBLES_NEMATODOS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-            {posibleNematodo === 'otro' && (
-              <input
-                type="text"
-                value={otroNematodo}
-                onChange={(e) => handleChange(otroNematodoClave, e.target.value)}
-                className="border rounded px-3 py-2 w-full mt-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Especifique otro nematodo"
-              />
-            )}
-          </div>
-
-          {/* Fotos */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Fotos tomadas en campo de síntomas
-            </label>
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={(e) => handleFotosChange(enfermedadId, e)}
-              className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-            />
-            <p className="text-xs text-gray-400 mt-1">Hasta 5 archivos, máximo 10 MB cada uno.</p>
-          </div>
+              {/* Posible nematodo */}
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-600 mb-1">Posible nematodo</label>
+                <select
+                  value={posibleNematodo}
+                  onChange={(e) => handleChange(posibleNematodoKey, e.target.value)}
+                  className="border rounded px-2 py-1 w-full text-sm"
+                >
+                  <option value="">-- Seleccione --</option>
+                  {POSIBLES_NEMATODOS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                {posibleNematodo === 'otro' && (
+                  <input
+                    type="text"
+                    value={otroNematodo}
+                    onChange={(e) => handleChange(otroNematodoKey, e.target.value)}
+                    className="border rounded px-2 py-1 w-full mt-1 text-sm"
+                    placeholder="Especifique otro nematodo"
+                  />
+                )}
+              </div>
+            </>
+          )}
         </div>
       );
     }
 
-    // Para enfermedades con síntomas simples
-    const sintomas = SINTOMAS_POR_ENFERMEDAD[enfermedadId as keyof typeof SINTOMAS_POR_ENFERMEDAD];
-    if (Array.isArray(sintomas)) {
-      const plantasAfectadas = caracterizacion[plantasClave] || '';
-      const sintomasSeleccionados = caracterizacion[`${baseClave}_sintomas`]
-        ? JSON.parse(caracterizacion[`${baseClave}_sintomas`])
-        : [];
-
+    // Enfermedades que requieren número de hojas (la mayoría)
+    if (['antracnosis', 'mancha_grasienta', 'hlb', 'xylella', 'ctv'].includes(enfermedadId)) {
       return (
-        <div key={enfermedadId} className="border p-4 rounded-lg bg-white shadow-sm mb-4">
-          <h4 className="font-semibold text-lg mb-2">{enfermedadLabel}</h4>
-
-          {/* Plantas afectadas */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Plantas afectadas por {enfermedadLabel}
-            </label>
-            <p className="text-xs text-gray-500 mb-2">
-              Formato: SURCO - PLANTA - # HOJAS AFECTADAS (separados por coma). Ej: 4-6-2 Hojas afectadas, 2-4-4 Hojas afectadas
-            </p>
+        <div key={enfermedadId} className="ml-4 mt-2 p-3 border-l-2 border-gray-300">
+          <h5 className="font-medium text-sm text-gray-700 mb-2">{enfermedadLabel}</h5>
+          <div className="mb-2">
+            <label className="block text-sm text-gray-600">Número de hojas afectadas</label>
             <input
-              type="text"
-              value={plantasAfectadas}
-              onChange={(e) => handleChange(plantasClave, e.target.value)}
-              className="border rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Ej: 4-6-2 Hojas afectadas, 2-4-4 Hojas afectadas"
+              type="number"
+              min="0"
+              value={hojas}
+              onChange={(e) => handleChange(hojasKey, e.target.value)}
+              className="border rounded px-2 py-1 w-32 text-sm"
+              placeholder="0"
             />
-            {codigosValidos && (
-              <p className="text-xs text-gray-400 mt-1">
-                Códigos válidos: {codigosValidos}
-              </p>
-            )}
           </div>
 
           {/* Síntomas */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Síntomas observados
-            </label>
+          <div className="mb-2">
+            <label className="block text-sm font-medium text-gray-600 mb-1">Síntomas observados</label>
             <div className="space-y-1">
-              {sintomas.map((sintoma) => (
-                <label key={sintoma} className="flex items-center">
+              {SINTOMAS_POR_ENFERMEDAD[enfermedadId as keyof typeof SINTOMAS_POR_ENFERMEDAD]?.map((sintoma: string) => (
+                <label key={sintoma} className="flex items-center text-sm">
                   <input
                     type="checkbox"
-                    checked={sintomasSeleccionados.includes(sintoma)}
+                    checked={sintomas.includes(sintoma)}
                     onChange={(e) => {
                       const nuevos = e.target.checked
-                        ? [...sintomasSeleccionados, sintoma]
-                        : sintomasSeleccionados.filter((s: string) => s !== sintoma);
-                      handleChange(`${baseClave}_sintomas`, nuevos);
+                        ? [...sintomas, sintoma]
+                        : sintomas.filter((s: string) => s !== sintoma);
+                      handleChange(sintomasKey, nuevos);
                     }}
                     className="mr-2"
                   />
-                  <span className="text-sm">{sintoma}</span>
+                  {sintoma}
                 </label>
               ))}
             </div>
-            <div className="mt-2">
-              <label className="block text-sm text-gray-600">Otro (especifique)</label>
+            <div className="mt-1">
               <input
                 type="text"
-                value={caracterizacion[`${baseClave}_otro`] || ''}
-                onChange={(e) => handleChange(`${baseClave}_otro`, e.target.value)}
-                className="border rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={otro}
+                onChange={(e) => handleChange(otroKey, e.target.value)}
+                className="border rounded px-2 py-1 w-full text-sm"
                 placeholder="Otro síntoma"
               />
             </div>
@@ -404,29 +365,27 @@ export const EnfermedadesSection: React.FC<EnfermedadesSectionProps> = ({
 
           {/* Campo adicional para HLB */}
           {enfermedadId === 'hlb' && (
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                ¿Hay presencia del vector Diaphorina citri en el cultivo?
-              </label>
+            <div className="mb-2">
+              <label className="block text-sm font-medium text-gray-600 mb-1">Vector Diaphorina citri</label>
               <div className="flex space-x-4">
-                <label className="flex items-center">
+                <label className="flex items-center text-sm">
                   <input
                     type="radio"
-                    name={`${baseClave}_vector`}
+                    name={`${baseKey}_vector`}
                     value="si"
-                    checked={caracterizacion[`${baseClave}_vector`] === 'si'}
-                    onChange={(e) => handleChange(`${baseClave}_vector`, e.target.value)}
+                    checked={vector === 'si'}
+                    onChange={(e) => handleChange(vectorKey, e.target.value)}
                     className="mr-1"
                   />
                   Sí
                 </label>
-                <label className="flex items-center">
+                <label className="flex items-center text-sm">
                   <input
                     type="radio"
-                    name={`${baseClave}_vector`}
+                    name={`${baseKey}_vector`}
                     value="no"
-                    checked={caracterizacion[`${baseClave}_vector`] === 'no'}
-                    onChange={(e) => handleChange(`${baseClave}_vector`, e.target.value)}
+                    checked={vector === 'no'}
+                    onChange={(e) => handleChange(vectorKey, e.target.value)}
                     className="mr-1"
                   />
                   No
@@ -434,21 +393,59 @@ export const EnfermedadesSection: React.FC<EnfermedadesSectionProps> = ({
               </div>
             </div>
           )}
+        </div>
+      );
+    }
 
-          {/* Fotos */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Fotos tomadas en campo de síntomas
+    // Para phytophthora (oomicetos) que solo requiere presencia y síntomas
+    if (enfermedadId === 'phytophthora') {
+      return (
+        <div key={enfermedadId} className="ml-4 mt-2 p-3 border-l-2 border-gray-300">
+          <h5 className="font-medium text-sm text-gray-700 mb-2">{enfermedadLabel}</h5>
+          <div className="mb-2">
+            <label className="flex items-center text-sm">
+              <input
+                type="checkbox"
+                checked={presente}
+                onChange={(e) => handleChange(presenteKey, e.target.checked)}
+                className="mr-2"
+              />
+              <span>¿Presente en esta planta?</span>
             </label>
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={(e) => handleFotosChange(enfermedadId, e)}
-              className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-            />
-            <p className="text-xs text-gray-400 mt-1">Hasta 5 archivos, máximo 10 MB cada uno.</p>
           </div>
+
+          {presente && (
+            <div className="mb-2">
+              <label className="block text-sm font-medium text-gray-600 mb-1">Síntomas observados</label>
+              <div className="space-y-1">
+                {SINTOMAS_POR_ENFERMEDAD.phytophthora.map((sintoma) => (
+                  <label key={sintoma} className="flex items-center text-sm">
+                    <input
+                      type="checkbox"
+                      checked={sintomas.includes(sintoma)}
+                      onChange={(e) => {
+                        const nuevos = e.target.checked
+                          ? [...sintomas, sintoma]
+                          : sintomas.filter((s: string) => s !== sintoma);
+                        handleChange(sintomasKey, nuevos);
+                      }}
+                      className="mr-2"
+                    />
+                    {sintoma}
+                  </label>
+                ))}
+              </div>
+              <div className="mt-1">
+                <input
+                  type="text"
+                  value={otro}
+                  onChange={(e) => handleChange(otroKey, e.target.value)}
+                  className="border rounded px-2 py-1 w-full text-sm"
+                  placeholder="Otro síntoma"
+                />
+              </div>
+            </div>
+          )}
         </div>
       );
     }
@@ -459,60 +456,85 @@ export const EnfermedadesSection: React.FC<EnfermedadesSectionProps> = ({
   return (
     <div className="bg-gray-50 p-6 rounded-lg shadow-md">
       <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-        Monitoreo de Enfermedades en Cítricos
+        Monitoreo de Enfermedades por Planta
       </h2>
 
-      {/* Selector de agente causal */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Agente(s) causal de las enfermedades vistas en campo *
-        </label>
-        <select
-          value={agente}
-          onChange={handleAgenteChange}
-          className="border rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-          required
-        >
-          <option value="">-- Seleccione un agente --</option>
-          {AGENTES.map(a => (
-            <option key={a.value} value={a.value}>{a.label}</option>
-          ))}
-        </select>
-      </div>
+      <p className="text-sm text-gray-600 mb-4">
+        Para cada planta, seleccione los agentes causales observados y luego las enfermedades específicas.
+      </p>
 
-      {/* Enfermedades según agente */}
-      {agente && (
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Enfermedades monitoreadas en campo {
-              agente === 'hongo' ? 'causadas por hongos' :
-              agente === 'bacteria' ? 'causadas por bacterias' :
-              agente === 'virus' ? 'causadas por virus' :
-              agente === 'nematodos' ? 'causadas por nematodos' :
-              agente === 'oomicetos' ? 'causadas por oomicetos' : ''
-            }
-          </label>
-          <div className="space-y-2">
-            {ENFERMEDADES_POR_AGENTE[agente as keyof typeof ENFERMEDADES_POR_AGENTE]?.map(enf => (
-              <label key={enf.id} className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={enfermedadesSeleccionadas.includes(enf.id)}
-                  onChange={(e) => handleEnfermedadToggle(enf.id, e.target.checked)}
-                  className="mr-2"
-                />
-                <span className="text-sm">{enf.label}</span>
+      {plantas.map((planta) => {
+        const codigo = planta.codigo;
+        const agentesSeleccionados = getAgentesPlanta(codigo);
+
+        return (
+          <div key={codigo} className="border rounded-lg p-4 mb-6 bg-white shadow-sm">
+            <h3 className="font-semibold text-lg text-gray-800 mb-3">
+              {planta.label} (Código: {codigo})
+            </h3>
+
+            {/* Selector de agentes (múltiple) */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Agentes causales presentes *
               </label>
-            ))}
-          </div>
-        </div>
-      )}
+              <div className="flex flex-wrap gap-4">
+                {AGENTES.map(agente => (
+                  <label key={agente.value} className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={agentesSeleccionados.includes(agente.value)}
+                      onChange={(e) => handleAgenteToggle(codigo, agente.value, e.target.checked)}
+                      className="mr-2"
+                    />
+                    <span className="text-sm">{agente.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
 
-      {/* Campos para cada enfermedad seleccionada */}
-      {enfermedadesSeleccionadas.map((enfermedadId: string) => {
-        const enfermedad = ENFERMEDADES_POR_AGENTE[agente as keyof typeof ENFERMEDADES_POR_AGENTE]?.find(e => e.id === enfermedadId);
-        if (!enfermedad) return null;
-        return renderEnfermedadFields(enfermedadId, enfermedad.label);
+            {/* Por cada agente seleccionado, mostrar sus enfermedades */}
+            {agentesSeleccionados.map(agente => {
+              const enfermedades = ENFERMEDADES_POR_AGENTE[agente as keyof typeof ENFERMEDADES_POR_AGENTE] || [];
+              const enfermedadesSeleccionadas = getEnfermedadesPlantaAgente(codigo, agente);
+
+              return (
+                <div key={agente} className="ml-2 mb-4 p-3 border rounded bg-gray-50">
+                  <h4 className="font-medium text-md text-gray-700 mb-2">
+                    {AGENTES.find(a => a.value === agente)?.label}
+                  </h4>
+
+                  {/* Checkboxes de enfermedades para este agente */}
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-gray-600 mb-1">
+                      Enfermedades observadas
+                    </label>
+                    <div className="space-y-1">
+                      {enfermedades.map(enf => (
+                        <label key={enf.id} className="flex items-center text-sm">
+                          <input
+                            type="checkbox"
+                            checked={enfermedadesSeleccionadas.includes(enf.id)}
+                            onChange={(e) => handleEnfermedadToggle(codigo, agente, enf.id, e.target.checked)}
+                            className="mr-2"
+                          />
+                          {enf.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Campos para cada enfermedad seleccionada */}
+                  {enfermedadesSeleccionadas.map(enfermedadId => {
+                    const enfermedad = enfermedades.find(e => e.id === enfermedadId);
+                    if (!enfermedad) return null;
+                    return renderEnfermedadFields(codigo, agente, enfermedadId, enfermedad.label);
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        );
       })}
     </div>
   );
