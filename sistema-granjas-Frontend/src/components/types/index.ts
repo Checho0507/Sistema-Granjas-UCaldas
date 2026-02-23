@@ -21,6 +21,10 @@ export interface Enfermedades {
   campos_requeridos: string[];
 }
 
+export interface Arvenses {
+  campos_requeridos: string[];
+}
+
 export interface Formulario {
   id: string;
   caracterizacion_template: CaracterizacionTemplate;
@@ -28,6 +32,7 @@ export interface Formulario {
   fenologico: Fenologico;
   artropodos: Artropodos;
   enfermedades: Enfermedades;
+  arvenses: Arvenses;
 }
 
 export interface PlantaBase {
@@ -107,6 +112,25 @@ export interface EnfermedadesDatosEnvio {
   enfermedades: Record<string, any>; // se puede tipar más finamente si se desea
 }
 
+export interface ArvensesDatosEnvio {
+  plantas_monitoreadas: string; // ej: "4-6, 2-4"
+  platos: {
+    cobertura_total: number;
+    cobertura_nobles: number;
+    cobertura_agresivas: number;
+    especies_nobles: string;
+    especies_agresivas: string;
+    altura_promedio: number;
+  };
+  calles: {
+    cobertura_nobles: number;
+    cobertura_agresivas: number;
+    especies_nobles: string;
+    especies_agresivas: string;
+    altura_promedio: number;
+  };
+}
+
 export interface DatosEnvio {
   test_id: string;
   caracterizacion_datos: Record<string, string>;
@@ -114,6 +138,7 @@ export interface DatosEnvio {
   fenologico_datos?: FenologicoDatosEnvio;
   artropodo_datos?: ArtropodoDatosEnvio;
   enfermedades_datos?: EnfermedadesDatosEnvio; // <-- NUEVO
+  arvenses_datos?: ArvensesDatosEnvio;
   fecha: string;
   fingerprint: string;
 }
