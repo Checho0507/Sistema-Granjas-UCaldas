@@ -3,9 +3,10 @@ import type { DiagnosticoItem } from '../../types/diagnosticoTypes';
 import { CensoSection } from './CensoSection';
 import { FenologicoSection } from './FenologicoSection';
 import { ArthropodSection } from './ArthropodSection';
-import { EnfermedadesSection} from './EnfermedadesSection';
+import { EnfermedadesSection } from './EnfermedadesSection';
 import { ArvensesSection } from './ArvensesSection';
 import { ControladoresSection } from './ControladoresSection';
+import { PolinizadoresSection } from './PolinizadoresSection';
 
 const TIPOS_MONITOREO = [
     { value: 'citricos', label: 'MONITOREO EN CÍTRICOS' },
@@ -266,8 +267,8 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                     type="button"
                                     onClick={() => setTipoMonitoreo(tipo.value)}
                                     className={`p-4 border-2 rounded-lg text-center transition ${tipoMonitoreo === tipo.value
-                                            ? 'border-blue-600 bg-blue-50'
-                                            : 'border-gray-200 hover:border-blue-300'
+                                        ? 'border-blue-600 bg-blue-50'
+                                        : 'border-gray-200 hover:border-blue-300'
                                         }`}
                                 >
                                     <span className="font-medium">{tipo.label}</span>
@@ -448,27 +449,32 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                         onCampoChange={handleCaracterizacionChange}
                                     />
                                 )}
-                                {formData.tipo === 'enfermedades' &&(
+                                {formData.tipo === 'enfermedades' && (
                                     <EnfermedadesSection
                                         plantas={plantasSeleccionadas}
                                         caracterizacion={caracterizacion}
                                         onCampoChange={handleCaracterizacionChange}
                                     />
                                 )}
-                                {formData.tipo ==='arvenses' &&(
+                                {formData.tipo === 'arvenses' && (
                                     <ArvensesSection
-                                    plantas={plantasSeleccionadas}
-                                    caracterizacion={caracterizacion}
-                                    onCampoChange={handleCaracterizacionChange}/>
+                                        plantas={plantasSeleccionadas}
+                                        caracterizacion={caracterizacion}
+                                        onCampoChange={handleCaracterizacionChange} />
                                 )}
-                                {formData.tipo === 'controladores_biologicos' &&(
+                                {formData.tipo === 'controladores_biologicos' && (
                                     <ControladoresSection
-                                    plantas={plantasSeleccionadas}
-                                    caracterizacion={caracterizacion}
-                                    onCampoChange={handleCaracterizacionChange}
+                                        plantas={plantasSeleccionadas}
+                                        caracterizacion={caracterizacion}
+                                        onCampoChange={handleCaracterizacionChange}
                                     />
-                                )
-                                }
+                                )}
+                                {formData.tipo == 'pilinizadores' && (
+                                    <PolinizadoresSection
+                                        plantas={plantasSeleccionadas}
+                                        caracterizacion={caracterizacion}
+                                        onCampoChange={handleCaracterizacionChange} />
+                                )}
                             </div>
                         )}
 

@@ -29,6 +29,10 @@ export interface Controladores {
   campos_requeridos: string[];
 }
 
+export interface Polinizadores {
+  campos_requeridos: string[];
+}
+
 export interface Formulario {
   id: string;
   caracterizacion_template: CaracterizacionTemplate;
@@ -38,6 +42,7 @@ export interface Formulario {
   enfermedades: Enfermedades;
   arvenses: Arvenses;
   controladores: Controladores;
+  polinizadores: Polinizadores;
 }
 
 export interface PlantaBase {
@@ -49,6 +54,7 @@ export interface PlantaFenologico extends PlantaBase {
   fase: "vegetativa" | "floracion" | "fructificacion" | "";
 }
 
+// Estructuras para envío de datos específicos
 export interface CensoDatosEnvio {
   lote: string;
   plantas: Array<{
@@ -110,40 +116,34 @@ export interface ArtropodoDatosEnvio {
   otro_fotos?: string;
 }
 
-// NUEVA INTERFAZ PARA ENFERMEDADES
+// Interfaces para datos de las nuevas secciones (opcionales, ya que se guardan en caracterizacion_datos)
 export interface EnfermedadesDatosEnvio {
-  agente: string; // 'hongo' | 'bacteria' | 'virus' | 'nematodos' | 'oomicetos'
-  // Mapeo de enfermedadId a sus datos (usando claves planas)
-  enfermedades: Record<string, any>; // se puede tipar más finamente si se desea
+  [key: string]: any;
 }
 
 export interface ArvensesDatosEnvio {
-  plantas_monitoreadas: string; // ej: "4-6, 2-4"
-  platos: {
-    cobertura_total: number;
-    cobertura_nobles: number;
-    cobertura_agresivas: number;
-    especies_nobles: string;
-    especies_agresivas: string;
-    altura_promedio: number;
-  };
-  calles: {
-    cobertura_nobles: number;
-    cobertura_agresivas: number;
-    especies_nobles: string;
-    especies_agresivas: string;
-    altura_promedio: number;
-  };
+  [key: string]: any;
 }
 
+export interface ControladoresDatosEnvio {
+  [key: string]: any;
+}
+
+export interface PolinizadoresDatosEnvio {
+  [key: string]: any;
+}
+
+// Interfaz principal de envío
 export interface DatosEnvio {
   test_id: string;
-  caracterizacion_datos: Record<string, string>;
-  censo_datos?: CensoDatosEnvio;
-  fenologico_datos?: FenologicoDatosEnvio;
-  artropodo_datos?: ArtropodoDatosEnvio;
-  enfermedades_datos?: EnfermedadesDatosEnvio; // <-- NUEVO
-  arvenses_datos?: ArvensesDatosEnvio;
+  caracterizacion_datos: Record<string, string>; // Todos los campos de caracterización (incluye todas las secciones)
+  censo_datos?: CensoDatosEnvio; // Datos estructurados de censo
+  fenologico_datos?: FenologicoDatosEnvio; // Datos estructurados de fenológico
+  artropodo_datos?: ArtropodoDatosEnvio; // Datos estructurados de artrópodos
+  enfermedades_datos?: EnfermedadesDatosEnvio; // Datos de enfermedades (opcional)
+  arvenses_datos?: ArvensesDatosEnvio; // Datos de arvenses (opcional)
+  controladores_datos?: ControladoresDatosEnvio; // Datos de controladores biológicos (opcional)
+  polinizadores_datos?: PolinizadoresDatosEnvio; // Datos de polinizadores (opcional)
   fecha: string;
   fingerprint: string;
 }
