@@ -7,7 +7,6 @@ class ProgramaBase(BaseModel):
     nombre: str
     descripcion: Optional[str] = None
     tipo: str
-    granjas: List[dict]
 
     @field_validator('nombre')
     def validar_nombre(cls, v):

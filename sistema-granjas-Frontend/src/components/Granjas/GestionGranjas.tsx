@@ -5,6 +5,7 @@ import granjaService from '../../services/granjaService';
 import programaService from '../../services/programaService';
 import loteService from '../../services/loteService';
 import laboresService from '../../services/laboresService';
+import asignacionService from '../../services/asignacionService';
 
 interface ProgramaResumen {
   id: string;
@@ -45,65 +46,78 @@ const GestionGranjas: React.FC = () => {
       const granjasData = normalizarArray<any>(granjasResp);
       console.log('Granjas obtenidas:', granjasData);
 
-      // 2. Obtener todos los programas (deben incluir el campo 'granjas' con array de IDs)
+      // 2. Obtener todos los programas
       const programasResp = await programaService.obtenerProgramas();
       const todosProgramas = normalizarArray<any>(programasResp);
       console.log('Programas obtenidos:', todosProgramas);
 
-      // 3. Obtener todos los lotes
+      // 3. Obtener asignaciones programa-granja (desde tabla pivote)
+      let asignaciones: { programa_id: number; granja_id: number }[] = [];
+      try {
+        asignaciones = await asignacionService.obtenerRelacionesProgramaGranja();
+        console.log('Asignaciones obtenidas:', asignaciones);
+      } catch (err) {
+        console.error('Error al obtener asignaciones programa-granja:', err);
+        setError('No se pudieron cargar las asignaciones de programas a granjas. Verifique el backend.');
+        setLoading(false);
+        return;
+      }
+
+      // 4. Obtener todos los lotes
       const lotesResp = await loteService.obtenerLotes();
       const todosLotes = normalizarArray<any>(lotesResp);
       console.log('Lotes obtenidos:', todosLotes);
 
-      // 4. Obtener labores
+      // 5. Obtener labores
       const laboresResp = await laboresService.obtenerLabores();
       const todasLabores = normalizarArray<any>(laboresResp);
       console.log('Labores obtenidas:', todasLabores);
 
-      // 5. Construir mapa de lotes por programa (para conteo rápido)
+      // 6. Construir mapa de lotes por programa
       const lotesPorPrograma = new Map<string, any[]>();
       todosLotes.forEach(lote => {
-        // Ajusta según el nombre del campo que relaciona lote con programa
         const progId = lote.programaId || lote.programa_id || lote.id_programa;
         if (!progId) return;
-        const progIdStr = String(progId);
-        if (!lotesPorPrograma.has(progIdStr)) lotesPorPrograma.set(progIdStr, []);
-        lotesPorPrograma.get(progIdStr)!.push(lote);
+        const key = String(progId);
+        if (!lotesPorPrograma.has(key)) lotesPorPrograma.set(key, []);
+        lotesPorPrograma.get(key)!.push(lote);
       });
 
-      // 6. Construir mapa de programas por granja usando el campo 'granjas' (array de IDs)
+      // 7. Construir mapa de programas por granja usando las asignaciones
       const programasPorGranja = new Map<string, any[]>();
+      
+      const programasMap = new Map<string, any>();
+      todosProgramas.forEach(prog => programasMap.set(String(prog.id), prog));
 
-      todosProgramas.forEach(prog => {
-        const granjasIds = prog.granjas;
-        if (!granjasIds || !Array.isArray(granjasIds)) {
-          console.warn(`Programa "${prog.nombre}" (id: ${prog.id}) no tiene campo 'granjas' válido:`, prog);
+      asignaciones.forEach(asig => {
+        const programaId = String(asig.programa_id);
+        const granjaId = String(asig.granja_id);
+        
+        const programa = programasMap.get(programaId);
+        if (!programa) {
+          console.warn(`Asignación refiere a programa inexistente: ${programaId}`);
           return;
         }
 
-        granjasIds.forEach(granjaId => {
-          if (!granjaId) return;
-          const granjaIdStr = String(granjaId);
-          if (!programasPorGranja.has(granjaIdStr)) {
-            programasPorGranja.set(granjaIdStr, []);
-          }
-          programasPorGranja.get(granjaIdStr)!.push(prog);
-        });
+        if (!programasPorGranja.has(granjaId)) {
+          programasPorGranja.set(granjaId, []);
+        }
+        programasPorGranja.get(granjaId)!.push(programa);
       });
 
       console.log('Mapa programasPorGranja:', Object.fromEntries(programasPorGranja));
 
-      // 7. Para cada granja, armar su detalle
+      // 8. Para cada granja, armar su detalle
       const granjasConDetalles = granjasData.map(granja => {
-        const granjaIdStr = String(granja.id);
-        const programasDeGranja = programasPorGranja.get(granjaIdStr) || [];
-        console.log(`Granja ${granja.nombre} (${granjaIdStr}) tiene ${programasDeGranja.length} programas`);
+        const granjaId = String(granja.id);
+        const programasDeGranja = programasPorGranja.get(granjaId) || [];
+        console.log(`Granja ${granja.nombre} (${granjaId}) tiene ${programasDeGranja.length} programas`);
 
         const programasResumen: ProgramaResumen[] = programasDeGranja.map(prog => {
-          const progIdStr = String(prog.id);
-          const lotesDePrograma = lotesPorPrograma.get(progIdStr) || [];
+          const progId = String(prog.id);
+          const lotesDePrograma = lotesPorPrograma.get(progId) || [];
           return {
-            id: prog.id,
+            id: progId,
             nombre: prog.nombre,
             cantidadLotes: lotesDePrograma.length,
           };
@@ -111,20 +125,15 @@ const GestionGranjas: React.FC = () => {
 
         const totalLotes = programasResumen.reduce((acc, p) => acc + p.cantidadLotes, 0);
 
-        // IDs de todos los lotes de la granja
-        const lotesDeGranja = programasDeGranja.flatMap(prog => {
-          const progIdStr = String(prog.id);
-          return lotesPorPrograma.get(progIdStr) || [];
-        });
+        const lotesDeGranja = programasDeGranja.flatMap(prog => lotesPorPrograma.get(String(prog.id)) || []);
         const lotesIds = lotesDeGranja.map(l => String(l.id));
 
-        // Labores pendientes (no completadas) de esos lotes
         const laboresPendientes = todasLabores.filter(labor =>
           lotesIds.includes(String(labor.loteId)) && labor.estado !== 'completada'
         ).length;
 
         return {
-          id: granja.id,
+          id: granjaId,
           nombre: granja.nombre,
           ubicacion: granja.ubicacion,
           programas: programasResumen,
