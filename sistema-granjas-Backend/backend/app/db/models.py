@@ -1,3 +1,5 @@
+from typing import List
+
 from sqlalchemy import Column, Integer, String, ForeignKey, Float, DateTime, Boolean, Text, Table
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -78,6 +80,7 @@ class Programa(Base):
     tipo = Column(String(50), nullable=False)
     activo = Column(Boolean, default=True)
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    granjas = List[dict]
 
     granjas = relationship("Granja", secondary=granja_programa, back_populates="programas")
     usuarios = relationship("Usuario", secondary=usuario_programa, back_populates="programas")
