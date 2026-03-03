@@ -45,10 +45,10 @@ const GestionGranjas: React.FC = () => {
       const granjasData = normalizarArray<any>(granjasResp);
       console.log('Granjas obtenidas:', granjasData);
 
-      // 2. Obtener todos los programas (con sus relaciones)
+      // 2. Obtener todos los programas (deben incluir el campo 'granjas' con array de IDs)
       const programasResp = await programaService.obtenerProgramas();
       const todosProgramas = normalizarArray<any>(programasResp);
-      console.log('Programas obtenidos (con relaciones):', todosProgramas);
+      console.log('Programas obtenidos:', todosProgramas);
 
       // 3. Obtener todos los lotes
       const lotesResp = await loteService.obtenerLotes();
@@ -66,44 +66,42 @@ const GestionGranjas: React.FC = () => {
         // Ajusta según el nombre del campo que relaciona lote con programa
         const progId = lote.programaId || lote.programa_id || lote.id_programa;
         if (!progId) return;
-        if (!lotesPorPrograma.has(progId)) lotesPorPrograma.set(progId, []);
-        lotesPorPrograma.get(progId)!.push(lote);
+        const progIdStr = String(progId);
+        if (!lotesPorPrograma.has(progIdStr)) lotesPorPrograma.set(progIdStr, []);
+        lotesPorPrograma.get(progIdStr)!.push(lote);
       });
 
-      // 6. Construir mapa de programas por granja usando la relación muchos-a-muchos
+      // 6. Construir mapa de programas por granja usando el campo 'granjas' (array de IDs)
       const programasPorGranja = new Map<string, any[]>();
 
       todosProgramas.forEach(prog => {
-        // Según tu modelo Pydantic, puede venir como 'granjas' (array de objetos) o 'granjas_ids' (array de números)
-        const granjasDelPrograma = prog.granjas || prog.granjas_ids || [];
+        const granjasIds = prog.granjas;
+        if (!granjasIds || !Array.isArray(granjasIds)) {
+          console.warn(`Programa "${prog.nombre}" (id: ${prog.id}) no tiene campo 'granjas' válido:`, prog);
+          return;
+        }
 
-        granjasDelPrograma.forEach((ref: any) => {
-          // ref puede ser un objeto con id, o directamente un id numérico
-          const granjaId = typeof ref === 'object' ? ref.id : ref;
+        granjasIds.forEach(granjaId => {
           if (!granjaId) return;
-
-          if (!programasPorGranja.has(granjaId)) {
-            programasPorGranja.set(granjaId, []);
+          const granjaIdStr = String(granjaId);
+          if (!programasPorGranja.has(granjaIdStr)) {
+            programasPorGranja.set(granjaIdStr, []);
           }
-          programasPorGranja.get(granjaId)!.push(prog);
+          programasPorGranja.get(granjaIdStr)!.push(prog);
         });
-
-        // Si por casualidad tuvieras un campo directo 'granja_id' (relación 1-N), descomenta:
-        // if (prog.granja_id) {
-        //   if (!programasPorGranja.has(prog.granja_id)) programasPorGranja.set(prog.granja_id, []);
-        //   programasPorGranja.get(prog.granja_id)!.push(prog);
-        // }
       });
 
       console.log('Mapa programasPorGranja:', Object.fromEntries(programasPorGranja));
 
       // 7. Para cada granja, armar su detalle
       const granjasConDetalles = granjasData.map(granja => {
-        const programasDeGranja = programasPorGranja.get(granja.id) || [];
-        console.log(`Granja ${granja.nombre} (${granja.id}) tiene ${programasDeGranja.length} programas`);
+        const granjaIdStr = String(granja.id);
+        const programasDeGranja = programasPorGranja.get(granjaIdStr) || [];
+        console.log(`Granja ${granja.nombre} (${granjaIdStr}) tiene ${programasDeGranja.length} programas`);
 
         const programasResumen: ProgramaResumen[] = programasDeGranja.map(prog => {
-          const lotesDePrograma = lotesPorPrograma.get(prog.id) || [];
+          const progIdStr = String(prog.id);
+          const lotesDePrograma = lotesPorPrograma.get(progIdStr) || [];
           return {
             id: prog.id,
             nombre: prog.nombre,
@@ -114,12 +112,15 @@ const GestionGranjas: React.FC = () => {
         const totalLotes = programasResumen.reduce((acc, p) => acc + p.cantidadLotes, 0);
 
         // IDs de todos los lotes de la granja
-        const lotesDeGranja = programasDeGranja.flatMap(prog => lotesPorPrograma.get(prog.id) || []);
-        const lotesIds = lotesDeGranja.map(l => l.id);
+        const lotesDeGranja = programasDeGranja.flatMap(prog => {
+          const progIdStr = String(prog.id);
+          return lotesPorPrograma.get(progIdStr) || [];
+        });
+        const lotesIds = lotesDeGranja.map(l => String(l.id));
 
         // Labores pendientes (no completadas) de esos lotes
         const laboresPendientes = todasLabores.filter(labor =>
-          lotesIds.includes(labor.loteId) && labor.estado !== 'completada'
+          lotesIds.includes(String(labor.loteId)) && labor.estado !== 'completada'
         ).length;
 
         return {
