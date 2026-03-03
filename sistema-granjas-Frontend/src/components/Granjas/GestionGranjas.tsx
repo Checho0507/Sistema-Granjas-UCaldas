@@ -1,13 +1,11 @@
 // src/components/Granjas/GestionGranjas.tsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-// Importamos los servicios necesarios
 import granjaService from '../../services/granjaService';
 import programaService from '../../services/programaService';
 import loteService from '../../services/loteService';
 import laboresService from '../../services/laboresService';
 
-// Interfaces para los datos enriquecidos
 interface ProgramaResumen {
   id: string;
   nombre: string;
@@ -23,96 +21,118 @@ interface GranjaConDetalles {
   laboresPendientes: number;
 }
 
+// Normaliza cualquier respuesta a un array
+const normalizarArray = <T,>(respuesta: any): T[] => {
+  if (Array.isArray(respuesta)) return respuesta;
+  if (respuesta?.items && Array.isArray(respuesta.items)) return respuesta.items;
+  if (respuesta?.data && Array.isArray(respuesta.data)) return respuesta.data;
+  return [];
+};
+
 const GestionGranjas: React.FC = () => {
   const navigate = useNavigate();
   const [granjas, setGranjas] = useState<GranjaConDetalles[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Función para cargar todos los datos jerárquicos
   const cargarGranjas = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // 1. Obtener todas las granjas
-      const granjasData = await granjaService.obtenerGranjas();
-      if (!Array.isArray(granjasData)) {
-        throw new Error('Formato de granjas inválido');
-      }
+      // 1. Obtener granjas
+      const granjasResp = await granjaService.obtenerGranjas();
+      const granjasData = normalizarArray<any>(granjasResp);
+      console.log('Granjas obtenidas:', granjasData);
 
-      // 2. Para cada granja, obtener sus programas y lotes
-      const granjasConDetalles = await Promise.all(
-        granjasData.map(async (granja) => {
-          // Obtener programas de esta granja
-          let programas = [];
-          try {
-            // Intentar usar método específico si existe
-            programas = await programaService.obtenerPorGranja?.(granja.id) || [];
-          } catch {
-            // Fallback: obtener todos y filtrar
-            const todosProgramas = await programaService.obtenerProgramas();
-            programas = Array.isArray(todosProgramas)
-              ? todosProgramas.filter(p => p.granjaId === granja.id)
-              : [];
+      // 2. Obtener todos los programas (con sus relaciones)
+      const programasResp = await programaService.obtenerProgramas();
+      const todosProgramas = normalizarArray<any>(programasResp);
+      console.log('Programas obtenidos (con relaciones):', todosProgramas);
+
+      // 3. Obtener todos los lotes
+      const lotesResp = await loteService.obtenerLotes();
+      const todosLotes = normalizarArray<any>(lotesResp);
+      console.log('Lotes obtenidos:', todosLotes);
+
+      // 4. Obtener labores
+      const laboresResp = await laboresService.obtenerLabores();
+      const todasLabores = normalizarArray<any>(laboresResp);
+      console.log('Labores obtenidas:', todasLabores);
+
+      // 5. Construir mapa de lotes por programa (para conteo rápido)
+      const lotesPorPrograma = new Map<string, any[]>();
+      todosLotes.forEach(lote => {
+        // Ajusta según el nombre del campo que relaciona lote con programa
+        const progId = lote.programaId || lote.programa_id || lote.id_programa;
+        if (!progId) return;
+        if (!lotesPorPrograma.has(progId)) lotesPorPrograma.set(progId, []);
+        lotesPorPrograma.get(progId)!.push(lote);
+      });
+
+      // 6. Construir mapa de programas por granja usando la relación muchos-a-muchos
+      const programasPorGranja = new Map<string, any[]>();
+
+      todosProgramas.forEach(prog => {
+        // Según tu modelo Pydantic, puede venir como 'granjas' (array de objetos) o 'granjas_ids' (array de números)
+        const granjasDelPrograma = prog.granjas || prog.granjas_ids || [];
+
+        granjasDelPrograma.forEach((ref: any) => {
+          // ref puede ser un objeto con id, o directamente un id numérico
+          const granjaId = typeof ref === 'object' ? ref.id : ref;
+          if (!granjaId) return;
+
+          if (!programasPorGranja.has(granjaId)) {
+            programasPorGranja.set(granjaId, []);
           }
+          programasPorGranja.get(granjaId)!.push(prog);
+        });
 
-          // Para cada programa, obtener sus lotes
-          const programasConLotes = await Promise.all(
-            programas.map(async (prog) => {
-              let lotes = [];
-              try {
-                lotes = await loteService.obtenerPorPrograma?.(prog.id) || [];
-              } catch {
-                const todosLotes = await loteService.obtenerLotes();
-                const lotesArray = Array.isArray(todosLotes)
-                  ? todosLotes
-                  : todosLotes?.items || [];
-                lotes = lotesArray.filter(l => l.programaId === prog.id);
-              }
-              return {
-                id: prog.id,
-                nombre: prog.nombre,
-                cantidadLotes: lotes.length,
-              };
-            })
-          );
+        // Si por casualidad tuvieras un campo directo 'granja_id' (relación 1-N), descomenta:
+        // if (prog.granja_id) {
+        //   if (!programasPorGranja.has(prog.granja_id)) programasPorGranja.set(prog.granja_id, []);
+        //   programasPorGranja.get(prog.granja_id)!.push(prog);
+        // }
+      });
 
-          // Calcular total de lotes de la granja
-          const totalLotes = programasConLotes.reduce((acc, p) => acc + p.cantidadLotes, 0);
+      console.log('Mapa programasPorGranja:', Object.fromEntries(programasPorGranja));
 
-          // Calcular labores pendientes para esta granja
-          let laboresPendientes = 0;
-          try {
-            const laboresResponse = await laboresService.obtenerLabores();
-            const todasLabores = Array.isArray(laboresResponse)
-              ? laboresResponse
-              : laboresResponse?.items || [];
+      // 7. Para cada granja, armar su detalle
+      const granjasConDetalles = granjasData.map(granja => {
+        const programasDeGranja = programasPorGranja.get(granja.id) || [];
+        console.log(`Granja ${granja.nombre} (${granja.id}) tiene ${programasDeGranja.length} programas`);
 
-            // Necesitamos los IDs de todos los lotes de la granja
-            const lotesDeGranja = await Promise.all(
-              programas.map(p => loteService.obtenerPorPrograma?.(p.id) || [])
-            ).then(arr => arr.flat());
-
-            const lotesIds = lotesDeGranja.map(l => l.id);
-            laboresPendientes = todasLabores.filter(labor =>
-              lotesIds.includes(labor.loteId) && labor.estado !== 'completada'
-            ).length;
-          } catch (e) {
-            console.warn('No se pudieron cargar labores pendientes', e);
-          }
-
+        const programasResumen: ProgramaResumen[] = programasDeGranja.map(prog => {
+          const lotesDePrograma = lotesPorPrograma.get(prog.id) || [];
           return {
-            id: granja.id,
-            nombre: granja.nombre,
-            ubicacion: granja.ubicacion,
-            programas: programasConLotes,
-            totalLotes,
-            laboresPendientes,
+            id: prog.id,
+            nombre: prog.nombre,
+            cantidadLotes: lotesDePrograma.length,
           };
-        })
-      );
+        });
 
+        const totalLotes = programasResumen.reduce((acc, p) => acc + p.cantidadLotes, 0);
+
+        // IDs de todos los lotes de la granja
+        const lotesDeGranja = programasDeGranja.flatMap(prog => lotesPorPrograma.get(prog.id) || []);
+        const lotesIds = lotesDeGranja.map(l => l.id);
+
+        // Labores pendientes (no completadas) de esos lotes
+        const laboresPendientes = todasLabores.filter(labor =>
+          lotesIds.includes(labor.loteId) && labor.estado !== 'completada'
+        ).length;
+
+        return {
+          id: granja.id,
+          nombre: granja.nombre,
+          ubicacion: granja.ubicacion,
+          programas: programasResumen,
+          totalLotes,
+          laboresPendientes,
+        };
+      });
+
+      console.log('Granjas con detalles:', granjasConDetalles);
       setGranjas(granjasConDetalles);
     } catch (err) {
       console.error('Error al cargar las granjas:', err);
@@ -128,7 +148,7 @@ const GestionGranjas: React.FC = () => {
 
   return (
     <div>
-      {/* Cabecera con título y acciones */}
+      {/* Cabecera */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h2 className="text-2xl font-bold text-gray-800">Mis Granjas</h2>
         <div className="flex space-x-3">
@@ -150,14 +170,14 @@ const GestionGranjas: React.FC = () => {
         </div>
       </div>
 
-      {/* Mensaje de error */}
+      {/* Error */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
           {error}
         </div>
       )}
 
-      {/* Estado de carga */}
+      {/* Loading skeleton */}
       {loading && (
         <div className="space-y-6">
           {[1, 2].map(i => (
@@ -197,7 +217,7 @@ const GestionGranjas: React.FC = () => {
           ) : (
             granjas.map(granja => (
               <div key={granja.id} className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
-                {/* Cabecera de la tarjeta: nombre + acciones */}
+                {/* Cabecera de tarjeta */}
                 <div className="flex flex-wrap justify-between items-start gap-4">
                   <div className="flex-1">
                     <h3
@@ -242,7 +262,7 @@ const GestionGranjas: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Métricas rápidas */}
+                {/* Métricas */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 my-6">
                   <div className="bg-gray-50 p-3 rounded-lg text-center">
                     <div className="text-2xl font-semibold text-green-600">{granja.programas.length}</div>
@@ -258,7 +278,7 @@ const GestionGranjas: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Programas destacados (máx. 3) */}
+                {/* Programas destacados */}
                 {granja.programas.length > 0 && (
                   <div className="border-t pt-4">
                     <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
