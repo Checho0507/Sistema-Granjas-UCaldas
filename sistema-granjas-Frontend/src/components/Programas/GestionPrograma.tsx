@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import programaService from "../../services/programaService";
 import usuarioService from "../../services/usuarioService";
-import granjaService from "../../services/granjaService"; // <-- Importamos granjaService
+import granjaService from "../../services/granjaService";
+import asignacionService from "../../services/asignacionService"; // 👈 Importamos asignaciones
 import exportService from "../../services/exportService";
 import { StatsCard } from "../../components/Common/StatsCard";
 import { ProgramaForm } from "../../components/Programas/ProgramasForm";
@@ -78,21 +79,39 @@ export default function GestionProgramas() {
         setGranjaActual(null);
       }
 
-      // 🔥 CAMBIO IMPORTANTE: Usar granjaService para obtener programas por granja
-      const datosProgramas = granjaId
-        ? await granjaService.obtenerProgramasPorGranja(Number(granjaId))
-        : await programaService.obtenerProgramas();
+      // 👇 Workaround: usar asignaciones para filtrar programas por granja (igual que en GestionGranjas)
+      if (granjaId) {
+        const [asignaciones, todosProgramas, datosUsuarios, datosGranjas] = await Promise.all([
+          asignacionService.obtenerRelacionesProgramaGranja(),
+          programaService.obtenerProgramas(),
+          usuarioService.obtenerUsuarios(),
+          granjaService.obtenerGranjas()
+        ]);
 
-      const programasNormalizados = normalizarArray<Programa>(datosProgramas);
-      setProgramas(programasNormalizados);
+        const asignacionesNormalizadas = normalizarArray<{ programa_id: number; granja_id: number }>(asignaciones);
+        const todosProgramasNormalizados = normalizarArray<Programa>(todosProgramas);
 
-      const [datosUsuarios, datosGranjas] = await Promise.all([
-        usuarioService.obtenerUsuarios(),
-        granjaService.obtenerGranjas()
-      ]);
+        const programasFiltrados = todosProgramasNormalizados.filter(programa =>
+          asignacionesNormalizadas.some(
+            a => a.programa_id === programa.id && a.granja_id === Number(granjaId)
+          )
+        );
 
-      setUsuarios(normalizarArray<Usuario>(datosUsuarios));
-      setGranjas(normalizarArray<Granja>(datosGranjas));
+        setProgramas(programasFiltrados);
+        setUsuarios(normalizarArray<Usuario>(datosUsuarios));
+        setGranjas(normalizarArray<Granja>(datosGranjas));
+      } else {
+        // Vista general: cargar todos los programas normalmente
+        const [programas, datosUsuarios, datosGranjas] = await Promise.all([
+          programaService.obtenerProgramas(),
+          usuarioService.obtenerUsuarios(),
+          granjaService.obtenerGranjas()
+        ]);
+
+        setProgramas(normalizarArray<Programa>(programas));
+        setUsuarios(normalizarArray<Usuario>(datosUsuarios));
+        setGranjas(normalizarArray<Granja>(datosGranjas));
+      }
     } catch (error: any) {
       setError(error.message || 'Error al cargar los datos');
     } finally {
