@@ -16,5 +16,5 @@ def obtener_relaciones(db: Session = Depends(get_db)):
     """
     Devuelve todas las relaciones programa-granja desde la tabla pivote.
     """
-    relaciones = db.query(GranjaProgramas).all()
+    relaciones = db.query(GranjaPrograma).all()
     return relaciones
