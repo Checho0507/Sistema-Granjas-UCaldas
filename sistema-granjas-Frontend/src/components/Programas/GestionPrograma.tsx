@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import programaService from "../../services/programaService";
 import usuarioService from "../../services/usuarioService";
-import granjaService from "../../services/granjaService";
+import granjaService from "../../services/granjaService"; // <-- Importamos granjaService
 import exportService from "../../services/exportService";
 import { StatsCard } from "../../components/Common/StatsCard";
 import { ProgramaForm } from "../../components/Programas/ProgramasForm";
@@ -11,6 +11,7 @@ import { AsignarUsuarioModal } from "../../components/Usuarios/AsignarUsuario";
 import { AsignarGranjaModal } from "../../components/Granjas/AsignarGranja";
 import ProgramasTable from "../../components/Programas/ProgramasTable";
 import DashboardHeader from "../../components/Common/DashboardHeader";
+import { normalizarArray } from "../../utils/normalize";
 import type { Programa, Usuario, Granja } from "../../types/granjaTypes";
 
 export default function GestionProgramas() {
@@ -77,18 +78,21 @@ export default function GestionProgramas() {
         setGranjaActual(null);
       }
 
+      // 🔥 CAMBIO IMPORTANTE: Usar granjaService para obtener programas por granja
       const datosProgramas = granjaId
-        ? await programaService.obtenerProgramasPorGranja(Number(granjaId))
+        ? await granjaService.obtenerProgramasPorGranja(Number(granjaId))
         : await programaService.obtenerProgramas();
+
+      const programasNormalizados = normalizarArray<Programa>(datosProgramas);
+      setProgramas(programasNormalizados);
 
       const [datosUsuarios, datosGranjas] = await Promise.all([
         usuarioService.obtenerUsuarios(),
         granjaService.obtenerGranjas()
       ]);
 
-      setProgramas(datosProgramas);
-      setUsuarios(datosUsuarios);
-      setGranjas(datosGranjas);
+      setUsuarios(normalizarArray<Usuario>(datosUsuarios));
+      setGranjas(normalizarArray<Granja>(datosGranjas));
     } catch (error: any) {
       setError(error.message || 'Error al cargar los datos');
     } finally {
@@ -105,7 +109,6 @@ export default function GestionProgramas() {
         await programaService.actualizarPrograma(programaSeleccionado.id, datosFormulario);
       } else {
         nuevoPrograma = await programaService.crearPrograma(datosFormulario);
-        // Si estamos en vista de granja, asignar automáticamente
         if (granjaId && nuevoPrograma) {
           await programaService.asignarGranja(nuevoPrograma.id, Number(granjaId));
         }
@@ -150,8 +153,8 @@ export default function GestionProgramas() {
         programaService.obtenerUsuariosPorPrograma(programa.id),
         programaService.obtenerGranjasPorPrograma(programa.id)
       ]);
-      setUsuariosPrograma(usuarios);
-      setGranjasPrograma(granjas);
+      setUsuariosPrograma(normalizarArray<Usuario>(usuarios));
+      setGranjasPrograma(normalizarArray<Granja>(granjas));
       setModalDetalles(true);
     } catch (error: any) {
       setError(error.message || 'Error al cargar los detalles');
@@ -173,7 +176,7 @@ export default function GestionProgramas() {
     try {
       await programaService.asignarUsuario(programaSeleccionado.id, usuarioSeleccionado);
       const usuariosActualizados = await programaService.obtenerUsuariosPorPrograma(programaSeleccionado.id);
-      setUsuariosPrograma(usuariosActualizados);
+      setUsuariosPrograma(normalizarArray<Usuario>(usuariosActualizados));
       setUsuarioSeleccionado(0);
       setModalAsignarUsuario(false);
     } catch (error: any) {
@@ -186,7 +189,7 @@ export default function GestionProgramas() {
     try {
       await programaService.asignarGranja(programaSeleccionado.id, granjaSeleccionada);
       const granjasActualizadas = await programaService.obtenerGranjasPorPrograma(programaSeleccionado.id);
-      setGranjasPrograma(granjasActualizadas);
+      setGranjasPrograma(normalizarArray<Granja>(granjasActualizadas));
       setGranjaSeleccionada(0);
       setModalAsignarGranja(false);
     } catch (error: any) {
@@ -200,7 +203,7 @@ export default function GestionProgramas() {
     try {
       await programaService.removerUsuario(programaSeleccionado.id, usuarioId);
       const usuariosActualizados = await programaService.obtenerUsuariosPorPrograma(programaSeleccionado.id);
-      setUsuariosPrograma(usuariosActualizados);
+      setUsuariosPrograma(normalizarArray<Usuario>(usuariosActualizados));
     } catch (error: any) {
       setError(error.message || 'Error al remover usuario');
     }
@@ -212,7 +215,7 @@ export default function GestionProgramas() {
     try {
       await programaService.removerGranja(programaSeleccionado.id, granjaId);
       const granjasActualizadas = await programaService.obtenerGranjasPorPrograma(programaSeleccionado.id);
-      setGranjasPrograma(granjasActualizadas);
+      setGranjasPrograma(normalizarArray<Granja>(granjasActualizadas));
     } catch (error: any) {
       setError(error.message || 'Error al remover granja');
     }
