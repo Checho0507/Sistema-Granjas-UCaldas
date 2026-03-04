@@ -237,14 +237,14 @@ const GestionGranjas: React.FC = () => {
                   </div>
                   <div className="flex space-x-2">
                     <button
-                      onClick={() => navigate(`/granjas/${granja.id}/programas`)}
+                      onClick={() => navigate(`/api/granjas/${granja.id}/programas`)}
                       className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors"
                       title="Programas"
                     >
                       <i className="fas fa-tasks text-xl"></i>
                     </button>
                     <button
-                      onClick={() => navigate(`/granjas/${granja.id}/inventario`)}
+                      onClick={() => navigate(`/api/granjas/${granja.id}/inventario`)}
                       className="p-2 text-purple-600 hover:bg-purple-50 rounded-full transition-colors"
                       title="Inventario"
                     >
