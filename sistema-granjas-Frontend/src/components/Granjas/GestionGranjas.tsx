@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import granjaService from '../../services/granjaService';
 import programaService from '../../services/programaService';
 import asignacionService from '../../services/asignacionService';
-import { GranjaForm } from './GranjaForm'; // Ajusta la ruta si es necesario
+import { GranjaForm } from './GranjasForm'; // Ajusta la ruta si es necesario
 
 interface ProgramaResumen {
   id: string;
