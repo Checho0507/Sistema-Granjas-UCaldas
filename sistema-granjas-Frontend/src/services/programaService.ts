@@ -107,7 +107,7 @@ export const programaService = {
     return handleResponse(response);
   },
 
-  // Nuevo: Obtener programas filtrados por granja
+  // Obtener programas filtrados por granja
   async obtenerProgramasPorGranja(granjaId: number): Promise<Programa[]> {
     const response = await fetch(`${API_BASE_URL}/programas/?granja_id=${granjaId}`, {
       headers: getHeaders()

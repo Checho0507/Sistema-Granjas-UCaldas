@@ -1,21 +1,17 @@
-// src/components/Granjas/GestionGranjas.tsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import granjaService from '../../services/granjaService';
 import programaService from '../../services/programaService';
 import asignacionService from '../../services/asignacionService';
-import { GranjaForm } from './GranjasForm'; // Ajusta la ruta si es necesario
+import { GranjaForm } from './GranjasForm';
+import type { Granja, Programa } from '../../types/granjaTypes';
 
 interface ProgramaResumen {
-  id: string;
+  id: number;
   nombre: string;
 }
 
-interface GranjaConDetalles {
-  id: string;
-  nombre: string;
-  ubicacion?: string;
-  activo?: boolean;
+interface GranjaConDetalles extends Granja {
   programas: ProgramaResumen[];
 }
 
@@ -36,8 +32,8 @@ const GestionGranjas: React.FC = () => {
   // Estado para el modal
   const [modalAbierto, setModalAbierto] = useState(false);
   const [editando, setEditando] = useState(false);
-  const [granjaActual, setGranjaActual] = useState<any>({
-    id: null,
+  const [granjaActual, setGranjaActual] = useState<Partial<Granja>>({
+    id: undefined,
     nombre: '',
     ubicacion: '',
     activo: true
@@ -49,11 +45,11 @@ const GestionGranjas: React.FC = () => {
       setError(null);
 
       const granjasResp = await granjaService.obtenerGranjas();
-      const granjasData = normalizarArray<any>(granjasResp);
+      const granjasData = normalizarArray<Granja>(granjasResp);
       console.log('Granjas obtenidas:', granjasData);
 
       const programasResp = await programaService.obtenerProgramas();
-      const todosProgramas = normalizarArray<any>(programasResp);
+      const todosProgramas = normalizarArray<Programa>(programasResp);
       console.log('Programas obtenidos:', todosProgramas);
 
       let asignaciones: { programa_id: number; granja_id: number }[] = [];
@@ -67,29 +63,26 @@ const GestionGranjas: React.FC = () => {
         return;
       }
 
-      const programasPorGranja = new Map<string, any[]>();
-      const programasMap = new Map<string, any>();
-      todosProgramas.forEach(prog => programasMap.set(String(prog.id), prog));
+      const programasPorGranja = new Map<number, Programa[]>();
+      const programasMap = new Map<number, Programa>();
+      todosProgramas.forEach(prog => programasMap.set(prog.id, prog));
 
       asignaciones.forEach(asig => {
-        const programaId = String(asig.programa_id);
-        const granjaId = String(asig.granja_id);
-        const programa = programasMap.get(programaId);
+        const programa = programasMap.get(asig.programa_id);
         if (!programa) return;
-        if (!programasPorGranja.has(granjaId)) programasPorGranja.set(granjaId, []);
+        const granjaId = asig.granja_id;
+        if (!programasPorGranja.has(granjaId)) {
+          programasPorGranja.set(granjaId, []);
+        }
         programasPorGranja.get(granjaId)!.push(programa);
       });
 
-      const granjasConDetalles = granjasData.map(granja => {
-        const granjaId = String(granja.id);
-        const programasDeGranja = programasPorGranja.get(granjaId) || [];
+      const granjasConDetalles: GranjaConDetalles[] = granjasData.map(granja => {
+        const programasDeGranja = programasPorGranja.get(granja.id) || [];
         return {
-          id: granjaId,
-          nombre: granja.nombre,
-          ubicacion: granja.ubicacion,
-          activo: granja.activo,
+          ...granja,
           programas: programasDeGranja.map(prog => ({
-            id: String(prog.id),
+            id: prog.id,
             nombre: prog.nombre,
           })),
         };
@@ -104,12 +97,12 @@ const GestionGranjas: React.FC = () => {
     }
   };
 
-  const eliminarGranja = async (id: string) => {
+  const eliminarGranja = async (id: number) => {
     if (!window.confirm('¿Está seguro de que desea eliminar esta granja? Esta acción no se puede deshacer.')) {
       return;
     }
     try {
-      await granjaService.eliminarGranja(Number(id));
+      await granjaService.eliminarGranja(id);
       cargarGranjas();
     } catch (err) {
       console.error('Error al eliminar granja:', err);
@@ -119,11 +112,11 @@ const GestionGranjas: React.FC = () => {
 
   const abrirModalNueva = () => {
     setEditando(false);
-    setGranjaActual({ id: null, nombre: '', ubicacion: '', activo: true });
+    setGranjaActual({ id: undefined, nombre: '', ubicacion: '', activo: true });
     setModalAbierto(true);
   };
 
-  const abrirModalEditar = (granja: any) => {
+  const abrirModalEditar = (granja: GranjaConDetalles) => {
     setEditando(true);
     setGranjaActual({
       id: granja.id,
@@ -137,21 +130,21 @@ const GestionGranjas: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (editando) {
-        await granjaService.actualizarGranja(Number(granjaActual.id), {
-          nombre: granjaActual.nombre,
+      if (editando && granjaActual.id) {
+        await granjaService.actualizarGranja(granjaActual.id, {
+          nombre: granjaActual.nombre!,
           ubicacion: granjaActual.ubicacion,
           activo: granjaActual.activo
         });
       } else {
         await granjaService.crearGranja({
-          nombre: granjaActual.nombre,
+          nombre: granjaActual.nombre!,
           ubicacion: granjaActual.ubicacion,
-          activo: granjaActual.activo
+          activo: granjaActual.activo ?? true
         });
       }
       setModalAbierto(false);
-      cargarGranjas(); // Recargar la lista
+      cargarGranjas();
     } catch (err) {
       console.error('Error al guardar granja:', err);
       alert('Ocurrió un error al guardar la granja. Intente nuevamente.');
