@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import programaService from "../../services/programaService";
 import usuarioService from "../../services/usuarioService";
 import granjaService from "../../services/granjaService";
-import asignacionService from "../../services/asignacionService"; // 👈 Importante
+import asignacionService from "../../services/asignacionService";
 import exportService from "../../services/exportService";
 import { StatsCard } from "../../components/Common/StatsCard";
 import { ProgramaForm } from "../../components/Programas/ProgramasForm";
@@ -66,58 +66,60 @@ export default function GestionProgramas() {
       setCargando(true);
       setError(null);
 
-      // Si hay granjaId, intentamos obtener su información para mostrar en el encabezado
+      console.log("🆔 granjaId desde URL:", granjaId);
+
+      // Si hay granjaId, obtenemos información de la granja para el encabezado
       if (granjaId) {
         try {
           const granja = await granjaService.obtenerGranjaPorId(Number(granjaId));
           setGranjaActual(granja);
+          console.log("🏠 Granja obtenida:", granja);
         } catch (err) {
-          console.error('Error al obtener granja:', err);
-          // No mostramos error grave, solo se pierde el nombre
+          console.error("Error al obtener granja:", err);
         }
       } else {
         setGranjaActual(null);
       }
 
-      // ===== LÓGICA DE FILTRADO IGUAL A GESTION GRANJAS =====
+      // ===== OBTENER DATOS =====
+      // Siempre obtenemos usuarios y granjas (para los modales)
+      const usuariosResp = await usuarioService.obtenerUsuarios();
+      const granjasResp = await granjaService.obtenerGranjas();
+      const usuariosData = normalizarArray<Usuario>(usuariosResp);
+      const granjasData = normalizarArray<Granja>(granjasResp);
+      setUsuarios(usuariosData);
+      setGranjas(granjasData);
+
+      // ===== LÓGICA DE FILTRADO DE PROGRAMAS =====
       if (granjaId) {
-        // Obtenemos todas las asignaciones y todos los programas
-        const [asignacionesResp, todosProgramasResp, usuariosResp, granjasResp] = await Promise.all([
+        // Obtenemos asignaciones y todos los programas
+        const [asignacionesResp, programasResp] = await Promise.all([
           asignacionService.obtenerRelacionesProgramaGranja(),
-          programaService.obtenerProgramas(),
-          usuarioService.obtenerUsuarios(),
-          granjaService.obtenerGranjas()
+          programaService.obtenerProgramas()
         ]);
 
         const asignaciones = normalizarArray<{ programa_id: number; granja_id: number }>(asignacionesResp);
-        const todosProgramas = normalizarArray<Programa>(todosProgramasResp);
-        const usuariosData = normalizarArray<Usuario>(usuariosResp);
-        const granjasData = normalizarArray<Granja>(granjasResp);
+        const todosProgramas = normalizarArray<Programa>(programasResp);
+
+        console.log("📊 Asignaciones recibidas:", asignaciones);
+        console.log("📋 Todos los programas:", todosProgramas);
 
         // Filtrar programas que tengan asignación a esta granja
         const programasFiltrados = todosProgramas.filter(programa =>
           asignaciones.some(a => a.programa_id === programa.id && a.granja_id === Number(granjaId))
         );
 
-        console.log(`📋 Programas filtrados para granja ${granjaId}:`, programasFiltrados);
-
+        console.log(`✅ Programas filtrados para granja ${granjaId}:`, programasFiltrados);
         setProgramas(programasFiltrados);
-        setUsuarios(usuariosData);
-        setGranjas(granjasData);
       } else {
-        // Vista general: cargar todos los programas sin filtrar
-        const [programasResp, usuariosResp, granjasResp] = await Promise.all([
-          programaService.obtenerProgramas(),
-          usuarioService.obtenerUsuarios(),
-          granjaService.obtenerGranjas()
-        ]);
-
-        setProgramas(normalizarArray<Programa>(programasResp));
-        setUsuarios(normalizarArray<Usuario>(usuariosResp));
-        setGranjas(normalizarArray<Granja>(granjasResp));
+        // Vista general: cargar todos los programas
+        const programasResp = await programaService.obtenerProgramas();
+        const todosProgramas = normalizarArray<Programa>(programasResp);
+        setProgramas(todosProgramas);
       }
     } catch (error: any) {
-      setError(error.message || 'Error al cargar los datos');
+      console.error("❌ Error en cargarDatos:", error);
+      setError(error.message || "Error al cargar los datos");
     } finally {
       setCargando(false);
     }
@@ -132,7 +134,6 @@ export default function GestionProgramas() {
         await programaService.actualizarPrograma(programaSeleccionado.id, datosFormulario);
       } else {
         nuevoPrograma = await programaService.crearPrograma(datosFormulario);
-        // Si estamos en vista de granja, asignar automáticamente
         if (granjaId && nuevoPrograma) {
           await programaService.asignarGranja(nuevoPrograma.id, Number(granjaId));
         }
@@ -140,7 +141,7 @@ export default function GestionProgramas() {
       await cargarDatos();
       cerrarModalCrear();
     } catch (error: any) {
-      setError(error.message || 'Error al guardar el programa');
+      setError(error.message || "Error al guardar el programa");
     }
   };
 
@@ -181,7 +182,7 @@ export default function GestionProgramas() {
       setGranjasPrograma(normalizarArray<Granja>(granjas));
       setModalDetalles(true);
     } catch (error: any) {
-      setError(error.message || 'Error al cargar los detalles');
+      setError(error.message || "Error al cargar los detalles");
     }
   };
 
@@ -191,7 +192,7 @@ export default function GestionProgramas() {
       await programaService.eliminarPrograma(id);
       await cargarDatos();
     } catch (error: any) {
-      setError(error.message || 'Error al eliminar el programa');
+      setError(error.message || "Error al eliminar el programa");
     }
   };
 
@@ -204,7 +205,7 @@ export default function GestionProgramas() {
       setUsuarioSeleccionado(0);
       setModalAsignarUsuario(false);
     } catch (error: any) {
-      setError(error.message || 'Error al asignar usuario');
+      setError(error.message || "Error al asignar usuario");
     }
   };
 
@@ -217,7 +218,7 @@ export default function GestionProgramas() {
       setGranjaSeleccionada(0);
       setModalAsignarGranja(false);
     } catch (error: any) {
-      setError(error.message || 'Error al asignar granja');
+      setError(error.message || "Error al asignar granja");
     }
   };
 
@@ -229,7 +230,7 @@ export default function GestionProgramas() {
       const usuariosActualizados = await programaService.obtenerUsuariosPorPrograma(programaSeleccionado.id);
       setUsuariosPrograma(normalizarArray<Usuario>(usuariosActualizados));
     } catch (error: any) {
-      setError(error.message || 'Error al remover usuario');
+      setError(error.message || "Error al remover usuario");
     }
   };
 
@@ -241,23 +242,23 @@ export default function GestionProgramas() {
       const granjasActualizadas = await programaService.obtenerGranjasPorPrograma(programaSeleccionado.id);
       setGranjasPrograma(normalizarArray<Granja>(granjasActualizadas));
     } catch (error: any) {
-      setError(error.message || 'Error al remover granja');
+      setError(error.message || "Error al remover granja");
     }
   };
 
   const handleExportProgramas = async () => {
     if (exporting) return;
     setExporting(true);
-    setExportMessage('Exportando programas...');
+    setExportMessage("Exportando programas...");
     try {
       const result = granjaId
         ? await exportService.exportarProgramasPorGranja(Number(granjaId))
         : await exportService.exportarProgramas();
       setExportMessage(`¡Exportación completada! (${result.filename})`);
-      setTimeout(() => setExportMessage(''), 5000);
+      setTimeout(() => setExportMessage(""), 5000);
     } catch (error) {
-      setExportMessage('Error al exportar.');
-      setTimeout(() => setExportMessage(''), 5000);
+      setExportMessage("Error al exportar.");
+      setTimeout(() => setExportMessage(""), 5000);
     } finally {
       setExporting(false);
     }
@@ -287,13 +288,11 @@ export default function GestionProgramas() {
       <DashboardHeader
         title={granjaActual ? `Programas de ${granjaActual.nombre}` : "Gestión de Programas"}
         selectedModule="programas"
-        onBack={granjaId ? () => navigate('/granjas') : undefined}
+        onBack={granjaId ? () => navigate("/granjas") : undefined}
       />
       <div className="flex items-center space-x-3 m-2">
         {exportMessage && (
-          <span className={`text-sm px-3 py-1 rounded ${
-            exportMessage.includes('Error') ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
-          }`}>
+          <span className={`text-sm px-3 py-1 rounded ${exportMessage.includes("Error") ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"}`}>
             {exportMessage}
           </span>
         )}
@@ -302,8 +301,8 @@ export default function GestionProgramas() {
           disabled={exporting}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 disabled:opacity-50 transition-colors"
         >
-          <i className={`fas ${exporting ? 'fa-spinner fa-spin' : 'fa-file-excel'}`}></i>
-          <span>{exporting ? 'Exportando...' : 'Exportar a Excel'}</span>
+          <i className={`fas ${exporting ? "fa-spinner fa-spin" : "fa-file-excel"}`}></i>
+          <span>{exporting ? "Exportando..." : "Exportar a Excel"}</span>
         </button>
       </div>
 
@@ -321,8 +320,8 @@ export default function GestionProgramas() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
         <StatsCard icon="fas fa-clipboard-list" color="bg-blue-600" value={programas.length} label="Programas Registrados" />
-        <StatsCard icon="fas fa-seedling" color="bg-green-600" value={programas.filter(p => p.tipo === 'agricola').length} label="Programas Agrícolas" />
-        <StatsCard icon="fas fa-paw" color="bg-amber-600" value={programas.filter(p => p.tipo === 'pecuario').length} label="Programas Pecuarios" />
+        <StatsCard icon="fas fa-seedling" color="bg-green-600" value={programas.filter(p => p.tipo === "agricola").length} label="Programas Agrícolas" />
+        <StatsCard icon="fas fa-paw" color="bg-amber-600" value={programas.filter(p => p.tipo === "pecuario").length} label="Programas Pecuarios" />
       </div>
 
       <div className="mb-6">
@@ -344,9 +343,7 @@ export default function GestionProgramas() {
           Nuevo Programa
         </button>
         {granjaId && (
-          <p className="text-sm text-gray-500 mt-2">
-            * Los nuevos programas se asignarán automáticamente a esta granja.
-          </p>
+          <p className="text-sm text-gray-500 mt-2">* Los nuevos programas se asignarán automáticamente a esta granja.</p>
         )}
       </div>
 
