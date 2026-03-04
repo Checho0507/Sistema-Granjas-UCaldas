@@ -68,7 +68,7 @@ export default function GestionProgramas() {
 
       console.log("🆔 granjaId desde URL:", granjaId);
 
-      // Si hay granjaId, obtenemos información de la granja para el encabezado
+      // Obtener información de la granja si hay ID
       if (granjaId) {
         try {
           const granja = await granjaService.obtenerGranjaPorId(Number(granjaId));
@@ -81,30 +81,25 @@ export default function GestionProgramas() {
         setGranjaActual(null);
       }
 
-      // ===== OBTENER DATOS =====
-      // Siempre obtenemos usuarios y granjas (para los modales)
+      // Obtener usuarios y granjas (para los modales)
       const usuariosResp = await usuarioService.obtenerUsuarios();
       const granjasResp = await granjaService.obtenerGranjas();
-      const usuariosData = normalizarArray<Usuario>(usuariosResp);
-      const granjasData = normalizarArray<Granja>(granjasResp);
-      setUsuarios(usuariosData);
-      setGranjas(granjasData);
+      setUsuarios(normalizarArray<Usuario>(usuariosResp));
+      setGranjas(normalizarArray<Granja>(granjasResp));
 
-      // ===== LÓGICA DE FILTRADO DE PROGRAMAS =====
+      // ===== FILTRADO DE PROGRAMAS USANDO ASIGNACIONES =====
       if (granjaId) {
-        // Obtenemos asignaciones y todos los programas
-        const [asignacionesResp, programasResp] = await Promise.all([
-          asignacionService.obtenerRelacionesProgramaGranja(),
-          programaService.obtenerProgramas()
-        ]);
-
+        // 1. Obtener todas las asignaciones
+        const asignacionesResp = await asignacionService.obtenerRelacionesProgramaGranja();
         const asignaciones = normalizarArray<{ programa_id: number; granja_id: number }>(asignacionesResp);
-        const todosProgramas = normalizarArray<Programa>(programasResp);
-
         console.log("📊 Asignaciones recibidas:", asignaciones);
+
+        // 2. Obtener todos los programas
+        const programasResp = await programaService.obtenerProgramas();
+        const todosProgramas = normalizarArray<Programa>(programasResp);
         console.log("📋 Todos los programas:", todosProgramas);
 
-        // Filtrar programas que tengan asignación a esta granja
+        // 3. Filtrar los que tienen asignación a esta granja
         const programasFiltrados = todosProgramas.filter(programa =>
           asignaciones.some(a => a.programa_id === programa.id && a.granja_id === Number(granjaId))
         );
@@ -114,8 +109,7 @@ export default function GestionProgramas() {
       } else {
         // Vista general: cargar todos los programas
         const programasResp = await programaService.obtenerProgramas();
-        const todosProgramas = normalizarArray<Programa>(programasResp);
-        setProgramas(todosProgramas);
+        setProgramas(normalizarArray<Programa>(programasResp));
       }
     } catch (error: any) {
       console.error("❌ Error en cargarDatos:", error);
@@ -129,11 +123,10 @@ export default function GestionProgramas() {
     e.preventDefault();
     try {
       setError(null);
-      let nuevoPrograma: Programa;
       if (editando && programaSeleccionado) {
         await programaService.actualizarPrograma(programaSeleccionado.id, datosFormulario);
       } else {
-        nuevoPrograma = await programaService.crearPrograma(datosFormulario);
+        const nuevoPrograma = await programaService.crearPrograma(datosFormulario);
         if (granjaId && nuevoPrograma) {
           await programaService.asignarGranja(nuevoPrograma.id, Number(granjaId));
         }
