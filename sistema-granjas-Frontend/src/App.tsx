@@ -20,7 +20,7 @@ import GestionDiagnosticosPage from './pages/GestionDiagnosticos';
 import GestionRecomendacionesPage from './pages/GestionRecomendaciones';
 
 function AppContent() {
-  const { token } = useAuthValue(); // Usa el token del contexto
+  const { token } = useAuthValue();
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -44,7 +44,6 @@ function AppContent() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Verificar estado inicial
     handleOnline();
 
     return () => {
@@ -53,7 +52,6 @@ function AppContent() {
     };
   }, [token]);
 
-  // Componente para redireccionar si ya está autenticado
   const RedirectIfAuth = ({ children }: { children: JSX.Element }) => {
     if (token) {
       return <Navigate to="/dashboard" replace />;
@@ -73,7 +71,6 @@ function AppContent() {
           },
         }}
       />
-      {/* Banner de estado del sistema */}
       {!navigator.onLine && (
         <div className="bg-yellow-600 text-white text-center py-2 px-4">
           ⚠️ Estás trabajando sin conexión a internet
@@ -130,6 +127,16 @@ function AppContent() {
 
         <Route
           path="/gestion/programas"
+          element={
+            <ProtectedRoute>
+              <GestionProgramasPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ✅ NUEVA RUTA: Programas filtrados por granja */}
+        <Route
+          path="/granjas/:granjaId/programas"
           element={
             <ProtectedRoute>
               <GestionProgramasPage />
@@ -235,7 +242,6 @@ function App() {
     );
   }
 
-  // ORDEN CORRECTO: AuthContext.Provider DENTRO de Router
   return (
     <Router>
       <AuthContext.Provider value={authValue}>
