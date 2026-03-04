@@ -18,6 +18,11 @@ import type { Programa, Usuario, Granja } from "../../types/granjaTypes";
 export default function GestionProgramas() {
   const { granjaId } = useParams<{ granjaId: string }>();
   const navigate = useNavigate();
+  
+  // 🔍 LOGS DE DIAGNÓSTICO
+  console.log("🔍 URL actual:", window.location.pathname);
+  console.log("🔍 granjaId desde useParams:", granjaId);
+  
   const [programas, setProgramas] = useState<Programa[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [granjas, setGranjas] = useState<Granja[]>([]);
@@ -58,8 +63,9 @@ export default function GestionProgramas() {
   ];
 
   useEffect(() => {
+    console.log("🔄 useEffect ejecutándose con granjaId:", granjaId);
     cargarDatos();
-  }, [granjaId]);
+  }, [granjaId]); // 👈 IMPORTANTE: granjaId en dependencias
 
   const cargarDatos = async () => {
     try {
