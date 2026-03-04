@@ -251,25 +251,11 @@ const GestionGranjas: React.FC = () => {
                       <i className="fas fa-tasks text-xl"></i>
                     </button>
                     <button
-                      onClick={() => navigate(`/granjas/${granja.id}/lotes`)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
-                      title="Lotes"
-                    >
-                      <i className="fas fa-layer-group text-xl"></i>
-                    </button>
-                    <button
                       onClick={() => navigate(`/granjas/${granja.id}/inventario`)}
                       className="p-2 text-purple-600 hover:bg-purple-50 rounded-full transition-colors"
                       title="Inventario"
                     >
                       <i className="fas fa-boxes text-xl"></i>
-                    </button>
-                    <button
-                      onClick={() => navigate(`/granjas/${granja.id}/labores`)}
-                      className="p-2 text-orange-600 hover:bg-orange-50 rounded-full transition-colors"
-                      title="Labores"
-                    >
-                      <i className="fas fa-calendar-check text-xl"></i>
                     </button>
                     <button
                       onClick={() => abrirModalEditar(granja)}
