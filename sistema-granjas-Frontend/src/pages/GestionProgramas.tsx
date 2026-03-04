@@ -3,7 +3,7 @@ import React from 'react';
 import DashboardHeader from '../components/Common/DashboardHeader';
 import GestionProgramas from '../components/Programas/GestionProgramas';
 
-const GestionGranjasPage: React.FC = () => (
+const GestionProgramasPage: React.FC = () => (
     <div className="min-h-screen bg-gray-50">
         <DashboardHeader
             title="Gestión de Programas"
@@ -16,4 +16,4 @@ const GestionGranjasPage: React.FC = () => (
     </div>
 );
 
-export default GestionGranjasPage;
+export default GestionProgramasPage;
