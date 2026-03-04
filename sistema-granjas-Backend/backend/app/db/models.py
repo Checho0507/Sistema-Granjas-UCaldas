@@ -18,6 +18,12 @@ usuario_programa = Table(
     Column('programa_id', Integer, ForeignKey('programas.id'), primary_key=True)
 )
 
+# Clase que representa la tabla pivote granja_programa (definida antes de las clases que la usan)
+class GranjaPrograma(Base):
+    __tablename__ = 'granja_programa'
+    granja_id = Column(Integer, ForeignKey('granjas.id'), primary_key=True)
+    programa_id = Column(Integer, ForeignKey('programas.id'), primary_key=True)
+
 
 class Rol(Base):
     __tablename__ = "roles"
@@ -72,7 +78,8 @@ class Programa(Base):
     activo = Column(Boolean, default=True)
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
 
-    granjas = relationship("Granja", secondary=granja_programa, back_populates="programas")
+    # Usamos secondary="granja_programa" (string) para referirnos a la tabla definida por la clase GranjaPrograma
+    granjas = relationship("Granja", secondary="granja_programa", back_populates="programas")
     usuarios = relationship("Usuario", secondary=usuario_programa, back_populates="programas")
     lotes = relationship("Lote", back_populates="programa")
     insumos = relationship("Insumo", back_populates="programa")
@@ -89,7 +96,7 @@ class Granja(Base):
 
     cultivos = relationship("CultivoEspecie", back_populates="granja")
     usuarios = relationship("Usuario", secondary=usuario_granja, back_populates="granjas")
-    programas = relationship("Programa", secondary=granja_programa, back_populates="granjas")
+    programas = relationship("Programa", secondary="granja_programa", back_populates="granjas")
 
     lotes = relationship("Lote", back_populates="granja")
 
@@ -176,7 +183,6 @@ class TipoLabor(Base):
     descripcion = Column(String(255))
 
 
-# --- Actualización Recomendación ---
 class Recomendacion(Base):
     __tablename__ = "recomendaciones"
 
@@ -199,6 +205,7 @@ class Recomendacion(Base):
     labores = relationship("Labor", back_populates="recomendacion")
     diagnostico = relationship("Diagnostico", back_populates="recomendaciones", foreign_keys=[diagnostico_id])
 
+
 class Evidencia(Base):
     __tablename__ = "evidencias"
     
@@ -207,7 +214,6 @@ class Evidencia(Base):
     descripcion = Column(Text, nullable=False)
     url_archivo = Column(String(500), nullable=False)
     
-    # Relaciones polimórficas - puede pertenecer a diferentes entidades
     labor_id = Column(Integer, ForeignKey("labores.id"), nullable=True)
     diagnostico_id = Column(Integer, ForeignKey("diagnosticos.id"), nullable=True)
     recomendacion_id = Column(Integer, ForeignKey("recomendaciones.id"), nullable=True)
@@ -215,23 +221,22 @@ class Evidencia(Base):
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
     
-    # Relaciones
     labor = relationship("Labor", back_populates="evidencias")
     diagnostico = relationship("Diagnostico", back_populates="evidencias")
     recomendacion = relationship("Recomendacion", back_populates="evidencias")
     usuario = relationship("Usuario")
+
+
 class Labor(Base):
     __tablename__ = "labores"
 
     id = Column(Integer, primary_key=True, index=True)
 
-    # Ahora la labor sí es la que lleva el avance y comentarios
     estado = Column(String(50), default="pendiente")  
-    # pendiente | en_progreso | completada
     tipo_labor_id = Column(Integer, ForeignKey("tipos_labor.id"), nullable=False)
 
-    avance_porcentaje = Column(Integer, default=0)  # 0 a 100
-    comentario = Column(Text, nullable=True)  # evidencia escrita
+    avance_porcentaje = Column(Integer, default=0)
+    comentario = Column(Text, nullable=True)
 
     fecha_asignacion = Column(DateTime, default=datetime.utcnow)
     fecha_finalizacion = Column(DateTime, nullable=True)
@@ -239,7 +244,6 @@ class Labor(Base):
     recomendacion_id = Column(Integer, ForeignKey("recomendaciones.id"), nullable=False)
     trabajador_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
 
-    # La labor puede estar asociada a un lote específico
     lote_id = Column(Integer, ForeignKey("lotes.id"), nullable=True)
 
     recomendacion = relationship("Recomendacion", back_populates="labores")
@@ -248,7 +252,6 @@ class Labor(Base):
     evidencias = relationship("Evidencia", back_populates="labor")
     tipo_labor = relationship("TipoLabor")
 
-    # Si se usan recursos, se mantienen
     uso_herramientas = relationship("MovimientoHerramienta", back_populates="labor")
     uso_insumos = relationship("MovimientoInsumo", back_populates="labor")
 
@@ -289,6 +292,7 @@ class MovimientoHerramienta(Base):
     herramienta = relationship("Herramienta", back_populates="movimientos")
     labor = relationship("Labor", back_populates="uso_herramientas")
 
+
 class MovimientoInsumo(Base):
     __tablename__ = "movimientos_insumos"
 
@@ -303,6 +307,7 @@ class MovimientoInsumo(Base):
     insumo = relationship("Insumo", back_populates="movimientos")
     labor = relationship("Labor", back_populates="uso_insumos")
 
+
 class AsignacionHerramienta(Base):
     __tablename__ = "asignaciones_herramientas"
 
@@ -313,17 +318,13 @@ class AsignacionHerramienta(Base):
     fecha_asignacion = Column(DateTime, default=datetime.utcnow)
 
     herramienta = relationship("Herramienta", back_populates="asignaciones")
-    
-class GranjaPrograma(Base):
-    __tablename__ = 'granja_programa'
-    granja_id = Column(Integer, ForeignKey('granjas.id'), primary_key=True)
-    programa_id = Column(Integer, ForeignKey('programas.id'), primary_key=True)
+
 
 class CultivoEspecie(Base):
     __tablename__ = "cultivos_especies"
 
     id = Column(Integer, primary_key=True, index=True)
-    nombre = Column(String(150), nullable=False)  # ej: Café Caturra, Maíz ICA V-109
+    nombre = Column(String(150), nullable=False)
     tipo = Column(String(50), nullable=False)  # agricola / pecuario
     fecha_inicio = Column(DateTime)
     duracion_dias = Column(Integer)
