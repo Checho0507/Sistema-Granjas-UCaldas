@@ -7,12 +7,13 @@ import programaService from '../services/programaService';
 
 const GestionLotesPage: React.FC = () => {
     const { programaId } = useParams<{ programaId: string }>();
+    const { granjaId } = useParams<{ granjaId: string }>();
     const navigate = useNavigate();
     const [nombrePrograma, setNombrePrograma] = useState<string>('');
     const [cargando, setCargando] = useState<boolean>(true);
-    
+
     console.log('📍 GestionLotesPage - programaId:', programaId);
-    
+
     useEffect(() => {
         const cargarNombrePrograma = async () => {
             if (programaId) {
@@ -30,19 +31,19 @@ const GestionLotesPage: React.FC = () => {
                 setCargando(false);
             }
         };
-        
+
         cargarNombrePrograma();
     }, [programaId]);
-    
+
     // Determinar el título basado en si hay programaId o no
-    const title = programaId 
-        ? `Lotes: ${nombrePrograma || '...'}` 
+    const title = programaId
+        ? `Lotes: ${nombrePrograma || '...'}`
         : "Gestión de Lotes";
 
     // Función para manejar el botón de retroceso
     const handleBack = () => {
         if (programaId) {
-            navigate(`/granjas/${programaId}/programas`);
+            navigate(`/granjas/${granjaId}/programas`);
         } else {
             navigate("/dashboard");
         }
