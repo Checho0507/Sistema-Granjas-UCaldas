@@ -1,13 +1,19 @@
+// src/components/Cultivos/GestionCultivos.tsx
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom"; // 👈 Importar
 import { toast } from "react-hot-toast";
 import cultivoService from "../../services/cultivoService";
 import granjaService from "../../services/granjaService";
+import loteService from "../../services/loteService"; // 👈 Importar
 import { StatsCard } from "../Common/StatsCard";
 import CultivosTable from "./CultivosTable";
 import CultivoForm from "./CultivosForm";
 import exportService from "../../services/exportService";
 
 export default function GestionCultivos() {
+    const [searchParams] = useSearchParams(); // 👈 Para obtener query params
+    const programaId = searchParams.get('programaId'); // 👈 Obtener programaId de la URL
+    
     const [cultivos, setCultivos] = useState<any[]>([]);
     const [granjas, setGranjas] = useState<any[]>([]);
     const [cargando, setCargando] = useState(true);
@@ -41,6 +47,13 @@ export default function GestionCultivos() {
     // Estados específicos para exportación
     const [exporting, setExporting] = useState(false);
     const [exportMessage, setExportMessage] = useState('');
+
+    // Mostrar indicador de filtro activo
+    useEffect(() => {
+        if (programaId) {
+            console.log(`🔍 Filtrando cultivos por programa ID: ${programaId}`);
+        }
+    }, [programaId]);
 
     // Handler para exportar cultivos
     const handleExportCultivos = async () => {
@@ -78,18 +91,27 @@ export default function GestionCultivos() {
 
     useEffect(() => {
         cargarDatos();
-    }, []);
+    }, [programaId]); // 👈 Recargar cuando cambie programaId
 
     const cargarDatos = async () => {
         try {
             setCargando(true);
             setError(null);
 
-            console.log('🔄 Cargando datos de cultivos...');
+            console.log('🔄 Cargando datos de cultivos...', programaId ? `para programa ${programaId}` : 'todos');
             const loadingToast = toast.loading('Cargando datos...');
 
-            const [datosCultivos, datosGranjas, datosEstadisticas] = await Promise.all([
-                cultivoService.obtenerCultivos(),
+            let datosCultivos;
+            
+            // 👇 Lógica de filtrado por programa
+            if (programaId) {
+                // Obtener cultivos a través de los lotes del programa
+                datosCultivos = await cultivoService.obtenerCultivosPorPrograma(Number(programaId));
+            } else {
+                datosCultivos = await cultivoService.obtenerCultivos();
+            }
+
+            const [datosGranjas, datosEstadisticas] = await Promise.all([
                 granjaService.obtenerGranjas(),
                 cultivoService.obtenerEstadisticas()
             ]);
@@ -223,14 +245,31 @@ export default function GestionCultivos() {
         return (
             <div className="flex justify-center items-center p-8">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
-                <span className="ml-4 text-gray-600">Cargando cultivos...</span>
+                <span className="ml-4 text-gray-600">
+                    {programaId ? 'Cargando cultivos del programa...' : 'Cargando cultivos...'}
+                </span>
             </div>
         );
     }
 
     return (
         <div className="p-6">
-            <h1 className="text-2xl font-bold mb-6">Gestión de Cultivos/Especies</h1>
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-2xl font-bold text-gray-800">
+                    {programaId ? `Cultivos del Programa` : "Gestión de Cultivos/Especies"}
+                </h1>
+                
+                {/* Botón para limpiar filtro si está activo */}
+                {programaId && (
+                    <button
+                        onClick={() => window.history.back()}
+                        className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition flex items-center gap-2"
+                    >
+                        <i className="fas fa-arrow-left"></i>
+                        Volver a programas
+                    </button>
+                )}
+            </div>
 
             {/* Mensaje de exportación */}
             <div className="flex items-center space-x-3 m-2 mb-6">
@@ -303,7 +342,7 @@ export default function GestionCultivos() {
                 />
             </div>
 
-            {/* Botón Crear */}
+            {/* Botón Crear - Deshabilitado si hay filtro de programa (opcional) */}
             <div className="mb-6">
                 <button
                     onClick={() => {
@@ -311,11 +350,22 @@ export default function GestionCultivos() {
                         setEditando(false);
                         setModalCrear(true);
                     }}
-                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
+                    disabled={!!programaId}
+                    className={`text-white px-4 py-2 rounded-lg transition flex items-center gap-2 ${
+                        programaId 
+                            ? 'bg-gray-400 cursor-not-allowed' 
+                            : 'bg-green-600 hover:bg-green-700'
+                    }`}
+                    title={programaId ? "No puedes crear cultivos desde la vista de programa" : "Nuevo cultivo"}
                 >
                     <i className="fas fa-plus"></i>
                     Nuevo Cultivo/Especie
                 </button>
+                {programaId && (
+                    <p className="text-sm text-gray-500 mt-2">
+                        ⚠️ Los cultivos se crean desde la vista general, no desde un programa específico.
+                    </p>
+                )}
             </div>
 
             {/* Tabla de cultivos */}

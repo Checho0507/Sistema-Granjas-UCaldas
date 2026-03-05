@@ -1,4 +1,5 @@
 import type { CultivoEspecie, CultivoFormData, CultivoStats } from '../types/cultivoTypes';
+import loteService from './loteService';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
@@ -7,11 +8,11 @@ const getHeaders = (): HeadersInit => {
   const headers: HeadersInit = {
     'Content-Type': 'application/json'
   };
-  
+
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  
+
   return headers;
 };
 
@@ -27,7 +28,7 @@ const handleResponse = async (response: Response) => {
 
 export const cultivoService = {
   // ========== CRUD OPERACIONES ==========
-  
+
   // OBTENER todos los cultivos
   async obtenerCultivos(): Promise<CultivoEspecie[]> {
     const response = await fetch(`${API_BASE_URL}/cultivos/`, {
@@ -53,6 +54,27 @@ export const cultivoService = {
     });
     return handleResponse(response);
   },
+  // ✅ NUEVA FUNCIÓN: Obtener cultivos por programa (a través de lotes)
+  async obtenerCultivosPorPrograma(programaId: number): Promise<any[]> {
+    try {
+      // 1. Obtener todos los lotes del programa
+      const lotes = await loteService.obtenerLotesPorPrograma(programaId);
+
+      // 2. Extraer IDs únicos de cultivos de esos lotes
+      const cultivoIds = [...new Set(lotes.map(lote => lote.cultivo_id).filter(Boolean))];
+
+      if (cultivoIds.length === 0) return [];
+
+      // 3. Obtener los cultivos por sus IDs
+      const promesas = cultivoIds.map(id => this.obtenerCultivoPorId(id));
+      const cultivos = await Promise.all(promesas);
+
+      return cultivos;
+    } catch (error) {
+      console.error('Error obteniendo cultivos por programa:', error);
+      return [];
+    }
+  },
 
   // ACTUALIZAR cultivo
   async actualizarCultivo(id: number, datosCultivo: Partial<CultivoFormData>): Promise<CultivoEspecie> {
@@ -70,19 +92,19 @@ export const cultivoService = {
       method: 'DELETE',
       headers: getHeaders()
     });
-    
+
     if (!response.ok) {
       throw new Error(`Error ${response.status}: ${response.statusText}`);
     }
   },
 
   // ========== ESTADÍSTICAS ==========
-  
+
   // OBTENER estadísticas de cultivos
   async obtenerEstadisticas(): Promise<CultivoStats> {
     // Si tu backend no tiene este endpoint, lo podemos calcular en el frontend
     const cultivos = await this.obtenerCultivos();
-    
+
     return {
       total: cultivos.length,
       agricolas: cultivos.filter(c => c.tipo === 'agricola').length,
@@ -93,7 +115,7 @@ export const cultivoService = {
   },
 
   // ========== FILTROS ESPECIALES ==========
-  
+
   // OBTENER cultivos por granja (usando endpoint específico)
   async obtenerCultivosPorGranja(granjaId: number): Promise<CultivoEspecie[]> {
     const response = await fetch(`${API_BASE_URL}/cultivos/granja/${granjaId}`, {

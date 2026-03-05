@@ -1,6 +1,5 @@
-// src/components/Programas/ProgramasTable.tsx
 import React from "react";
-import { useNavigate } from "react-router-dom"; // Agregar useNavigate
+import { useNavigate } from "react-router-dom";
 import type { Programa, Granja } from "../../types/granjaTypes";
 
 interface ProgramasTableProps {
@@ -24,8 +23,14 @@ const ProgramasTable: React.FC<ProgramasTableProps> = ({
 
     // Función para ver lotes del programa
     const verLotesPrograma = (e: React.MouseEvent, programaId: number) => {
-        e.stopPropagation(); // Evitar que se active el onClick de la fila
+        e.stopPropagation();
         navigate(`/programas/${programaId}/lotes`);
+    };
+
+    // ✅ NUEVA FUNCIÓN: Ver cultivos del programa (a través de lotes)
+    const verCultivosPrograma = (e: React.MouseEvent, programaId: number) => {
+        e.stopPropagation();
+        navigate(`/gestion/cultivos?programaId=${programaId}`);
     };
 
     // Función para obtener el color según el tipo
@@ -164,13 +169,22 @@ const ProgramasTable: React.FC<ProgramasTableProps> = ({
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                 <div className="flex justify-end space-x-2" onClick={(e) => e.stopPropagation()}>
-                                    {/* Nuevo botón: Ver Lotes */}
+                                    {/* Botón: Ver Lotes */}
                                     <button
                                         onClick={(e) => verLotesPrograma(e, programa.id)}
                                         className="text-purple-600 hover:text-purple-900 p-2 hover:bg-purple-50 rounded transition-colors"
                                         title="Ver lotes del programa"
                                     >
                                         <i className="fas fa-seedling"></i>
+                                    </button>
+                                    
+                                    {/* ✅ NUEVO BOTÓN: Ver Cultivos */}
+                                    <button
+                                        onClick={(e) => verCultivosPrograma(e, programa.id)}
+                                        className="text-green-600 hover:text-green-900 p-2 hover:bg-green-50 rounded transition-colors"
+                                        title="Ver cultivos del programa (a través de lotes)"
+                                    >
+                                        <i className="fas fa-leaf"></i>
                                     </button>
                                     
                                     <button
