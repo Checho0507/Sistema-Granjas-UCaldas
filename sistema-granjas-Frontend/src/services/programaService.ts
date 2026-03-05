@@ -188,7 +188,7 @@ export const programaService = {
   // Obtener todas las asignaciones programa-granja
   async obtenerTodasLasAsignaciones(): Promise<{ programa_id: number; granja_id: number }[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/asignaciones/programas-granjas`, {
+      const response = await fetch(`${API_BASE_URL}/asignaciones/programa-granja`, {
         headers: getHeaders()
       });
       return handleResponse(response);
