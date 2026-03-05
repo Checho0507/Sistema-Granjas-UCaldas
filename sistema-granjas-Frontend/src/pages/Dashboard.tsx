@@ -166,7 +166,7 @@ const Dashboard: React.FC = () => {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Line type="monotone" dataKey="Cantidad" stroke="#10b981" strokeWidth={2} />
+                  <Line type="monotone" dataKey="Cantidad" stroke="#10b980" strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
