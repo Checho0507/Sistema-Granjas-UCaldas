@@ -334,16 +334,6 @@ export default function GestionLotes({ programaId }: GestionLotesProps) {
                     <i className="fas fa-cog"></i>
                     Gestionar Tipos de Lote
                 </button>
-
-                {programaId && (
-                    <button
-                        onClick={() => navigate(`/programas/${programaId}`)}
-                        className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition flex items-center gap-2"
-                    >
-                        <i className="fas fa-arrow-left"></i>
-                        Volver al Programa
-                    </button>
-                )}
             </div>
 
             {/* Tabla de lotes */}
