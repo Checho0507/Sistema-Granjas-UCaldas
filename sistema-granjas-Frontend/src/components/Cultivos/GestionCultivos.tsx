@@ -350,11 +350,7 @@ export default function GestionCultivos() {
                         setEditando(false);
                         setModalCrear(true);
                     }}
-                    className={`text-white px-4 py-2 rounded-lg transition flex items-center gap-2 ${
-                        programaId 
-                            ? 'bg-gray-400 cursor-not-allowed' 
-                            : 'bg-green-600 hover:bg-green-700'
-                    }`}
+                    className={`text-white px-4 py-2 rounded-lg transition flex items-center gap-2 bg-green-600 hover:bg-green-700`}
                     title={"Nuevo cultivo"}
                 >
                     <i className="fas fa-plus"></i>
