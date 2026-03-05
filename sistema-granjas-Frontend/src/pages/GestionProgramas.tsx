@@ -18,7 +18,7 @@ const GestionProgramasPage: React.FC = () => {
             <DashboardHeader
                 title={title}
                 selectedModule="programas"
-                onBack={granjaId ? () => navigate("/granjas") : undefined}
+                onBack={granjaId ? () => navigate("/gestion/granjas") : undefined}
             />
             <div className="container mx-auto px-4 py-8">
                 <GestionProgramas />
