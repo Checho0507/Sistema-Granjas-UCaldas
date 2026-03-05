@@ -373,7 +373,7 @@ export default function GestionProgramas() {
             setEditando(false);
             setModalCrear(true);
           }}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
+          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
         >
           <i className="fas fa-plus"></i>
           Nuevo Programa
