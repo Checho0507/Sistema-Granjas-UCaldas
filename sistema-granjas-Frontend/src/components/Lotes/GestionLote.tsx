@@ -286,7 +286,7 @@ export default function GestionLotes({ programaId }: GestionLotesProps) {
             )}
 
             {/* Estadísticas */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
                 <StatsCard
                     icon="fas fa-seedling"
                     color="bg-green-600"
@@ -298,12 +298,6 @@ export default function GestionLotes({ programaId }: GestionLotesProps) {
                     color="bg-blue-600"
                     value={lotes.filter(l => l.estado === 'activo').length}
                     label="Lotes Activos"
-                />
-                <StatsCard
-                    icon="fas fa-warehouse"
-                    color="bg-purple-600"
-                    value={granjas.length}
-                    label="Granjas"
                 />
                 <StatsCard
                     icon="fas fa-list"

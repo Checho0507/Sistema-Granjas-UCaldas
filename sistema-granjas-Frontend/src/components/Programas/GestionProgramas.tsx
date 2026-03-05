@@ -378,11 +378,6 @@ export default function GestionProgramas() {
           <i className="fas fa-plus"></i>
           Nuevo Programa
         </button>
-        {granjaId && (
-          <p className="text-sm text-gray-500 mt-2">
-            * Los nuevos programas se asignarán automáticamente a esta granja.
-          </p>
-        )}
       </div>
 
       <ProgramasTable
