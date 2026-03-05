@@ -7,7 +7,6 @@ import programaService from '../services/programaService';
 
 const GestionLotesPage: React.FC = () => {
     const { programaId } = useParams<{ programaId: string }>();
-    const navigate = useNavigate();
     const [nombrePrograma, setNombrePrograma] = useState<string>('');
     const [cargando, setCargando] = useState<boolean>(true);
 
