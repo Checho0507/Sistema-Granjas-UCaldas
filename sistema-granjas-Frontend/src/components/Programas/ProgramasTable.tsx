@@ -1,6 +1,5 @@
-// src/components/Programas/ProgramasTable.tsx
 import React from "react";
-import { useNavigate } from "react-router-dom"; // Agregar useNavigate
+import { useNavigate } from "react-router-dom";
 import type { Programa, Granja } from "../../types/granjaTypes";
 
 interface ProgramasTableProps {
@@ -10,6 +9,7 @@ interface ProgramasTableProps {
     onVerDetalles: (programa: Programa) => void;
     obtenerLabelTipo: (tipo: string) => string;
     obtenerIconoTipo: (tipo: string) => string;
+    granjaId?: string; // 👈 NUEVO: Para navegación jerárquica
 }
 
 const ProgramasTable: React.FC<ProgramasTableProps> = ({
@@ -19,13 +19,21 @@ const ProgramasTable: React.FC<ProgramasTableProps> = ({
     onVerDetalles,
     obtenerLabelTipo,
     obtenerIconoTipo,
+    granjaId, // 👈 NUEVO
 }) => {
     const navigate = useNavigate();
 
-    // Función para ver lotes del programa
+    // Función para ver lotes del programa - AHORA USA LA RUTA JERÁRQUICA
     const verLotesPrograma = (e: React.MouseEvent, programaId: number) => {
-        e.stopPropagation(); // Evitar que se active el onClick de la fila
-        navigate(`/programas/${programaId}/lotes`);
+        e.stopPropagation();
+        
+        if (granjaId) {
+            // Ruta jerárquica completa: granja → programa → lotes
+            navigate(`/granjas/${granjaId}/programas/${programaId}/lotes`);
+        } else {
+            // Fallback: si no hay granjaId, usar la ruta anterior
+            navigate(`/programas/${programaId}/lotes`);
+        }
     };
 
     // Función para obtener el color según el tipo
@@ -93,112 +101,148 @@ const ProgramasTable: React.FC<ProgramasTableProps> = ({
 
     return (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                    <tr>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            ID
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Programa
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Tipo
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Granjas Asignadas
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Estado
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Acciones
-                        </th>
-                    </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                    {programas.map((programa) => (
-                        <tr 
-                            key={programa.id} 
-                            className="hover:bg-gray-50 transition-colors cursor-pointer"
-                            onClick={() => onVerDetalles(programa)}
-                        >
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                #{programa.id}
-                            </td>
-                            <td className="px-6 py-4">
-                                <div className="flex items-center">
-                                    <div className={`flex-shrink-0 w-10 h-10 rounded-lg ${getTipoColor(programa.tipo)} flex items-center justify-center mr-3`}>
-                                        <i className={`${obtenerIconoTipo(programa.tipo)} ${getIconColor(programa.tipo)}`}></i>
-                                    </div>
-                                    <div>
-                                        <div className="text-sm font-medium text-gray-900">
-                                            {programa.nombre}
-                                        </div>
-                                        <div className="text-sm text-gray-500 line-clamp-1">
-                                            {programa.descripcion || "Sin descripción"}
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getTipoColor(programa.tipo)}`}>
-                                    <i className={`${obtenerIconoTipo(programa.tipo)} mr-1 ${getIconColor(programa.tipo)}`}></i>
-                                    {obtenerLabelTipo(programa.tipo)}
-                                </span>
-                            </td>
-                            <td className="px-6 py-4">
-                                {renderGranjas(programa.granjas)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                    programa.activo 
-                                        ? 'bg-green-100 text-green-800' 
-                                        : 'bg-red-100 text-red-800'
-                                }`}>
-                                    <i className={`fas fa-circle mr-1 text-xs ${
-                                        programa.activo ? 'text-green-500' : 'text-red-500'
-                                    }`}></i>
-                                    {programa.activo ? 'Activo' : 'Inactivo'}
-                                </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <div className="flex justify-end space-x-2" onClick={(e) => e.stopPropagation()}>
-                                    {/* Nuevo botón: Ver Lotes */}
-                                    <button
-                                        onClick={(e) => verLotesPrograma(e, programa.id)}
-                                        className="text-purple-600 hover:text-purple-900 p-2 hover:bg-purple-50 rounded transition-colors"
-                                        title="Ver lotes del programa"
-                                    >
-                                        <i className="fas fa-seedling"></i>
-                                    </button>
-                                    
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onEditar(programa);
-                                        }}
-                                        className="text-blue-600 hover:text-blue-900 p-2 hover:bg-blue-50 rounded transition-colors"
-                                        title="Editar programa"
-                                    >
-                                        <i className="fas fa-edit"></i>
-                                    </button>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onEliminar(programa.id);
-                                        }}
-                                        className="text-red-600 hover:text-red-900 p-2 hover:bg-red-50 rounded transition-colors"
-                                        title="Eliminar programa"
-                                    >
-                                        <i className="fas fa-trash"></i>
-                                    </button>
-                                </div>
-                            </td>
+            <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                ID
+                            </th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Programa
+                            </th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Tipo
+                            </th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Granjas Asignadas
+                            </th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Estado
+                            </th>
+                            <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Acciones
+                            </th>
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                        {programas.map((programa) => (
+                            <tr 
+                                key={programa.id} 
+                                className="hover:bg-gray-50 transition-colors cursor-pointer"
+                                onClick={() => onVerDetalles(programa)}
+                            >
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    #{programa.id}
+                                </td>
+                                <td className="px-6 py-4">
+                                    <div className="flex items-center">
+                                        <div className={`flex-shrink-0 w-10 h-10 rounded-lg ${getTipoColor(programa.tipo)} flex items-center justify-center mr-3`}>
+                                            <i className={`${obtenerIconoTipo(programa.tipo)} ${getIconColor(programa.tipo)}`}></i>
+                                        </div>
+                                        <div>
+                                            <div className="text-sm font-medium text-gray-900">
+                                                {programa.nombre}
+                                            </div>
+                                            <div className="text-sm text-gray-500 line-clamp-1">
+                                                {programa.descripcion || "Sin descripción"}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getTipoColor(programa.tipo)}`}>
+                                        <i className={`${obtenerIconoTipo(programa.tipo)} mr-1 ${getIconColor(programa.tipo)}`}></i>
+                                        {obtenerLabelTipo(programa.tipo)}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4">
+                                    {renderGranjas(programa.granjas)}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                        programa.activo 
+                                            ? 'bg-green-100 text-green-800' 
+                                            : 'bg-red-100 text-red-800'
+                                    }`}>
+                                        <i className={`fas fa-circle mr-1 text-xs ${
+                                            programa.activo ? 'text-green-500' : 'text-red-500'
+                                        }`}></i>
+                                        {programa.activo ? 'Activo' : 'Inactivo'}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <div className="flex justify-end space-x-2" onClick={(e) => e.stopPropagation()}>
+                                        {/* Botón: Ver Lotes - CON TOOLTIP MEJORADO */}
+                                        <button
+                                            onClick={(e) => verLotesPrograma(e, programa.id)}
+                                            className="text-purple-600 hover:text-purple-900 p-2 hover:bg-purple-50 rounded transition-colors group relative"
+                                            title="Ver lotes del programa"
+                                        >
+                                            <i className="fas fa-seedling"></i>
+                                            {/* Tooltip mejorado */}
+                                            <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                                Ver lotes
+                                            </span>
+                                        </button>
+                                        
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onEditar(programa);
+                                            }}
+                                            className="text-blue-600 hover:text-blue-900 p-2 hover:bg-blue-50 rounded transition-colors group relative"
+                                            title="Editar programa"
+                                        >
+                                            <i className="fas fa-edit"></i>
+                                            <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                                Editar
+                                            </span>
+                                        </button>
+                                        
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onEliminar(programa.id);
+                                            }}
+                                            className="text-red-600 hover:text-red-900 p-2 hover:bg-red-50 rounded transition-colors group relative"
+                                            title="Eliminar programa"
+                                        >
+                                            <i className="fas fa-trash"></i>
+                                            <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                                Eliminar
+                                            </span>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Footer con estadísticas */}
+            <div className="bg-gray-50 px-6 py-3 border-t border-gray-200">
+                <div className="flex justify-between items-center text-sm text-gray-500">
+                    <div>
+                        Mostrando <span className="font-medium">{programas.length}</span> programas
+                    </div>
+                    <div className="flex space-x-4">
+                        <span className="flex items-center">
+                            <i className="fas fa-seedling text-green-600 mr-1"></i>
+                            <span className="font-medium text-green-700">
+                                {programas.filter(p => p.tipo === 'agricola').length}
+                            </span>
+                        </span>
+                        <span className="flex items-center">
+                            <i className="fas fa-paw text-amber-600 mr-1"></i>
+                            <span className="font-medium text-amber-700">
+                                {programas.filter(p => p.tipo === 'pecuario').length}
+                            </span>
+                        </span>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };

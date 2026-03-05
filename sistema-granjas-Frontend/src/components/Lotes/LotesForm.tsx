@@ -8,11 +8,12 @@ interface LoteFormProps {
     onClose: () => void;
     datosFormulario: any;
     setDatosFormulario: React.Dispatch<React.SetStateAction<any>>;
-    onSubmit: (e: React.FormEvent) => Promise<void>; // Cambié a Promise<void>
+    onSubmit: (e: React.FormEvent) => Promise<void>;
     editando: boolean;
     tiposLote: any[];
     granjas: any[];
     programas: any[];
+    programaIdFijo?: number; // Para cuando el lote pertenece a un programa específico
 }
 
 const LoteForm: React.FC<LoteFormProps> = ({
@@ -24,7 +25,8 @@ const LoteForm: React.FC<LoteFormProps> = ({
     editando,
     tiposLote,
     granjas,
-    programas
+    programas,
+    programaIdFijo
 }) => {
     const [cultivos, setCultivos] = useState<any[]>([]);
     const [cargandoCultivos, setCargandoCultivos] = useState(false);
@@ -36,26 +38,19 @@ const LoteForm: React.FC<LoteFormProps> = ({
             if (datosFormulario.granja_id) {
                 setCargandoCultivos(true);
 
-                // Mostrar toast de carga si toma más de 500ms
+                // Mostrar toast de carga si toma más de 300ms
                 const loadingTimeout = setTimeout(() => {
                     toast.loading('Cargando cultivos de la granja...', {
-                        id: 'cargando-cultivos'
+                        id: 'cargando-cultivos-lote'
                     });
-                }, 500);
+                }, 300);
 
                 try {
                     const cultivosData = await cultivoService.obtenerCultivosPorGranja(datosFormulario.granja_id);
                     setCultivos(cultivosData);
 
                     clearTimeout(loadingTimeout);
-                    toast.dismiss('cargando-cultivos');
-
-                    if (cultivosData.length > 0) {
-                        toast.success(`${cultivosData.length} cultivo(s) cargado(s)`, {
-                            duration: 2000,
-                            position: 'top-right'
-                        });
-                    }
+                    toast.dismiss('cargando-cultivos-lote');
 
                     // Si estamos editando y el cultivo_id existe en la lista, mantenerlo
                     // Si no, resetear el cultivo_id
@@ -68,9 +63,9 @@ const LoteForm: React.FC<LoteFormProps> = ({
                                 nombre_cultivo: ''
                             }));
 
-                            // Usar toast() en lugar de toast.info()
-                            toast('El cultivo anterior ya no está disponible', {
+                            toast('El cultivo anterior ya no está disponible para esta granja', {
                                 duration: 3000,
+                                icon: '⚠️',
                                 position: 'top-right'
                             });
                         }
@@ -80,7 +75,7 @@ const LoteForm: React.FC<LoteFormProps> = ({
                     setCultivos([]);
 
                     clearTimeout(loadingTimeout);
-                    toast.dismiss('cargando-cultivos');
+                    toast.dismiss('cargando-cultivos-lote');
 
                     toast.error('Error al cargar los cultivos de la granja', {
                         duration: 4000,
@@ -103,14 +98,20 @@ const LoteForm: React.FC<LoteFormProps> = ({
         if (isOpen) {
             cargarCultivosDeGranja();
         }
-    }, [datosFormulario.granja_id, isOpen]);
+    }, [datosFormulario.granja_id, isOpen, setDatosFormulario]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
 
+        // Para campos numéricos
+        let parsedValue: any = value;
+        if (type === 'number') {
+            parsedValue = value === '' ? 0 : parseInt(value);
+        }
+
         setDatosFormulario(prev => ({
             ...prev,
-            [name]: type === 'number' ? parseInt(value) || 0 : value
+            [name]: parsedValue
         }));
 
         // Si cambia la granja, resetear el cultivo_id
@@ -121,35 +122,12 @@ const LoteForm: React.FC<LoteFormProps> = ({
                 nombre_cultivo: ''
             }));
 
-            // Notificación cuando se selecciona una granja
             const granjaSeleccionada = granjas.find(g => g.id === parseInt(value));
             if (granjaSeleccionada) {
                 toast.success(`Granja "${granjaSeleccionada.nombre}" seleccionada`, {
                     duration: 2000,
-                    position: 'top-right'
-                });
-            }
-        }
-
-        // Notificación cuando se selecciona un tipo de lote
-        if (name === 'tipo_lote_id') {
-            const tipoLoteSeleccionado = tiposLote.find(t => t.id === parseInt(value));
-            if (tipoLoteSeleccionado) {
-                // Usar toast() en lugar de toast.info()
-                toast(`Tipo de lote: ${tipoLoteSeleccionado.nombre}`, {
-                    duration: 2000,
-                    position: 'top-right'
-                });
-            }
-        }
-
-        // Notificación cuando se selecciona un programa
-        if (name === 'programa_id') {
-            const programaSeleccionado = programas.find(p => p.id === parseInt(value));
-            if (programaSeleccionado) {
-                toast.success(`Programa: ${programaSeleccionado.nombre}`, {
-                    duration: 2000,
-                    position: 'top-right'
+                    position: 'top-right',
+                    id: `granja-${granjaSeleccionada.id}`
                 });
             }
         }
@@ -169,7 +147,8 @@ const LoteForm: React.FC<LoteFormProps> = ({
         if (cultivoSeleccionado) {
             toast.success(`Cultivo seleccionado: ${cultivoSeleccionado.nombre}`, {
                 duration: 2000,
-                position: 'top-right'
+                position: 'top-right',
+                id: `cultivo-${cultivoSeleccionado.id}`
             });
         }
     };
@@ -182,45 +161,80 @@ const LoteForm: React.FC<LoteFormProps> = ({
         { value: 'completado', label: 'Completado' }
     ];
 
-    // Manejar envío del formulario con toasts CORREGIDO
+    // Validar nombre del lote
+    const validarNombreLote = (nombre: string): { valido: boolean; mensaje?: string } => {
+        if (!nombre.trim()) {
+            return { valido: false, mensaje: 'El nombre del lote es requerido' };
+        }
+
+        const regexValido = /^[\p{L}0-9\s\-.,()]+$/u;
+        if (!regexValido.test(nombre)) {
+            return { valido: false, mensaje: 'El nombre contiene caracteres no permitidos. Solo letras, números, espacios y los caracteres: - . , ( )' };
+        }
+
+        if (/^[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/.test(nombre) || /[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]$/.test(nombre)) {
+            return { valido: false, mensaje: 'El nombre no puede empezar o terminar con caracteres especiales' };
+        }
+
+        return { valido: true };
+    };
+
+    // Manejar envío del formulario
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (enviando) return; // Evitar múltiples envíos
+        
+        if (enviando) {
+            toast.error('Ya hay una operación en curso', {
+                duration: 2000,
+                position: 'top-right',
+                id: 'operacion-en-curso'
+            });
+            return;
+        }
 
-        // Validación adicional
+        // Validaciones
         if (!datosFormulario.cultivo_id) {
             toast.error('Por favor selecciona un cultivo', {
                 duration: 4000,
-                position: 'top-right'
+                position: 'top-right',
+                id: 'error-cultivo'
             });
             return;
         }
 
-        if (!datosFormulario.nombre.trim()) {
-            toast.error('Por favor ingresa un nombre para el lote', {
+        const validacionNombre = validarNombreLote(datosFormulario.nombre);
+        if (!validacionNombre.valido) {
+            toast.error(validacionNombre.mensaje!, {
+                duration: 5000,
+                position: 'top-right',
+                id: 'error-nombre'
+            });
+            return;
+        }
+
+        if (!datosFormulario.tipo_lote_id) {
+            toast.error('Por favor selecciona un tipo de lote', {
                 duration: 4000,
-                position: 'top-right'
+                position: 'top-right',
+                id: 'error-tipo'
             });
             return;
         }
 
-        // Validar nombre del lote
-        const nombreLote = datosFormulario.nombre.trim();
-        const regexValido = /^[\p{L}0-9\s\-.,()]+$/u;
-
-        if (!regexValido.test(nombreLote)) {
-            toast.error('El nombre del lote contiene caracteres no permitidos. Solo letras, números y espacios', {
-                duration: 5000,
-                position: 'top-right'
+        if (!datosFormulario.granja_id) {
+            toast.error('Por favor selecciona una granja', {
+                duration: 4000,
+                position: 'top-right',
+                id: 'error-granja'
             });
             return;
         }
 
-        // Validar que el nombre no empiece o termine con caracteres especiales
-        if (/^[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/.test(nombreLote) || /[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]$/.test(nombreLote)) {
-            toast.error('El nombre no puede empezar o terminar con caracteres especiales', {
-                duration: 5000,
-                position: 'top-right'
+        if (!datosFormulario.programa_id && !programaIdFijo) {
+            toast.error('Por favor selecciona un programa', {
+                duration: 4000,
+                position: 'top-right',
+                id: 'error-programa'
             });
             return;
         }
@@ -228,55 +242,56 @@ const LoteForm: React.FC<LoteFormProps> = ({
         setEnviando(true);
 
         try {
-            // Mostrar toast de carga
-            const loadingToast = toast.loading(
+            const loadingToastId = toast.loading(
                 editando ? 'Actualizando lote...' : 'Creando lote...',
-                {
-                    id: 'enviando-lote'
-                }
+                { id: 'procesando-lote' }
             );
 
-            // Llamar al onSubmit original - DEBE devolver una Promise
             await onSubmit(e);
 
-            // Cerrar toast de carga
-            toast.dismiss(loadingToast);
-
-            // Mostrar éxito SOLO si onSubmit no lanzó error
+            toast.dismiss(loadingToastId);
+            
             toast.success(
                 editando ? '¡Lote actualizado exitosamente!' : '¡Lote creado exitosamente!',
                 {
                     duration: 3000,
-                    position: 'top-right'
+                    position: 'top-right',
+                    id: 'operacion-exitosa'
                 }
             );
 
-            // Cerrar el modal después de un breve delay
             setTimeout(() => {
                 onClose();
             }, 500);
 
         } catch (error: any) {
-            // El error ya debería haber sido manejado por el componente padre
-            // Pero por si acaso, manejamos errores específicos aquí
             console.error('Error en handleSubmit del formulario:', error);
+            
+            toast.dismiss('procesando-lote');
 
-            // Cerrar toast de carga si aún está abierto
-            toast.dismiss('enviando-lote');
-
-            // Si el error tiene detalles específicos, mostrarlos
+            // Manejar errores específicos
             if (error.response?.data?.detail) {
                 const errores = error.response.data.detail;
-                errores.forEach((err: any) => {
-                    toast.error(`Error: ${err.msg || 'Error desconocido'}`, {
-                        duration: 5000,
-                        position: 'top-right'
+                if (Array.isArray(errores)) {
+                    errores.forEach((err: any) => {
+                        toast.error(`Error: ${err.msg || 'Error desconocido'}`, {
+                            duration: 5000,
+                            position: 'top-right',
+                            id: `error-${Date.now()}`
+                        });
                     });
-                });
+                } else {
+                    toast.error(`Error: ${errores}`, {
+                        duration: 5000,
+                        position: 'top-right',
+                        id: 'error-general'
+                    });
+                }
             } else if (error.message) {
                 toast.error(`Error: ${error.message}`, {
                     duration: 5000,
-                    position: 'top-right'
+                    position: 'top-right',
+                    id: 'error-mensaje'
                 });
             }
         } finally {
@@ -284,32 +299,47 @@ const LoteForm: React.FC<LoteFormProps> = ({
         }
     };
 
+    const handleCancel = () => {
+        if (enviando) {
+            toast.error('Por favor espera a que termine la operación actual', {
+                duration: 2000,
+                position: 'top-right',
+                id: 'cancelar-bloqueado'
+            });
+            return;
+        }
+
+        // Verificar si hay cambios
+        const hayCambios = datosFormulario.nombre || 
+                          datosFormulario.granja_id || 
+                          datosFormulario.tipo_lote_id ||
+                          datosFormulario.cultivo_id;
+
+        if (hayCambios) {
+            const confirmar = window.confirm('¿Estás seguro de cancelar? Los cambios no guardados se perderán.');
+            if (!confirmar) return;
+        }
+
+        toast('Formulario cancelado', {
+            duration: 2000,
+            icon: '👋',
+            position: 'top-right'
+        });
+        
+        onClose();
+    };
+
+    // Determinar si el campo programa debe estar deshabilitado
+    const programaDeshabilitado = !!programaIdFijo || enviando;
+
     return (
         <Modal
             isOpen={isOpen}
-            onClose={() => {
-                if (enviando) {
-                    toast.error('Por favor espera a que termine la operación actual');
-                    return;
-                }
-
-                // Toast de confirmación al cancelar
-                if (datosFormulario.nombre || datosFormulario.granja_id) {
-                    const confirmar = window.confirm('¿Estás seguro de cancelar? Los cambios no guardados se perderán.');
-                    if (!confirmar) return;
-                }
-
-                toast('Formulario cancelado', {
-                    duration: 2000,
-                    position: 'top-right'
-                });
-                onClose();
-            }}
+            onClose={handleCancel}
             title={editando ? 'Editar Lote' : 'Nuevo Lote'}
             size="lg"
         >
-            <form onSubmit={handleSubmit} className="space-y-4 px-1 md:px-2">
-                {/* Contenedor con padding mejorado */}
+            <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-4 px-1">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Nombre */}
@@ -322,13 +352,14 @@ const LoteForm: React.FC<LoteFormProps> = ({
                                 name="nombre"
                                 value={datosFormulario.nombre}
                                 onChange={handleChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 required
                                 placeholder="Ej: Lote Norte, Parcela 1"
                                 disabled={enviando}
+                                maxLength={100}
                             />
                             <p className="text-xs text-gray-500 mt-1">
-                                Solo letras, números y espacios. No se permiten caracteres especiales como #, @, !, etc.
+                                Solo letras, números, espacios y los caracteres: - . , ( )
                             </p>
                         </div>
 
@@ -341,7 +372,7 @@ const LoteForm: React.FC<LoteFormProps> = ({
                                 name="tipo_lote_id"
                                 value={datosFormulario.tipo_lote_id || ''}
                                 onChange={handleChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 required
                                 disabled={enviando}
                             >
@@ -363,7 +394,7 @@ const LoteForm: React.FC<LoteFormProps> = ({
                                 name="estado"
                                 value={datosFormulario.estado}
                                 onChange={handleChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 required
                                 disabled={enviando}
                             >
@@ -384,7 +415,7 @@ const LoteForm: React.FC<LoteFormProps> = ({
                                 name="granja_id"
                                 value={datosFormulario.granja_id || ''}
                                 onChange={handleChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 required
                                 disabled={enviando}
                             >
@@ -404,11 +435,11 @@ const LoteForm: React.FC<LoteFormProps> = ({
                             </label>
                             <select
                                 name="programa_id"
-                                value={datosFormulario.programa_id || ''}
+                                value={programaIdFijo || datosFormulario.programa_id || ''}
                                 onChange={handleChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 required
-                                disabled={enviando}
+                                disabled={programaDeshabilitado}
                             >
                                 <option value="">Seleccionar programa</option>
                                 {programas.map(programa => (
@@ -417,9 +448,14 @@ const LoteForm: React.FC<LoteFormProps> = ({
                                     </option>
                                 ))}
                             </select>
+                            {programaIdFijo && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Programa fijo para este lote
+                                </p>
+                            )}
                         </div>
 
-                        {/* Cultivo (dropdown con los cultivos de la granja) */}
+                        {/* Cultivo */}
                         <div className="md:col-span-2">
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Cultivo *
@@ -429,17 +465,19 @@ const LoteForm: React.FC<LoteFormProps> = ({
                                     name="cultivo_id"
                                     value={datosFormulario.cultivo_id || ''}
                                     onChange={handleCultivoChange}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                                     required
                                     disabled={cargandoCultivos || !datosFormulario.granja_id || enviando}
                                 >
-                                    <option value="">{
-                                        !datosFormulario.granja_id
+                                    <option value="">
+                                        {!datosFormulario.granja_id
                                             ? 'Primero seleccione una granja'
                                             : cargandoCultivos
                                                 ? 'Cargando cultivos...'
-                                                : 'Seleccionar cultivo'
-                                    }</option>
+                                                : cultivos.length === 0
+                                                    ? 'No hay cultivos en esta granja'
+                                                    : 'Seleccionar cultivo'}
+                                    </option>
                                     {cultivos.map(cultivo => (
                                         <option key={cultivo.id} value={cultivo.id}>
                                             {cultivo.nombre} ({cultivo.tipo})
@@ -447,18 +485,17 @@ const LoteForm: React.FC<LoteFormProps> = ({
                                     ))}
                                 </select>
                                 {cargandoCultivos && (
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
+                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600"></div>
                                 )}
                             </div>
-                            {/* Input oculto para nombre_cultivo que se autocompleta */}
                             <input
                                 type="hidden"
                                 name="nombre_cultivo"
                                 value={datosFormulario.nombre_cultivo || ''}
                             />
                             {datosFormulario.nombre_cultivo && (
-                                <p className="text-sm text-gray-500 mt-1">
-                                    Cultivo seleccionado: <strong>{datosFormulario.nombre_cultivo}</strong>
+                                <p className="text-sm text-gray-600 mt-1">
+                                    Cultivo seleccionado: <span className="font-medium">{datosFormulario.nombre_cultivo}</span>
                                 </p>
                             )}
                         </div>
@@ -473,37 +510,37 @@ const LoteForm: React.FC<LoteFormProps> = ({
                                 name="fecha_inicio"
                                 value={datosFormulario.fecha_inicio}
                                 onChange={handleChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 required
                                 disabled={enviando}
                             />
                         </div>
                     </div>
 
-                    {/* Nota informativa */}
+                    {/* Nota informativa - Sin cultivos */}
                     {datosFormulario.granja_id && cultivos.length === 0 && !cargandoCultivos && (
-                        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
                             <div className="flex">
                                 <div className="flex-shrink-0">
                                     <i className="fas fa-exclamation-triangle text-yellow-400"></i>
                                 </div>
                                 <div className="ml-3">
                                     <p className="text-sm text-yellow-700">
-                                        Esta granja no tiene cultivos registrados.
-                                        <a
-                                            href="/gestion-cultivos"
-                                            className="ml-1 text-yellow-700 underline hover:text-yellow-600"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
+                                        Esta granja no tiene cultivos registrados. 
+                                        <button
+                                            type="button"
                                             onClick={() => {
                                                 toast('Redirigiendo a gestión de cultivos...', {
                                                     duration: 2000,
+                                                    icon: '🚀',
                                                     position: 'top-right'
                                                 });
+                                                window.open('/gestion-cultivos', '_blank');
                                             }}
+                                            className="ml-1 text-yellow-700 underline hover:text-yellow-600 font-medium"
                                         >
                                             Crear un cultivo primero.
-                                        </a>
+                                        </button>
                                     </p>
                                 </div>
                             </div>
@@ -511,28 +548,11 @@ const LoteForm: React.FC<LoteFormProps> = ({
                     )}
                 </div>
 
-                {/* Botones con mejor padding */}
-                <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 px-1">
+                {/* Botones */}
+                <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
                     <button
                         type="button"
-                        onClick={() => {
-                            if (enviando) {
-                                toast.error('Por favor espera a que termine la operación actual');
-                                return;
-                            }
-
-                            // Toast de confirmación al cancelar
-                            if (datosFormulario.nombre || datosFormulario.granja_id) {
-                                const confirmar = window.confirm('¿Estás seguro de cancelar? Los cambios no guardados se perderán.');
-                                if (!confirmar) return;
-                            }
-
-                            toast('Formulario cancelado', {
-                                duration: 2000,
-                                position: 'top-right'
-                            });
-                            onClose();
-                        }}
+                        onClick={handleCancel}
                         className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled={enviando}
                     >
@@ -540,8 +560,15 @@ const LoteForm: React.FC<LoteFormProps> = ({
                     </button>
                     <button
                         type="submit"
-                        className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                        disabled={!datosFormulario.cultivo_id || !datosFormulario.nombre.trim() || enviando}
+                        className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center min-w-[120px] justify-center"
+                        disabled={
+                            !datosFormulario.cultivo_id ||
+                            !datosFormulario.nombre.trim() ||
+                            !datosFormulario.tipo_lote_id ||
+                            !datosFormulario.granja_id ||
+                            (!datosFormulario.programa_id && !programaIdFijo) ||
+                            enviando
+                        }
                     >
                         {enviando ? (
                             <>

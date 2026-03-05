@@ -1,4 +1,3 @@
-// src/components/Lotes/GestionLote.tsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
@@ -12,11 +11,13 @@ import TiposLoteModal from "./TiposLote";
 import exportService from "../../services/exportService";
 
 interface GestionLotesProps {
-    programaId?: string; // Para filtrar por programa específico
+    programaId?: string;     // Para filtrar por programa específico
+    granjaId?: string;       // Para navegación contextual
 }
 
-export default function GestionLotes({ programaId }: GestionLotesProps) {
+export default function GestionLotes({ programaId, granjaId }: GestionLotesProps) {
     console.log('📍 GestionLotes - programaId recibido:', programaId);
+    console.log('📍 GestionLotes - granjaId recibido:', granjaId);
     
     const navigate = useNavigate();
     const [lotes, setLotes] = useState<any[]>([]);
@@ -235,6 +236,15 @@ export default function GestionLotes({ programaId }: GestionLotesProps) {
         });
     };
 
+    // ✅ Función para volver al programa
+    const handleVolverAlPrograma = () => {
+        if (programaId && granjaId) {
+            navigate(`/granjas/${granjaId}/programas`);
+        } else if (programaId) {
+            navigate(`/programas/${programaId}`);
+        }
+    };
+
     if (cargando) {
         return (
             <div className="flex justify-center items-center p-8">
@@ -314,7 +324,7 @@ export default function GestionLotes({ programaId }: GestionLotesProps) {
             </div>
 
             {/* Botones de acción */}
-            <div className="mb-6 flex gap-4">
+            <div className="mb-6 flex flex-wrap gap-4">
                 <button
                     onClick={() => {
                         resetFormulario();
@@ -335,13 +345,14 @@ export default function GestionLotes({ programaId }: GestionLotesProps) {
                     Gestionar Tipos de Lote
                 </button>
 
+                {/* ✅ Botón de volver - ahora usa granjaId si está disponible */}
                 {programaId && (
                     <button
-                        onClick={() => navigate(`/programas/${programaId}`)}
+                        onClick={handleVolverAlPrograma}
                         className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition flex items-center gap-2"
                     >
                         <i className="fas fa-arrow-left"></i>
-                        Volver al Programa
+                        Volver a {nombrePrograma || 'Programa'}
                     </button>
                 )}
             </div>

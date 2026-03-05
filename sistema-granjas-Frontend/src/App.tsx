@@ -126,10 +126,10 @@ function AppContent() {
         />
 
         <Route
-          path="/programas/:programaId/lotes"
+          path="/granjas/:granjaId/programas/:programaId/lotes" // 👈 Incluye granjaId y programaId
           element={
             <ProtectedRoute>
-              <GestionLotesPage /> {/* Usamos el mismo componente, no uno nuevo */}
+              <GestionLotesPage />
             </ProtectedRoute>
           }
         />

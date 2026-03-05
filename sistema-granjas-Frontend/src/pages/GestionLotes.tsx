@@ -1,4 +1,3 @@
-// src/pages/GestionLotesPage.tsx
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import DashboardHeader from '../components/Common/DashboardHeader';
@@ -6,13 +5,14 @@ import GestionLotes from '../components/Lotes/GestionLote';
 import programaService from '../services/programaService';
 
 const GestionLotesPage: React.FC = () => {
-    const { programaId } = useParams<{ programaId: string }>();
-    const { granjaId } = useParams<{ granjaId: string }>();
+    // ✅ Obtenemos AMBOS parámetros de la URL
+    const { programaId, granjaId } = useParams<{ programaId: string; granjaId: string }>();
     const navigate = useNavigate();
     const [nombrePrograma, setNombrePrograma] = useState<string>('');
     const [cargando, setCargando] = useState<boolean>(true);
 
     console.log('📍 GestionLotesPage - programaId:', programaId);
+    console.log('📍 GestionLotesPage - granjaId:', granjaId); // ✅ Ahora tiene valor
 
     useEffect(() => {
         const cargarNombrePrograma = async () => {
@@ -35,15 +35,19 @@ const GestionLotesPage: React.FC = () => {
         cargarNombrePrograma();
     }, [programaId]);
 
-    // Determinar el título basado en si hay programaId o no
+    // Determinar el título basado en el contexto
     const title = programaId
-        ? `Lotes: ${nombrePrograma || '...'}`
+        ? `Lotes de ${nombrePrograma || '...'}`
         : "Gestión de Lotes";
 
-    // Función para manejar el botón de retroceso
+    // ✅ Función para manejar el botón de retroceso - USA AMBOS PARÁMETROS
     const handleBack = () => {
-        if (programaId) {
+        if (programaId && granjaId) {
+            // Volver a la página de programas de esa granja
             navigate(`/granjas/${granjaId}/programas`);
+        } else if (programaId) {
+            // Fallback: volver a gestión general de programas
+            navigate('/gestion/programas');
         } else {
             navigate("/dashboard");
         }
@@ -68,7 +72,8 @@ const GestionLotesPage: React.FC = () => {
                 onBack={handleBack}
             />
             <div className="container mx-auto px-4 py-8">
-                <GestionLotes programaId={programaId} />
+                {/* ✅ Pasamos programaId al componente GestionLotes */}
+                <GestionLotes programaId={programaId} granjaId={granjaId} />
             </div>
         </div>
     );
