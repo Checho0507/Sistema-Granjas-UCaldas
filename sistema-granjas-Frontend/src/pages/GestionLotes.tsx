@@ -7,7 +7,6 @@ import programaService from '../services/programaService';
 
 const GestionLotesPage: React.FC = () => {
     const { programaId } = useParams<{ programaId: string }>();
-    const { granjaId } = useParams<{ granjaId: string }>();
     const navigate = useNavigate();
     const [nombrePrograma, setNombrePrograma] = useState<string>('');
     const [cargando, setCargando] = useState<boolean>(true);
@@ -40,15 +39,6 @@ const GestionLotesPage: React.FC = () => {
         ? `Lotes: ${nombrePrograma || '...'}`
         : "Gestión de Lotes";
 
-    // Función para manejar el botón de retroceso
-    const handleBack = () => {
-        if (programaId) {
-            navigate(`/granjas/${localStorage.getItem("granjaid")}/programas`);
-        } else {
-            navigate("/dashboard");
-        }
-    };
-
     if (cargando && programaId) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -65,7 +55,7 @@ const GestionLotesPage: React.FC = () => {
             <DashboardHeader
                 title={title}
                 selectedModule="lotes"
-                onBack={handleBack}
+                onBack={() => window.history.back()}
             />
             <div className="container mx-auto px-4 py-8">
                 <GestionLotes programaId={programaId} />
