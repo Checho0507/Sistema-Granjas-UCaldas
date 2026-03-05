@@ -1,185 +1,58 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, BarChart, Bar
-} from 'recharts';
 import DashboardHeader from '../components/Common/DashboardHeader';
 import Sidebar from '../components/Common/SideBar';
 import granjaService from '../services/granjaService';
 import programaService from '../services/programaService';
 import loteService from '../services/loteService';
-import usuarioService from '../services/usuarioService';
-import laboresService from '../services/laboresService';
 import { normalizarArray } from '../utils/normalize';
-import type { Labor, Usuario, Lote, Granja, Programa } from '../types/granjaTypes';
-
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#8A2BE2'];
-
-// Interfaces
-interface MetricasPrincipales {
-  totalGranjas: number;
-  totalProgramas: number;
-  totalLotes: number;
-  totalUsuarios: number;
-  lotesActivos: number;
-  programasActivos: number;
-}
-
-interface LaboresPorDia {
-  fecha: string;
-  cantidad: number;
-}
-
-interface UsuarioPorRol {
-  name: string;
-  value: number;
-}
-
-interface ProgramaPorTipo {
-  name: string;
-  value: number;
-  color: string;
-}
-
-interface ResumenLotes {
-  total: number;
-  activos: number;
-  inactivos: number;
-  completados: number;
-  enProduccion: number;
-}
+import type { Granja, Programa, Lote } from '../types/granjaTypes';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Estados para datos
-  const [metricas, setMetricas] = useState<MetricasPrincipales>({
-    totalGranjas: 0,
-    totalProgramas: 0,
-    totalLotes: 0,
-    totalUsuarios: 0,
-    lotesActivos: 0,
-    programasActivos: 0
-  });
-  
-  const [laboresPorDia, setLaboresPorDia] = useState<LaboresPorDia[]>([]);
-  const [usuariosPorRol, setUsuariosPorRol] = useState<UsuarioPorRol[]>([]);
-  const [programasPorTipo, setProgramasPorTipo] = useState<ProgramaPorTipo[]>([]);
-  const [proximasLabores, setProximasLabores] = useState<Labor[]>([]);
-  const [resumenLotes, setResumenLotes] = useState<ResumenLotes>({ 
-    total: 0, 
-    activos: 0, 
-    inactivos: 0, 
-    completados: 0,
-    enProduccion: 0 
-  });
-  const [granjasRecientes, setGranjasRecientes] = useState<Granja[]>([]);
-  const [programasRecientes, setProgramasRecientes] = useState<Programa[]>([]);
+  const [nombreUsuario, setNombreUsuario] = useState('Usuario');
+  const [ultimasGranjas, setUltimasGranjas] = useState<Granja[]>([]);
+  const [ultimosProgramas, setUltimosProgramas] = useState<Programa[]>([]);
+  const [ultimosLotes, setUltimosLotes] = useState<Lote[]>([]);
 
   useEffect(() => {
-    cargarDatosDashboard();
+    cargarDatosInicio();
+    
+    // Obtener nombre del usuario del localStorage
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        setNombreUsuario(user.nombre || user.email || 'Usuario');
+      } catch (e) {
+        console.error('Error parsing user:', e);
+      }
+    }
   }, []);
 
-  const cargarDatosDashboard = async () => {
+  const cargarDatosInicio = async () => {
     try {
       setLoading(true);
-      setError(null);
-
-      // Ejecutar todas las peticiones en paralelo
-      const [
-        granjasResp,
-        programasResp,
-        lotesResp,
-        usuariosResp,
-        laboresResp
-      ] = await Promise.all([
+      
+      // Cargar datos recientes (solo para mostrar ejemplos)
+      const [granjasResp, programasResp, lotesResp] = await Promise.all([
         granjaService.obtenerGranjas().catch(() => []),
         programaService.obtenerProgramas().catch(() => []),
-        loteService.obtenerLotes().catch(() => []),
-        usuarioService.obtenerUsuarios().catch(() => []),
-        laboresService.obtenerLabores().catch(() => ({}))
+        loteService.obtenerLotes().catch(() => [])
       ]);
 
-      // Normalizar datos
       const granjas = normalizarArray<Granja>(granjasResp);
       const programas = normalizarArray<Programa>(programasResp);
       const lotes = normalizarArray<Lote>(lotesResp);
-      const usuarios = normalizarArray<Usuario>(usuariosResp);
-      
-      // Procesar labores (pueden venir en diferentes formatos)
-      const labores = Array.isArray(laboresResp) 
-        ? laboresResp 
-        : (laboresResp?.items || []);
 
-      // ===== 1. MÉTRICAS PRINCIPALES =====
-      setMetricas({
-        totalGranjas: granjas.length,
-        totalProgramas: programas.length,
-        totalLotes: lotes.length,
-        totalUsuarios: usuarios.length,
-        lotesActivos: lotes.filter(l => l.estado === 'activo').length,
-        programasActivos: programas.filter(p => p.activo).length
-      });
+      // Obtener los 3 más recientes (asumiendo que tienen fecha_creacion)
+      setUltimasGranjas(granjas.slice(0, 3));
+      setUltimosProgramas(programas.slice(0, 3));
+      setUltimosLotes(lotes.slice(0, 3));
 
-      // ===== 2. GRÁFICO DE LABORES POR DÍA =====
-      const ultimos7Dias = Array.from({ length: 7 }, (_, i) => {
-        const fecha = new Date();
-        fecha.setDate(fecha.getDate() - i);
-        return fecha.toISOString().split('T')[0];
-      }).reverse();
-
-      const conteoPorDia = ultimos7Dias.map(fecha => ({
-        fecha: new Date(fecha).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }),
-        cantidad: labores.filter((l: Labor) => l.fecha_asignacion?.startsWith(fecha)).length
-      }));
-      setLaboresPorDia(conteoPorDia);
-
-      // ===== 3. PRÓXIMAS LABORES =====
-      const hoy = new Date().toISOString().split('T')[0];
-      const futuras = labores
-        .filter((l: Labor) => l.fecha_asignacion && l.fecha_asignacion >= hoy)
-        .sort((a: Labor, b: Labor) => (a.fecha_asignacion || '').localeCompare(b.fecha_asignacion || ''))
-        .slice(0, 5);
-      setProximasLabores(futuras);
-
-      // ===== 4. USUARIOS POR ROL =====
-      const rolesMap = new Map<string, number>();
-      usuarios.forEach(u => {
-        const rol = u.rol || 'Sin rol';
-        rolesMap.set(rol, (rolesMap.get(rol) || 0) + 1);
-      });
-      const rolesData = Array.from(rolesMap.entries())
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value);
-      setUsuariosPorRol(rolesData);
-
-      // ===== 5. PROGRAMAS POR TIPO =====
-      const agricolas = programas.filter(p => p.tipo === 'agricola').length;
-      const pecuarios = programas.filter(p => p.tipo === 'pecuario').length;
-      setProgramasPorTipo([
-        { name: 'Agrícolas', value: agricolas, color: '#10b981' },
-        { name: 'Pecuarios', value: pecuarios, color: '#f59e0b' }
-      ]);
-
-      // ===== 6. RESUMEN DE LOTES =====
-      setResumenLotes({
-        total: lotes.length,
-        activos: lotes.filter((l: Lote) => l.estado === 'activo').length,
-        inactivos: lotes.filter((l: Lote) => l.estado === 'inactivo').length,
-        completados: lotes.filter((l: Lote) => l.estado === 'completado').length,
-        enProduccion: lotes.filter((l: Lote) => l.etapa === 'produccion').length,
-      });
-
-      // ===== 7. GRANJAS Y PROGRAMAS RECIENTES =====
-      setGranjasRecientes(granjas.slice(0, 3));
-      setProgramasRecientes(programas.slice(0, 3));
-
-    } catch (err) {
-      console.error('Error cargando dashboard:', err);
-      setError('Error al cargar los datos del dashboard');
+    } catch (error) {
+      console.error('Error cargando datos de inicio:', error);
     } finally {
       setLoading(false);
     }
@@ -187,33 +60,71 @@ const Dashboard: React.FC = () => {
 
   const irA = (ruta: string) => navigate(ruta);
 
-  // Cards de métricas rápidas
-  const MetricCard = ({ 
-    icon, 
+  // Componente para tarjeta de módulo
+  const ModuloCard = ({ 
+    titulo, 
+    descripcion, 
+    icono, 
     color, 
-    value, 
-    label, 
-    onClick 
+    ruta,
+    stats 
   }: { 
-    icon: string; 
+    titulo: string; 
+    descripcion: string; 
+    icono: string; 
     color: string; 
-    value: number; 
-    label: string; 
-    onClick?: () => void;
+    ruta: string;
+    stats?: string;
   }) => (
     <div 
-      className={`bg-white rounded-lg shadow p-6 ${onClick ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
-      onClick={onClick}
+      className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer border border-gray-100"
+      onClick={() => irA(ruta)}
     >
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-500 uppercase tracking-wider">{label}</p>
-          <p className="text-3xl font-bold mt-2">{value}</p>
+      <div className={`h-2 ${color}`}></div>
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className={`w-12 h-12 rounded-lg ${color} bg-opacity-20 flex items-center justify-center`}>
+            <i className={`fas fa-${icono} text-2xl ${color.replace('bg-', 'text-')}`}></i>
+          </div>
+          {stats && (
+            <span className="text-sm bg-gray-100 text-gray-600 px-3 py-1 rounded-full">
+              {stats}
+            </span>
+          )}
         </div>
-        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${color}`}>
-          <i className={`fas fa-${icon} text-white text-xl`}></i>
+        <h3 className="text-xl font-bold text-gray-800 mb-2">{titulo}</h3>
+        <p className="text-gray-600 mb-4">{descripcion}</p>
+        <div className="flex items-center text-sm font-medium text-green-600">
+          <span>Acceder al módulo</span>
+          <i className="fas fa-arrow-right ml-2 text-xs"></i>
         </div>
       </div>
+    </div>
+  );
+
+  // Componente para actividad reciente
+  const ActividadItem = ({ 
+    icono, 
+    color, 
+    titulo, 
+    subtitulo, 
+    fecha 
+  }: { 
+    icono: string; 
+    color: string; 
+    titulo: string; 
+    subtitulo: string; 
+    fecha?: string;
+  }) => (
+    <div className="flex items-start space-x-3 py-3 border-b border-gray-100 last:border-0">
+      <div className={`w-8 h-8 rounded-full ${color} bg-opacity-20 flex items-center justify-center flex-shrink-0`}>
+        <i className={`fas fa-${icono} text-sm ${color.replace('bg-', 'text-')}`}></i>
+      </div>
+      <div className="flex-1">
+        <p className="text-sm font-medium text-gray-800">{titulo}</p>
+        <p className="text-xs text-gray-500">{subtitulo}</p>
+      </div>
+      {fecha && <span className="text-xs text-gray-400">{fecha}</span>}
     </div>
   );
 
@@ -223,26 +134,10 @@ const Dashboard: React.FC = () => {
         <DashboardHeader />
         <div className="flex">
           <Sidebar />
-          <main className="flex-1 ml-64 p-8">
-            <div className="animate-pulse space-y-6">
-              {/* Skeleton de métricas */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                {[1,2,3,4].map(i => (
-                  <div key={i} className="bg-white rounded-lg shadow p-6">
-                    <div className="h-4 bg-gray-200 rounded w-24 mb-4"></div>
-                    <div className="h-8 bg-gray-200 rounded w-16"></div>
-                  </div>
-                ))}
-              </div>
-              {/* Skeleton de gráficos */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {[1,2].map(i => (
-                  <div key={i} className="bg-white rounded-lg shadow p-6">
-                    <div className="h-6 bg-gray-200 rounded w-48 mb-4"></div>
-                    <div className="h-64 bg-gray-200 rounded"></div>
-                  </div>
-                ))}
-              </div>
+          <main className="flex-1 ml-64 p-8 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto"></div>
+              <p className="mt-4 text-gray-600">Cargando tu espacio de trabajo...</p>
             </div>
           </main>
         </div>
@@ -256,332 +151,257 @@ const Dashboard: React.FC = () => {
       <div className="flex">
         <Sidebar />
         <main className="flex-1 ml-64 p-8">
-          {/* Header con título y actualizar */}
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
-            <button
-              onClick={cargarDatosDashboard}
-              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <i className="fas fa-sync-alt mr-2"></i>
-              Actualizar
-            </button>
+          
+          {/* Banner de bienvenida personalizado */}
+          <div className="bg-gradient-to-r from-green-600 to-green-700 rounded-2xl shadow-xl p-8 mb-8 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold mb-2">
+                  ¡Bienvenido, {nombreUsuario}! 👋
+                </h1>
+                <p className="text-green-100 text-lg max-w-2xl">
+                  Sistema de Gestión Agrícola - Universidad de Caldas
+                </p>
+                <div className="mt-4 flex space-x-4">
+                  <button 
+                    onClick={() => irA('/gestion/granjas/nueva')}
+                    className="bg-white text-green-700 px-4 py-2 rounded-lg font-medium hover:bg-green-50 transition-colors flex items-center"
+                  >
+                    <i className="fas fa-plus-circle mr-2"></i>
+                    Comenzar nueva granja
+                  </button>
+                  <button 
+                    onClick={() => irA('/ayuda')}
+                    className="bg-green-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-400 transition-colors flex items-center"
+                  >
+                    <i className="fas fa-question-circle mr-2"></i>
+                    Ayuda
+                  </button>
+                </div>
+              </div>
+              <div className="hidden lg:block">
+                <img 
+                  src="https://cdn-icons-png.flaticon.com/512/1995/1995572.png" 
+                  alt="Granja" 
+                  className="w-32 h-32 opacity-20"
+                />
+              </div>
+            </div>
           </div>
 
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 flex justify-between items-center">
-              <span>{error}</span>
-              <button onClick={() => setError(null)} className="text-red-800 hover:text-red-900">
-                <i className="fas fa-times"></i>
-              </button>
+          {/* Módulos principales */}
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">Módulos del Sistema</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <ModuloCard
+              titulo="Granjas"
+              descripcion="Administra tus granjas, ubicaciones y configuración general"
+              icono="warehouse"
+              color="bg-blue-600"
+              ruta="/gestion/granjas"
+              stats="3 activas"
+            />
+            <ModuloCard
+              titulo="Programas"
+              descripcion="Gestiona programas agrícolas y pecuarios"
+              icono="clipboard-list"
+              color="bg-green-600"
+              ruta="/gestion/programas"
+              stats="11 registrados"
+            />
+            <ModuloCard
+              titulo="Lotes"
+              descripcion="Controla lotes de producción y seguimiento de cultivos"
+              icono="tractor"
+              color="bg-purple-600"
+              ruta="/lotes"
+              stats="8 activos"
+            />
+            <ModuloCard
+              titulo="Usuarios"
+              descripcion="Administra roles, permisos y acceso al sistema"
+              icono="users"
+              color="bg-amber-600"
+              ruta="/gestion/usuarios"
+              stats="7 usuarios"
+            />
+          </div>
+
+          {/* Segunda fila de módulos */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <ModuloCard
+              titulo="Labores"
+              descripcion="Planifica y da seguimiento a las labores agrícolas"
+              icono="calendar-alt"
+              color="bg-orange-600"
+              ruta="/labores"
+            />
+            <ModuloCard
+              titulo="Inventario"
+              descripcion="Control de insumos, herramientas y productos"
+              icono="boxes"
+              color="bg-indigo-600"
+              ruta="/gestion/inventario"
+            />
+            <ModuloCard
+              titulo="Reportes"
+              descripcion="Genera informes y exporta datos del sistema"
+              icono="file-pdf"
+              color="bg-red-600"
+              ruta="/reportes"
+            />
+          </div>
+
+          {/* Actividad reciente y guías */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Actividad reciente */}
+            <div className="bg-white rounded-xl shadow-lg p-6 lg:col-span-2">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-bold text-gray-800 flex items-center">
+                  <i className="fas fa-clock text-green-600 mr-2"></i>
+                  Actividad Reciente
+                </h3>
+                <button 
+                  onClick={() => irA('/actividad')}
+                  className="text-sm text-green-600 hover:text-green-800"
+                >
+                  Ver todo <i className="fas fa-arrow-right ml-1"></i>
+                </button>
+              </div>
+
+              <div className="space-y-1">
+                {ultimasGranjas.length > 0 ? (
+                  <>
+                    {ultimasGranjas.map(granja => (
+                      <ActividadItem
+                        key={`granja-${granja.id}`}
+                        icono="warehouse"
+                        color="bg-blue-600"
+                        titulo={`Nueva granja: ${granja.nombre}`}
+                        subtitulo={granja.ubicacion || 'Sin ubicación'}
+                        fecha="Hace 2 días"
+                      />
+                    ))}
+                  </>
+                ) : (
+                  <ActividadItem
+                    icono="plus-circle"
+                    color="bg-gray-600"
+                    titulo="Bienvenido al sistema"
+                    subtitulo="Comienza creando tu primera granja"
+                  />
+                )}
+
+                {ultimosProgramas.map(programa => (
+                  <ActividadItem
+                    key={`programa-${programa.id}`}
+                    icono={programa.tipo === 'agricola' ? 'seedling' : 'paw'}
+                    color={programa.tipo === 'agricola' ? 'bg-green-600' : 'bg-amber-600'}
+                    titulo={`Programa: ${programa.nombre}`}
+                    subtitulo={`Tipo: ${programa.tipo === 'agricola' ? 'Agrícola' : 'Pecuario'}`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Guías y enlaces útiles */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                <i className="fas fa-lightbulb text-yellow-500 mr-2"></i>
+                Primeros pasos
+              </h3>
+              
+              <div className="space-y-4">
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center flex-shrink-0 text-sm font-bold">1</div>
+                  <div>
+                    <p className="font-medium text-gray-800">Crea una granja</p>
+                    <p className="text-sm text-gray-500">Registra los datos básicos de tu granja</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center flex-shrink-0 text-sm font-bold">2</div>
+                  <div>
+                    <p className="font-medium text-gray-800">Define programas</p>
+                    <p className="text-sm text-gray-500">Agrícolas o pecuarios según tu producción</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center flex-shrink-0 text-sm font-bold">3</div>
+                  <div>
+                    <p className="font-medium text-gray-800">Configura lotes</p>
+                    <p className="text-sm text-gray-500">Divide tu terreno en áreas de producción</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center flex-shrink-0 text-sm font-bold">4</div>
+                  <div>
+                    <p className="font-medium text-gray-800">Asigna labores</p>
+                    <p className="text-sm text-gray-500">Programa actividades y tareas agrícolas</p>
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-gray-100">
+                  <a 
+                    href="#" 
+                    className="flex items-center text-green-600 hover:text-green-800 text-sm"
+                    onClick={(e) => { e.preventDefault(); irA('/tutoriales'); }}
+                  >
+                    <i className="fas fa-video mr-2"></i>
+                    Ver tutoriales en video
+                  </a>
+                  <a 
+                    href="#" 
+                    className="flex items-center text-green-600 hover:text-green-800 text-sm mt-2"
+                    onClick={(e) => { e.preventDefault(); irA('/documentacion'); }}
+                  >
+                    <i className="fas fa-book mr-2"></i>
+                    Leer documentación
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Mensaje de bienvenida para nuevos usuarios */}
+          {ultimasGranjas.length === 0 && (
+            <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <i className="fas fa-smile text-blue-500 text-3xl"></i>
+                </div>
+                <div className="ml-4">
+                  <h3 className="text-lg font-medium text-blue-800 mb-2">
+                    ¡Bienvenido al Sistema Granjas UCaldas!
+                  </h3>
+                  <p className="text-blue-700 mb-4">
+                    Este es tu espacio de trabajo. Comienza creando tu primera granja para explorar todas las funcionalidades del sistema.
+                  </p>
+                  <button
+                    onClick={() => irA('/gestion/granjas/nueva')}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center"
+                  >
+                    <i className="fas fa-plus-circle mr-2"></i>
+                    Crear primera granja
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Banner de bienvenida */}
-          <div className="bg-gradient-to-r from-green-600 to-green-700 rounded-xl shadow-lg p-8 mb-8 text-white">
-            <h1 className="text-3xl font-bold mb-2">Bienvenido al Sistema Granjas UCaldas</h1>
-            <p className="text-green-100 text-lg">
-              Gestiona tus granjas, programas, lotes y labores de manera eficiente
+          {/* Footer informativo */}
+          <div className="mt-8 text-center text-sm text-gray-500">
+            <p>Sistema de Gestión Agrícola - Universidad de Caldas © 2026</p>
+            <p className="mt-1">
+              <a href="#" className="text-green-600 hover:underline mx-2">Términos de uso</a>
+              <a href="#" className="text-green-600 hover:underline mx-2">Privacidad</a>
+              <a href="#" className="text-green-600 hover:underline mx-2">Contacto</a>
             </p>
           </div>
 
-          {/* Métricas principales */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <MetricCard
-              icon="warehouse"
-              color="bg-blue-600"
-              value={metricas.totalGranjas}
-              label="Granjas"
-              onClick={() => irA('/gestion/granjas')}
-            />
-            <MetricCard
-              icon="clipboard-list"
-              color="bg-green-600"
-              value={metricas.totalProgramas}
-              label="Programas"
-              onClick={() => irA('/gestion/programas')}
-            />
-            <MetricCard
-              icon="tractor"
-              color="bg-purple-600"
-              value={metricas.totalLotes}
-              label="Lotes"
-              onClick={() => irA('/lotes')}
-            />
-            <MetricCard
-              icon="users"
-              color="bg-amber-600"
-              value={metricas.totalUsuarios}
-              label="Usuarios"
-              onClick={() => irA('/gestion/usuarios')}
-            />
-          </div>
-
-          {/* Segunda fila de métricas */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-sm text-gray-500 uppercase tracking-wider mb-4">Estado de Programas</h3>
-              <div className="flex justify-around">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">{metricas.programasActivos}</div>
-                  <div className="text-sm text-gray-500">Activos</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-400">{metricas.totalProgramas - metricas.programasActivos}</div>
-                  <div className="text-sm text-gray-500">Inactivos</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-sm text-gray-500 uppercase tracking-wider mb-4">Estado de Lotes</h3>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div>
-                  <div className="text-xl font-bold text-green-600">{resumenLotes.activos}</div>
-                  <div className="text-xs text-gray-500">Activos</div>
-                </div>
-                <div>
-                  <div className="text-xl font-bold text-yellow-600">{resumenLotes.enProduccion}</div>
-                  <div className="text-xs text-gray-500">Producción</div>
-                </div>
-                <div>
-                  <div className="text-xl font-bold text-blue-600">{resumenLotes.completados}</div>
-                  <div className="text-xs text-gray-500">Completados</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-sm text-gray-500 uppercase tracking-wider mb-4">Distribución de Programas</h3>
-              <div className="flex justify-around">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">{programasPorTipo[0]?.value || 0}</div>
-                  <div className="text-sm text-gray-500">Agrícolas</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-amber-600">{programasPorTipo[1]?.value || 0}</div>
-                  <div className="text-sm text-gray-500">Pecuarios</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Gráficos principales */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {/* Gráfico de labores por día */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                <i className="fas fa-chart-line text-green-500 mr-2"></i>
-                Labores por día (últimos 7 días)
-              </h2>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={laboresPorDia} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="fecha" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey="cantidad" 
-                    stroke="#10b981" 
-                    strokeWidth={2}
-                    dot={{ r: 4 }}
-                    activeDot={{ r: 6 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Gráfico de usuarios por rol */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                <i className="fas fa-users text-blue-500 mr-2"></i>
-                Usuarios por rol
-              </h2>
-              {usuariosPorRol.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={usuariosPorRol}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      outerRadius={100}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                    >
-                      {usuariosPorRol.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-[300px] flex items-center justify-center text-gray-500">
-                  No hay datos de usuarios
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Segunda fila de gráficos */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            {/* Próximas labores */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                <i className="fas fa-calendar-alt text-orange-500 mr-2"></i>
-                Próximas labores
-              </h2>
-              {proximasLabores.length > 0 ? (
-                <ul className="space-y-3">
-                  {proximasLabores.map((labor, idx) => (
-                    <li key={idx} className="flex items-center justify-between border-b pb-2 last:border-0">
-                      <div>
-                        <span className="font-medium">{labor.nombre || 'Labor sin nombre'}</span>
-                        <p className="text-xs text-gray-500 mt-1">{labor.descripcion || ''}</p>
-                      </div>
-                      <span className="text-sm bg-orange-100 text-orange-800 px-2 py-1 rounded">
-                        {new Date(labor.fecha_asignacion!).toLocaleDateString('es-ES')}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="h-[200px] flex items-center justify-center text-gray-500">
-                  No hay labores programadas
-                </div>
-              )}
-              <button
-                onClick={() => irA('/labores')}
-                className="mt-4 w-full bg-orange-50 text-orange-600 hover:bg-orange-100 py-2 rounded-lg transition-colors flex items-center justify-center"
-              >
-                <i className="fas fa-calendar-plus mr-2"></i>
-                Gestionar labores
-              </button>
-            </div>
-
-            {/* Granjas recientes */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                <i className="fas fa-warehouse text-green-500 mr-2"></i>
-                Granjas recientes
-              </h2>
-              {granjasRecientes.length > 0 ? (
-                <ul className="space-y-3">
-                  {granjasRecientes.map((granja) => (
-                    <li key={granja.id} className="flex items-center justify-between border-b pb-2 last:border-0">
-                      <div>
-                        <span className="font-medium">{granja.nombre}</span>
-                        <p className="text-xs text-gray-500 mt-1">{granja.ubicacion || 'Sin ubicación'}</p>
-                      </div>
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        granja.activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                        {granja.activo ? 'Activa' : 'Inactiva'}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="h-[200px] flex items-center justify-center text-gray-500">
-                  No hay granjas registradas
-                </div>
-              )}
-              <button
-                onClick={() => irA('/gestion/granjas')}
-                className="mt-4 w-full bg-green-50 text-green-600 hover:bg-green-100 py-2 rounded-lg transition-colors flex items-center justify-center"
-              >
-                <i className="fas fa-plus-circle mr-2"></i>
-                Ver todas las granjas
-              </button>
-            </div>
-
-            {/* Acciones rápidas */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                <i className="fas fa-rocket text-purple-500 mr-2"></i>
-                Acciones rápidas
-              </h2>
-              <div className="space-y-3">
-                <button
-                  onClick={() => irA('/gestion/granjas/nueva')}
-                  className="w-full bg-gray-50 hover:bg-gray-100 text-left p-3 rounded-lg flex items-center transition group"
-                >
-                  <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center mr-3 group-hover:bg-green-200 transition-colors">
-                    <i className="fas fa-plus"></i>
-                  </div>
-                  <div>
-                    <span className="font-medium">Nueva granja</span>
-                    <p className="text-xs text-gray-500">Agregar una nueva granja al sistema</p>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => irA('/gestion/programas/nuevo')}
-                  className="w-full bg-gray-50 hover:bg-gray-100 text-left p-3 rounded-lg flex items-center transition group"
-                >
-                  <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-3 group-hover:bg-blue-200 transition-colors">
-                    <i className="fas fa-plus"></i>
-                  </div>
-                  <div>
-                    <span className="font-medium">Nuevo programa</span>
-                    <p className="text-xs text-gray-500">Crear un programa agrícola o pecuario</p>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => irA('/lotes/nuevo')}
-                  className="w-full bg-gray-50 hover:bg-gray-100 text-left p-3 rounded-lg flex items-center transition group"
-                >
-                  <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center mr-3 group-hover:bg-purple-200 transition-colors">
-                    <i className="fas fa-plus"></i>
-                  </div>
-                  <div>
-                    <span className="font-medium">Nuevo lote</span>
-                    <p className="text-xs text-gray-500">Registrar un nuevo lote de producción</p>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => irA('/labores/nueva')}
-                  className="w-full bg-gray-50 hover:bg-gray-100 text-left p-3 rounded-lg flex items-center transition group"
-                >
-                  <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center mr-3 group-hover:bg-orange-200 transition-colors">
-                    <i className="fas fa-plus"></i>
-                  </div>
-                  <div>
-                    <span className="font-medium">Asignar labor</span>
-                    <p className="text-xs text-gray-500">Programar una nueva labor agrícola</p>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => irA('/reportes')}
-                  className="w-full bg-gray-50 hover:bg-gray-100 text-left p-3 rounded-lg flex items-center transition group"
-                >
-                  <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center mr-3 group-hover:bg-red-200 transition-colors">
-                    <i className="fas fa-file-pdf"></i>
-                  </div>
-                  <div>
-                    <span className="font-medium">Generar reporte</span>
-                    <p className="text-xs text-gray-500">Exportar informes del sistema</p>
-                  </div>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Nota informativa */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800 flex items-start">
-            <i className="fas fa-info-circle text-blue-500 mr-3 mt-0.5"></i>
-            <div>
-              <strong>Datos actualizados en tiempo real.</strong> Los gráficos reflejan la información actual de la base de datos. 
-              {metricas.totalGranjas === 0 && " Comienza agregando tu primera granja."}
-            </div>
-          </div>
         </main>
       </div>
     </div>
