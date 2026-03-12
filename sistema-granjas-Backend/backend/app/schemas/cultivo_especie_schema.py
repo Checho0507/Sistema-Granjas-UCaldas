@@ -7,8 +7,6 @@ class CultivoEspecieBase(BaseModel):
     nombre: str
     tipo: str
     granja_id: int
-    fecha_inicio: Optional[datetime] = None
-    duracion_dias: Optional[int] = None
     descripcion: Optional[str] = None
     estado: Optional[str] = "activo"
 
@@ -49,17 +47,6 @@ class CultivoEspecieBase(BaseModel):
             raise ValueError('La granja_id debe ser un número positivo')
         return v
 
-    @field_validator('duracion_dias')
-    def validar_duracion_dias(cls, v):
-        if v is not None:
-            if v < 1:
-                raise ValueError('La duración en días debe ser al menos 1')
-            
-            if v > 3650:  # 10 años máximo
-                raise ValueError('La duración en días no puede ser mayor a 3650 (10 años)')
-        
-        return v
-
     @field_validator('descripcion')
     def validar_descripcion(cls, v):
         if v is not None:
@@ -81,35 +68,12 @@ class CultivoEspecieBase(BaseModel):
         
         return v
 
-    @model_validator(mode='after')
-    def validar_fechas_coherentes(cls, values):
-        fecha_inicio = values.fecha_inicio
-        duracion_dias = values.duracion_dias
-        
-        # Si se proporciona duración pero no fecha de inicio
-        if duracion_dias and not fecha_inicio:
-            raise ValueError('Si especifica duración en días, debe proporcionar fecha de inicio')
-        
-        # Validar que la fecha de inicio no sea en el futuro muy lejano
-        if fecha_inicio:
-            from datetime import datetime as dt
-            if fecha_inicio > dt.now().replace(year=dt.now().year + 2):
-                raise ValueError('La fecha de inicio no puede ser más de 2 años en el futuro')
-            
-            # Validar que no sea en el pasado muy lejano (más de 10 años)
-            if fecha_inicio < dt.now().replace(year=dt.now().year - 10):
-                raise ValueError('La fecha de inicio no puede ser hace más de 10 años')
-        
-        return values
-
 class CultivoEspecieCreate(CultivoEspecieBase):
     pass
 
 class CultivoEspecieUpdate(BaseModel):
     nombre: Optional[str] = None
     tipo: Optional[str] = None
-    fecha_inicio: Optional[datetime] = None
-    duracion_dias: Optional[int] = None
     descripcion: Optional[str] = None
     estado: Optional[str] = None
 
@@ -141,17 +105,6 @@ class CultivoEspecieUpdate(BaseModel):
             
         return v
 
-    @field_validator('duracion_dias')
-    def validar_duracion_dias_update(cls, v):
-        if v is not None:
-            if v < 1:
-                raise ValueError('La duración en días debe ser al menos 1')
-            
-            if v > 3650:
-                raise ValueError('La duración en días no puede ser mayor a 3650 (10 años)')
-        
-        return v
-
     @field_validator('descripcion')
     def validar_descripcion_update(cls, v):
         if v is not None:
@@ -162,18 +115,6 @@ class CultivoEspecieUpdate(BaseModel):
                 raise ValueError('La descripción no puede tener más de 500 caracteres')
         
         return v
-
-    @model_validator(mode='after')
-    def validar_al_menos_un_campo(cls, values):
-        campos = [
-            values.nombre, values.tipo, values.fecha_inicio,
-            values.duracion_dias, values.descripcion, values.estado
-        ]
-        
-        if all(campo is None for campo in campos):
-            raise ValueError('Debe proporcionar al menos un campo para actualizar')
-        
-        return values
 
 class CultivoEspecieResponse(CultivoEspecieBase):
     id: int
