@@ -326,8 +326,6 @@ class CultivoEspecie(Base):
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(150), nullable=False)
     tipo = Column(String(50), nullable=False)  # agricola / pecuario
-    fecha_inicio = Column(DateTime)
-    duracion_dias = Column(Integer)
     descripcion = Column(Text)
     estado = Column(String(50), default="activo")
 
