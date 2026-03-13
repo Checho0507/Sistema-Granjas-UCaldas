@@ -129,7 +129,13 @@ export default function GestionProgramas() {
 
       // Cerrar el modal
       cerrarModalCrear();
-      setProgramas(await programaService.obtenerProgramas());
+
+      // 👇 CONDICIONAL PARA RECARGAR DATOS SEGÚN HAYA O NO granjaId
+      const programasActualizados = granjaId
+        ? await programaService.obtenerProgramasPorGranjaConGranjas(Number(granjaId))
+        : await programaService.obtenerProgramasConGranjas();
+      setProgramas(programasActualizados);
+
     } catch (error: any) {
       console.error("❌ Error al guardar programa:", error);
 
@@ -318,8 +324,8 @@ export default function GestionProgramas() {
       <div className="flex items-center space-x-3 m-2 mb-4">
         {exportMessage && (
           <span className={`text-sm px-3 py-1 rounded ${exportMessage.includes("Error")
-              ? "bg-red-100 text-red-600"
-              : "bg-green-100 text-green-600"
+            ? "bg-red-100 text-red-600"
+            : "bg-green-100 text-green-600"
             }`}>
             {exportMessage}
           </span>
