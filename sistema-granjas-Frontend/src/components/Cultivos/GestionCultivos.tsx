@@ -131,41 +131,15 @@ export default function GestionCultivos() {
         }
     };
 
-    // Función para procesar errores de validación del backend
-    const procesarErroresValidacion = (error: any): Record<string, string> => {
-        const errores: Record<string, string> = {};
-        
-        // Si el error tiene propiedad detail (de FastAPI)
-        if (error.detail && Array.isArray(error.detail)) {
-            error.detail.forEach((err: any) => {
-                // El campo está en err.loc, ej: ['body', 'descripcion']
-                const campo = err.loc?.[1] || 'general';
-                errores[campo] = err.msg;
-            });
-        } 
-        // Si es un error con múltiples líneas (de nuestro servicio)
-        else if (error.message && error.message.includes('\n')) {
-            const lineas = error.message.split('\n');
-            lineas.forEach((linea: string) => {
-                const [campo, mensaje] = linea.split(': ');
-                if (campo && mensaje) {
-                    errores[campo] = mensaje;
-                }
-            });
-        }
-        
-        return errores;
-    };
-
     const manejarCrear = async (e: React.FormEvent) => {
         e.preventDefault();
         
         // Limpiar errores de validación anteriores
         setErroresValidacion({});
+        setError(null);
 
         try {
-            setError(null);
-            console.log('📤 Guardando cultivo...', datosFormulario);
+            console.log('📤 Enviando datos:', datosFormulario);
 
             const loadingToast = toast.loading(
                 editando ? 'Actualizando cultivo...' : 'Creando cultivo...'
@@ -174,17 +148,11 @@ export default function GestionCultivos() {
             if (editando && cultivoSeleccionado) {
                 await cultivoService.actualizarCultivo(cultivoSeleccionado.id, datosFormulario);
                 toast.dismiss(loadingToast);
-                toast.success('Cultivo actualizado exitosamente', {
-                    duration: 3000,
-                    position: 'top-right'
-                });
+                toast.success('Cultivo actualizado exitosamente');
             } else {
                 await cultivoService.crearCultivo(datosFormulario);
                 toast.dismiss(loadingToast);
-                toast.success('Cultivo creado exitosamente', {
-                    duration: 3000,
-                    position: 'top-right'
-                });
+                toast.success('Cultivo creado exitosamente');
             }
 
             await cargarDatos();
@@ -193,27 +161,41 @@ export default function GestionCultivos() {
             resetFormulario();
 
         } catch (error: any) {
-            console.error('❌ Error guardando cultivo:', error);
+            console.error('❌ Error completo:', error);
             
             // Procesar errores de validación
-            const erroresValidacion = procesarErroresValidacion(error);
-            
-            if (Object.keys(erroresValidacion).length > 0) {
-                // Mostrar errores en el formulario
-                setErroresValidacion(erroresValidacion);
+            if (error.detail && Array.isArray(error.detail)) {
+                const errores: Record<string, string> = {};
                 
-                // Mostrar toast con resumen
-                toast.error('Por favor corrige los errores en el formulario', {
-                    duration: 4000,
+                error.detail.forEach((err: any) => {
+                    // El campo está en err.loc, ej: ['body', 'descripcion']
+                    // Tomamos el último elemento del array loc
+                    const campo = err.loc && err.loc.length > 1 ? err.loc[err.loc.length - 1] : 'general';
+                    errores[campo] = err.msg;
+                    console.log(`📌 Campo ${campo}: ${err.msg}`);
+                });
+                
+                setErroresValidacion(errores);
+                
+                // Mostrar mensaje más específico
+                const primerError = error.detail[0];
+                toast.error(primerError.msg, {
+                    duration: 5000,
                     position: 'top-right'
                 });
-            } else {
+            } 
+            else if (error.validationErrors) {
+                const errores: Record<string, string> = {};
+                error.validationErrors.forEach((err: any) => {
+                    errores[err.field] = err.message;
+                });
+                setErroresValidacion(errores);
+                toast.error('Por favor corrige los errores en el formulario');
+            }
+            else {
                 // Error general
                 setError(error.message || 'Error al guardar el cultivo');
-                toast.error(`Error al guardar cultivo: ${error.message || 'Error desconocido'}`, {
-                    duration: 4000,
-                    position: 'top-right'
-                });
+                toast.error(error.message || 'Error al guardar el cultivo');
             }
         }
     };
@@ -229,7 +211,7 @@ export default function GestionCultivos() {
         setCultivoSeleccionado(cultivo);
         setEditando(true);
         setModalCrear(true);
-        setErroresValidacion({}); // Limpiar errores al abrir
+        setErroresValidacion({});
     };
 
     const manejarEliminar = async (id: number) => {
@@ -243,20 +225,14 @@ export default function GestionCultivos() {
             await cultivoService.eliminarCultivo(id);
 
             toast.dismiss(loadingToast);
-            toast.success('Cultivo eliminado exitosamente', {
-                duration: 3000,
-                position: 'top-right'
-            });
+            toast.success('Cultivo eliminado exitosamente');
 
             await cargarDatos();
 
         } catch (error: any) {
             console.error('❌ Error al eliminar cultivo:', error);
             setError(error.message || 'Error al eliminar el cultivo');
-            toast.error(`Error al eliminar cultivo: ${error.message || 'Error desconocido'}`, {
-                duration: 4000,
-                position: 'top-right'
-            });
+            toast.error(error.message || 'Error al eliminar el cultivo');
         }
     };
 

@@ -24,12 +24,16 @@ const handleResponse = async (response: Response) => {
     if (errorData.detail && Array.isArray(errorData.detail)) {
       // Errores de validación de Pydantic
       const validationErrors = errorData.detail.map((err: any) => {
-        const field = err.loc?.slice(1).join('.') || 'campo';
-        return `${field}: ${err.msg}`;
+        // El campo está en err.loc, ej: ['body', 'descripcion']
+        // Tomamos el último elemento del array loc
+        const field = err.loc && err.loc.length > 1 ? err.loc[err.loc.length - 1] : 'general';
+        return { field, message: err.msg };
       });
+      
       // Creamos un error con propiedad detail para poder procesarlo después
-      const error = new Error(validationErrors.join('\n'));
+      const error = new Error(validationErrors.map(e => `${e.field}: ${e.message}`).join('\n'));
       (error as any).detail = errorData.detail;
+      (error as any).validationErrors = validationErrors;
       throw error;
     }
     
@@ -44,7 +48,6 @@ const handleResponse = async (response: Response) => {
 export const cultivoService = {
   // ========== CRUD OPERACIONES ==========
 
-  // OBTENER todos los cultivos
   async obtenerCultivos(): Promise<CultivoEspecie[]> {
     const response = await fetch(`${API_BASE_URL}/cultivos/`, {
       headers: getHeaders()
@@ -52,7 +55,6 @@ export const cultivoService = {
     return handleResponse(response);
   },
 
-  // OBTENER cultivo por ID
   async obtenerCultivoPorId(id: number): Promise<CultivoEspecie> {
     const response = await fetch(`${API_BASE_URL}/cultivos/${id}`, {
       headers: getHeaders()
@@ -60,7 +62,6 @@ export const cultivoService = {
     return handleResponse(response);
   },
 
-  // CREAR cultivo - SIN fecha_inicio NI duracion_dias
   async crearCultivo(datosCultivo: CultivoFormData): Promise<CultivoEspecie> {
     const payload = {
       nombre: datosCultivo.nombre,
@@ -78,7 +79,6 @@ export const cultivoService = {
     return handleResponse(response);
   },
 
-  // Obtener cultivos por programa (a través de lotes)
   async obtenerCultivosPorPrograma(programaId: number): Promise<CultivoEspecie[]> {
     try {
       const lotes = await loteService.obtenerLotesPorPrograma(programaId);
@@ -96,7 +96,6 @@ export const cultivoService = {
     }
   },
 
-  // ACTUALIZAR cultivo - SIN fecha_inicio NI duracion_dias
   async actualizarCultivo(id: number, datosCultivo: Partial<CultivoFormData>): Promise<CultivoEspecie> {
     const payload: any = {};
     
@@ -114,7 +113,6 @@ export const cultivoService = {
     return handleResponse(response);
   },
 
-  // ELIMINAR cultivo
   async eliminarCultivo(id: number): Promise<void> {
     const response = await fetch(`${API_BASE_URL}/cultivos/${id}`, {
       method: 'DELETE',
@@ -126,8 +124,6 @@ export const cultivoService = {
     }
   },
 
-  // ========== ESTADÍSTICAS ==========
-
   async obtenerEstadisticas(): Promise<CultivoStats> {
     const cultivos = await this.obtenerCultivos();
 
@@ -138,8 +134,6 @@ export const cultivoService = {
       activos: cultivos.filter(c => c.estado === 'activo').length
     };
   },
-
-  // ========== FILTROS ESPECIALES ==========
 
   async obtenerCultivosPorGranja(granjaId: number): Promise<CultivoEspecie[]> {
     const response = await fetch(`${API_BASE_URL}/cultivos/granja/${granjaId}`, {
