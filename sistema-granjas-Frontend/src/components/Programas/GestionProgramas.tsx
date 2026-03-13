@@ -115,7 +115,6 @@ export default function GestionProgramas() {
 
   const manejarCrear = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErroresValidacion({});
 
     try {
       setError(null);
