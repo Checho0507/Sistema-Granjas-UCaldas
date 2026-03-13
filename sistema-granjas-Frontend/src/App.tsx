@@ -5,16 +5,19 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { syncPendingData } from './services/sync';
 import { checkBackendConnection } from './api/auth';
 import { Toaster } from 'react-hot-toast';
+
 // Pages
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+
+// Módulos principales
 import GestionGranjasPage from './pages/GestionGranjas';
 import GestionProgramasPage from './pages/GestionProgramas';
-import GestionLaboresPage from './pages/GestionLabores';
-import GestionUsuariosPage from './pages/GestionUsuarios';
 import GestionLotesPage from './pages/GestionLotes';
 import GestionCultivosPage from './pages/GestionCultivos';
+import GestionLaboresPage from './pages/GestionLabores';
+import GestionUsuariosPage from './pages/GestionUsuarios';
 import GestionInventarioPage from './pages/GestionInventarios';
 import GestionDiagnosticosPage from './pages/GestionDiagnosticos';
 import GestionRecomendacionesPage from './pages/GestionRecomendaciones';
@@ -71,6 +74,8 @@ function AppContent() {
           },
         }}
       />
+      
+      {/* Banners de estado de conexión */}
       {!navigator.onLine && (
         <div className="bg-yellow-600 text-white text-center py-2 px-4">
           ⚠️ Estás trabajando sin conexión a internet
@@ -90,13 +95,12 @@ function AppContent() {
       )}
 
       <Routes>
+        {/* ===== RUTAS PÚBLICAS ===== */}
         <Route
           path="/"
           element={token ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />}
         />
-
         <Route path="/home" element={<Home />} />
-
         <Route
           path="/login"
           element={
@@ -106,6 +110,7 @@ function AppContent() {
           }
         />
 
+        {/* ===== RUTAS PROTEGIDAS ===== */}
         <Route
           path="/dashboard"
           element={
@@ -115,7 +120,7 @@ function AppContent() {
           }
         />
 
-        {/* Rutas para gestiones separadas */}
+        {/* ===== RUTAS DE GESTIÓN PRINCIPALES ===== */}
         <Route
           path="/gestion/granjas"
           element={
@@ -126,47 +131,10 @@ function AppContent() {
         />
 
         <Route
-          path="/programas/:programaId/lotes"
-          element={
-            <ProtectedRoute>
-              <GestionLotesPage /> {/* Usamos el mismo componente, no uno nuevo */}
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
           path="/gestion/programas"
           element={
             <ProtectedRoute>
               <GestionProgramasPage />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* ✅ NUEVA RUTA: Programas filtrados por granja */}
-        <Route
-          path="/granjas/:granjaId/programas"
-          element={
-            <ProtectedRoute>
-              <GestionProgramasPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/gestion/labores"
-          element={
-            <ProtectedRoute>
-              <GestionLaboresPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/gestion/usuarios"
-          element={
-            <ProtectedRoute>
-              <GestionUsuariosPage />
             </ProtectedRoute>
           }
         />
@@ -190,19 +158,28 @@ function AppContent() {
         />
 
         <Route
-          path="/gestion/inventario"
+          path="/gestion/labores"
           element={
             <ProtectedRoute>
-              <GestionInventarioPage />
+              <GestionLaboresPage />
             </ProtectedRoute>
           }
         />
 
         <Route
-          path="/gestion/recomendaciones"
+          path="/gestion/usuarios"
           element={
             <ProtectedRoute>
-              <GestionRecomendacionesPage />
+              <GestionUsuariosPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/gestion/inventario"
+          element={
+            <ProtectedRoute>
+              <GestionInventarioPage />
             </ProtectedRoute>
           }
         />
@@ -216,6 +193,68 @@ function AppContent() {
           }
         />
 
+        <Route
+          path="/gestion/recomendaciones"
+          element={
+            <ProtectedRoute>
+              <GestionRecomendacionesPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ===== RUTAS JERÁRQUICAS (Navegación contextual) ===== */}
+
+        {/* Programas filtrados por granja */}
+        <Route
+          path="/granjas/:granjaId/programas"
+          element={
+            <ProtectedRoute>
+              <GestionProgramasPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Lotes de un programa específico */}
+        <Route
+          path="/granjas/:granjaId/programas/:programaId/lotes"
+          element={
+            <ProtectedRoute>
+              <GestionLotesPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Ruta alternativa para lotes por programa (sin granja) */}
+        <Route
+          path="/programas/:programaId/lotes"
+          element={
+            <ProtectedRoute>
+              <GestionLotesPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Lotes filtrados por cultivo (vía query params) */}
+        <Route
+          path="/lotes"
+          element={
+            <ProtectedRoute>
+              <GestionLotesPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Cultivos filtrados por programa (vía query params) */}
+        <Route
+          path="/gestion/cultivos"
+          element={
+            <ProtectedRoute>
+              <GestionCultivosPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ===== RUTA POR DEFECTO ===== */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>

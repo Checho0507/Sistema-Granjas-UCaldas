@@ -10,12 +10,14 @@ def get_lotes(
     limit: int = 100,
     programa_id: Optional[int] = None,
     granja_id: Optional[int] = None,
+    cultivo_id: Optional[int] = None,  # 👈 NUEVO
     estado: Optional[str] = None
 ):
     """
     Obtener todos los lotes con filtros opcionales
     - programa_id: Filtrar por programa
     - granja_id: Filtrar por granja
+    - cultivo_id: Filtrar por cultivo
     - estado: Filtrar por estado específico
     """
     query = db.query(Lote).filter(Lote.estado != "eliminado")
@@ -25,6 +27,9 @@ def get_lotes(
     
     if granja_id:
         query = query.filter(Lote.granja_id == granja_id)
+    
+    if cultivo_id:  # 👈 NUEVO
+        query = query.filter(Lote.cultivo_id == cultivo_id)
     
     if estado:
         query = query.filter(Lote.estado == estado)
@@ -74,6 +79,14 @@ def get_lotes_por_granja(db: Session, granja_id: int, skip: int = 0, limit: int 
     """Obtener todos los lotes de una granja específica"""
     return db.query(Lote).filter(
         Lote.granja_id == granja_id,
+        Lote.estado != "eliminado"
+    ).offset(skip).limit(limit).all()
+
+# 👇 NUEVA FUNCIÓN: Lotes por cultivo específico
+def get_lotes_por_cultivo(db: Session, cultivo_id: int, skip: int = 0, limit: int = 100):
+    """Obtener todos los lotes de un cultivo específico"""
+    return db.query(Lote).filter(
+        Lote.cultivo_id == cultivo_id,
         Lote.estado != "eliminado"
     ).offset(skip).limit(limit).all()
 
