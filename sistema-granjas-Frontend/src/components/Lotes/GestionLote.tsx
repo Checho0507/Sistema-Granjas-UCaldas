@@ -252,11 +252,6 @@ export default function GestionLotes({ programaId }: GestionLotesProps) {
         });
     };
 
-    // Función para limpiar filtros
-    const limpiarFiltros = () => {
-        navigate('/lotes');
-    };
-
     // Determinar título
     const titulo = cultivoNombre 
         ? `Lotes con cultivo: ${decodeURIComponent(cultivoNombre)}`
@@ -283,16 +278,6 @@ export default function GestionLotes({ programaId }: GestionLotesProps) {
                 <h1 className="text-2xl font-bold text-gray-800">{titulo}</h1>
                 
                 <div className="flex items-center space-x-3">
-                    {(programaId || cultivoId) && (
-                        <button
-                            onClick={limpiarFiltros}
-                            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
-                        >
-                            <i className="fas fa-times"></i>
-                            <span>Limpiar filtros</span>
-                        </button>
-                    )}
-
                     {exportMessage && (
                         <span className={`text-sm px-3 py-1 rounded ${exportMessage.includes('Error')
                             ? 'bg-red-100 text-red-600'
