@@ -6,27 +6,27 @@ const AGENTES = [
   { value: 'hongo', label: 'Hongo' },
   { value: 'bacteria', label: 'Bacteria' },
   { value: 'virus', label: 'Virus' },
-  { value: 'nematodos', label: 'Nematodos' },
-  { value: 'oomicetos', label: 'Oomicetos' },
+  { value: 'nematodo', label: 'Nematodo' },
+  { value: 'oomiceto', label: 'Oomiceto' },
 ];
 
 const ENFERMEDADES_POR_AGENTE = {
   hongo: [
-    { id: 'antracnosis', label: 'Colletotrichum gloeosporioides - Antracnosis' },
+    { id: 'antracnosis', label: 'Colletotrichum gloeosporioides – Antracnosis' },
     { id: 'mancha_grasienta', label: 'Mycosphaerella citri - Mancha grasienta de los cítricos' },
   ],
   bacteria: [
-    { id: 'hlb', label: 'Huanglongbing (HLB) - Enverdecimiento' },
+    { id: 'hlb', label: 'Huanglongbing (HLB) – Enverdecimiento' },
     { id: 'xylella', label: 'Xylella fastidiosa - Clorosis de los cítricos' },
   ],
-  oomicetos: [
+  oomiceto: [
     { id: 'phytophthora', label: 'Phytophthora sp. - Gomosis o pudrición radicular' },
   ],
   virus: [
     { id: 'ctv', label: 'Virus de la Tristeza de los Cítricos (CTV)' },
   ],
-  nematodos: [
-    { id: 'nematodos', label: 'Nematodos (Meloidogyne sp. / Tylenchulus sp.)' },
+  nematodo: [
+    { id: 'nematodos', label: 'Nematodos' },
   ],
 };
 
@@ -37,12 +37,14 @@ const SINTOMAS_POR_ENFERMEDAD = {
     'Caída de flores o frutos',
     'Secamiento de brotes',
     'Sin síntomas',
+    'No aplica',
   ],
   mancha_grasienta: [
     'Puntos negros en hojas',
     'Manchas grasientas',
     'Defoliación',
     'Sin síntomas',
+    'No aplica',
   ],
   hlb: [
     'Amarillamiento irregular',
@@ -50,6 +52,7 @@ const SINTOMAS_POR_ENFERMEDAD = {
     'Brotes cloróticos',
     'Presencia del vector Diaphorina citri',
     'Sin síntomas',
+    'No aplica',
   ],
   xylella: [
     'Lesiones necróticas en envés de las hojas',
@@ -58,484 +61,992 @@ const SINTOMAS_POR_ENFERMEDAD = {
     'Reducción en el tamaño de los frutos',
     'Endurecimiento de la cáscara',
     'Sin síntomas',
+    'No aplica',
   ],
   phytophthora: [
     'Exudado de goma',
     'Pudrición de cuello',
     'Raíces oscuras',
+    'Sin síntomas',
+    'No aplica',
   ],
   ctv: [
     'Aclaramiento de nervaduras en hojas',
     'Declive general',
     'Amarillamiento',
     'Sin síntomas',
+    'No aplica',
   ],
-  nematodos: {
-    planta: [
-      'Clorosis general',
-      'Reducción de crecimiento',
-      'Marchitez con suelo húmedo',
-      'Frutos pequeños',
-      'Defoliación',
-      'Sin síntomas visibles',
-    ],
-    raiz: [
-      'Presencia de agallas o nudos',
-      'Raíces con aspecto “sucio” o necrosado',
-      'Pocas raíces absorbentes',
-      'Sin síntomas visibles',
-    ],
-  },
 };
 
-const POSIBLES_NEMATODOS = [
-  { value: 'meloidogyne', label: 'Meloidogyne spp. – Nemátodos del nudo o agallas' },
-  { value: 'tylenchulus', label: 'Tylenchulus sp – Nemátodo de la raíz cítrica' },
-  { value: 'indiferenciado', label: 'No es posible diferenciar' },
-  { value: 'otro', label: 'Otro' },
-];
+// Subcomponente para Antracnosis (Hongo)
+const AntracnosisSection: React.FC<{ basePrefix: string; cuadrante: number; rama: number; caracterizacion: Record<string, string>; onCampoChange: (campo: string, valor: string) => void }> = ({ 
+  basePrefix, cuadrante, rama, caracterizacion, onCampoChange 
+}) => {
+  const prefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_hongo_antracnosis`;
+  const sintomasKey = `${prefix}_sintomas`;
+  const sintomasActuales = caracterizacion[sintomasKey] ? caracterizacion[sintomasKey].split(',') : [];
+  const hojasKey = `${prefix}_hojas`;
 
-interface EnfermedadesSectionProps {
-  plantas: PlantaBase[]; // plantas seleccionadas (con codigo y label)
-  caracterizacion: Record<string, string>; // objeto plano con todos los valores
-  onCampoChange: (campo: string, valor: string) => void;
-}
+  return (
+    <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+      <h6 className="font-semibold mb-2 text-sm">Colletotrichum gloeosporioides — Antracnosis</h6>
+      <p className="text-xs text-gray-600 mb-2 italic">
+        Síntomas: Manchas cloróticas irregulares, de bordes definidos con halo clorótico; coalescen, provocan quemado de ápices y defoliación cuando hay alta humedad. Sobre hojas y ramas afectadas pueden verse puntos/velos oscuros (masas de esporas) en tejido muerto.
+        Umbral de acción: &gt;5% de árboles con síntomas activos.
+      </p>
+      
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          % de hojas afectadas *
+        </label>
+        <input
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          value={caracterizacion[hojasKey] || ''}
+          onChange={(e) => onCampoChange(hojasKey, e.target.value)}
+          className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
+          placeholder="Ej: 30 (0 si no hay)"
+          required
+        />
+        <p className="text-xs text-gray-500 mt-1">De no encontrarse presencia de la enfermedad, colocar 0</p>
+      </div>
+      
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Síntomas observados *
+        </label>
+        <div className="space-y-1">
+          {SINTOMAS_POR_ENFERMEDAD.antracnosis.map((sintoma) => (
+            <label key={sintoma} className="flex items-center text-sm">
+              <input
+                type="checkbox"
+                value={sintoma}
+                checked={sintomasActuales.includes(sintoma)}
+                onChange={(e) => {
+                  const nuevos = e.target.checked
+                    ? [...sintomasActuales, sintoma]
+                    : sintomasActuales.filter(s => s !== sintoma);
+                  onCampoChange(sintomasKey, nuevos.join(','));
+                }}
+                className="mr-2"
+              />
+              {sintoma}
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
 
+// Subcomponente para Mancha Grasienta (Hongo)
+const ManchaGrasientaSection: React.FC<{ basePrefix: string; cuadrante: number; rama: number; caracterizacion: Record<string, string>; onCampoChange: (campo: string, valor: string) => void }> = ({ 
+  basePrefix, cuadrante, rama, caracterizacion, onCampoChange 
+}) => {
+  const prefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_hongo_mancha_grasienta`;
+  const sintomasKey = `${prefix}_sintomas`;
+  const sintomasActuales = caracterizacion[sintomasKey] ? caracterizacion[sintomasKey].split(',') : [];
+  const hojasKey = `${prefix}_hojas`;
+
+  return (
+    <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+      <h6 className="font-semibold mb-2 text-sm">Mycosphaerella citri - Mancha grasienta de los cítricos</h6>
+      <p className="text-xs text-gray-600 mb-2 italic">
+        Síntomas: En el envés de hojas maduras, manchas irregulares café claro con zona clorótica; al avanzar, se oscurecen y toman apariencia grasienta.
+        Umbral de acción: &gt;5% de árboles con lesiones activas.
+      </p>
+      
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          % de hojas afectadas *
+        </label>
+        <input
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          value={caracterizacion[hojasKey] || ''}
+          onChange={(e) => onCampoChange(hojasKey, e.target.value)}
+          className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
+          placeholder="Ej: 30 (0 si no hay)"
+          required
+        />
+        <p className="text-xs text-gray-500 mt-1">De no encontrarse presencia de la enfermedad, colocar 0</p>
+      </div>
+      
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Síntomas observados *
+        </label>
+        <div className="space-y-1">
+          {SINTOMAS_POR_ENFERMEDAD.mancha_grasienta.map((sintoma) => (
+            <label key={sintoma} className="flex items-center text-sm">
+              <input
+                type="checkbox"
+                value={sintoma}
+                checked={sintomasActuales.includes(sintoma)}
+                onChange={(e) => {
+                  const nuevos = e.target.checked
+                    ? [...sintomasActuales, sintoma]
+                    : sintomasActuales.filter(s => s !== sintoma);
+                  onCampoChange(sintomasKey, nuevos.join(','));
+                }}
+                className="mr-2"
+              />
+              {sintoma}
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Subcomponente para HLB (Bacteria)
+const HLBSection: React.FC<{ basePrefix: string; cuadrante: number; rama: number; caracterizacion: Record<string, string>; onCampoChange: (campo: string, valor: string) => void }> = ({ 
+  basePrefix, cuadrante, rama, caracterizacion, onCampoChange 
+}) => {
+  const prefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_bacteria_hlb`;
+  const sintomasKey = `${prefix}_sintomas`;
+  const sintomasActuales = caracterizacion[sintomasKey] ? caracterizacion[sintomasKey].split(',') : [];
+  const hojasKey = `${prefix}_hojas`;
+  const vectorKey = `${prefix}_vector`;
+
+  return (
+    <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+      <h6 className="font-semibold mb-2 text-sm">Huanglongbing - HLB de los cítricos</h6>
+      
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          % de hojas afectadas (amarillamiento irregular, brotes cloróticos) *
+        </label>
+        <input
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          value={caracterizacion[hojasKey] || ''}
+          onChange={(e) => onCampoChange(hojasKey, e.target.value)}
+          className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
+          placeholder="Ej: 30 (0 si no hay)"
+          required
+        />
+        <p className="text-xs text-gray-500 mt-1">De no encontrarse presencia de la enfermedad, colocar 0</p>
+      </div>
+      
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Síntomas observados *
+        </label>
+        <div className="space-y-1">
+          {SINTOMAS_POR_ENFERMEDAD.hlb.map((sintoma) => (
+            <label key={sintoma} className="flex items-center text-sm">
+              <input
+                type="checkbox"
+                value={sintoma}
+                checked={sintomasActuales.includes(sintoma)}
+                onChange={(e) => {
+                  const nuevos = e.target.checked
+                    ? [...sintomasActuales, sintoma]
+                    : sintomasActuales.filter(s => s !== sintoma);
+                  onCampoChange(sintomasKey, nuevos.join(','));
+                }}
+                className="mr-2"
+              />
+              {sintoma}
+            </label>
+          ))}
+        </div>
+      </div>
+      
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          ¿Hay presencia del vector Diaphorina citri? *
+        </label>
+        <div className="flex gap-4">
+          {["Si", "No"].map((opcion) => (
+            <label key={opcion} className="inline-flex items-center">
+              <input
+                type="radio"
+                name={vectorKey}
+                value={opcion}
+                checked={caracterizacion[vectorKey] === opcion}
+                onChange={(e) => onCampoChange(vectorKey, e.target.value)}
+                className="mr-2"
+              />
+              {opcion}
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Subcomponente para Xylella (Bacteria)
+const XylellaSection: React.FC<{ basePrefix: string; cuadrante: number; rama: number; caracterizacion: Record<string, string>; onCampoChange: (campo: string, valor: string) => void }> = ({ 
+  basePrefix, cuadrante, rama, caracterizacion, onCampoChange 
+}) => {
+  const prefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_bacteria_xylella`;
+  const sintomasKey = `${prefix}_sintomas`;
+  const sintomasActuales = caracterizacion[sintomasKey] ? caracterizacion[sintomasKey].split(',') : [];
+  const hojasKey = `${prefix}_hojas`;
+
+  return (
+    <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+      <h6 className="font-semibold mb-2 text-sm">Xylella fastidiosa - Clorosis de los cítricos</h6>
+      <p className="text-xs text-gray-600 mb-2 italic">
+        Síntomas: Amarilleamiento irregular de hojas ("clorosis variegada"), marchitez y reducción del vigor.
+        Umbral de acción: Presencia confirmada de un árbol positivo es umbral crítico para manejo de cuarentena.
+      </p>
+      
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          % de hojas afectadas *
+        </label>
+        <input
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          value={caracterizacion[hojasKey] || ''}
+          onChange={(e) => onCampoChange(hojasKey, e.target.value)}
+          className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
+          placeholder="Ej: 30 (0 si no hay)"
+          required
+        />
+        <p className="text-xs text-gray-500 mt-1">De no encontrarse presencia de la enfermedad, colocar 0</p>
+      </div>
+      
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Síntomas observados *
+        </label>
+        <div className="space-y-1">
+          {SINTOMAS_POR_ENFERMEDAD.xylella.map((sintoma) => (
+            <label key={sintoma} className="flex items-center text-sm">
+              <input
+                type="checkbox"
+                value={sintoma}
+                checked={sintomasActuales.includes(sintoma)}
+                onChange={(e) => {
+                  const nuevos = e.target.checked
+                    ? [...sintomasActuales, sintoma]
+                    : sintomasActuales.filter(s => s !== sintoma);
+                  onCampoChange(sintomasKey, nuevos.join(','));
+                }}
+                className="mr-2"
+              />
+              {sintoma}
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Subcomponente para Phytophthora (Oomiceto)
+const PhytophthoraSection: React.FC<{ basePrefix: string; cuadrante: number; rama: number; caracterizacion: Record<string, string>; onCampoChange: (campo: string, valor: string) => void }> = ({ 
+  basePrefix, cuadrante, rama, caracterizacion, onCampoChange 
+}) => {
+  const prefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_oomiceto_phytophthora`;
+  const sintomasKey = `${prefix}_sintomas`;
+  const sintomasActuales = caracterizacion[sintomasKey] ? caracterizacion[sintomasKey].split(',') : [];
+  const afectacionKey = `${prefix}_afectacion`;
+
+  return (
+    <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+      <h6 className="font-semibold mb-2 text-sm">Phytophthora sp. - Gomosis o pudrición radicular</h6>
+      <p className="text-xs text-gray-600 mb-2 italic">
+        Síntomas: Goma exudativa de tronco; lesiones oscuras en collar y raíces, necrosis de tejidos, declive general del árbol.
+        Umbral de acción: &gt;5% de árboles con lesiones activas.
+      </p>
+      
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          % de afectación (lesiones oscuras en collar, necrosis) *
+        </label>
+        <input
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          value={caracterizacion[afectacionKey] || ''}
+          onChange={(e) => onCampoChange(afectacionKey, e.target.value)}
+          className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
+          placeholder="Ej: 30 (0 si no hay)"
+          required
+        />
+        <p className="text-xs text-gray-500 mt-1">De no encontrarse presencia de la enfermedad, colocar 0</p>
+      </div>
+      
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Síntomas observados *
+        </label>
+        <div className="space-y-1">
+          {SINTOMAS_POR_ENFERMEDAD.phytophthora.map((sintoma) => (
+            <label key={sintoma} className="flex items-center text-sm">
+              <input
+                type="checkbox"
+                value={sintoma}
+                checked={sintomasActuales.includes(sintoma)}
+                onChange={(e) => {
+                  const nuevos = e.target.checked
+                    ? [...sintomasActuales, sintoma]
+                    : sintomasActuales.filter(s => s !== sintoma);
+                  onCampoChange(sintomasKey, nuevos.join(','));
+                }}
+                className="mr-2"
+              />
+              {sintoma}
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Subcomponente para CTV (Virus)
+const CTVSection: React.FC<{ basePrefix: string; cuadrante: number; rama: number; caracterizacion: Record<string, string>; onCampoChange: (campo: string, valor: string) => void }> = ({ 
+  basePrefix, cuadrante, rama, caracterizacion, onCampoChange 
+}) => {
+  const prefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_virus_ctv`;
+  const sintomasKey = `${prefix}_sintomas`;
+  const sintomasActuales = caracterizacion[sintomasKey] ? caracterizacion[sintomasKey].split(',') : [];
+  const presenteKey = `${prefix}_presente`;
+  const vectorKey = `${prefix}_vector`;
+  const danoKey = `${prefix}_dano`;
+
+  return (
+    <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+      <h6 className="font-semibold mb-2 text-sm">Virus de la Tristeza de los Cítricos (CTV)</h6>
+      <p className="text-xs text-gray-600 mb-2 italic">
+        Síntomas: Declive progresivo del árbol, heridas en corteza, amarilleo y caída de hojas, reducción de producción.
+        Umbral de acción: Cualquier confirmación positiva requiere manejo cuarentenario.
+      </p>
+      
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          ¿Hay presencia de síntomas de CTV? *
+        </label>
+        <div className="flex gap-4">
+          {["Si", "No"].map((opcion) => (
+            <label key={opcion} className="inline-flex items-center">
+              <input
+                type="radio"
+                name={presenteKey}
+                value={opcion}
+                checked={caracterizacion[presenteKey] === opcion}
+                onChange={(e) => onCampoChange(presenteKey, e.target.value)}
+                className="mr-2"
+              />
+              {opcion}
+            </label>
+          ))}
+        </div>
+      </div>
+      
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          ¿Hay presencia del vector Toxoptera citricidus? *
+        </label>
+        <div className="flex gap-4">
+          {["Si", "No"].map((opcion) => (
+            <label key={opcion} className="inline-flex items-center">
+              <input
+                type="radio"
+                name={vectorKey}
+                value={opcion}
+                checked={caracterizacion[vectorKey] === opcion}
+                onChange={(e) => onCampoChange(vectorKey, e.target.value)}
+                className="mr-2"
+              />
+              {opcion}
+            </label>
+          ))}
+        </div>
+      </div>
+      
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          % de daño del virus CTV *
+        </label>
+        <input
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          value={caracterizacion[danoKey] || ''}
+          onChange={(e) => onCampoChange(danoKey, e.target.value)}
+          className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
+          placeholder="Ej: 30 (0 si no hay)"
+          required
+        />
+        <p className="text-xs text-gray-500 mt-1">De no encontrarse presencia de la enfermedad, colocar 0</p>
+      </div>
+      
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Síntomas observados *
+        </label>
+        <div className="space-y-1">
+          {SINTOMAS_POR_ENFERMEDAD.ctv.map((sintoma) => (
+            <label key={sintoma} className="flex items-center text-sm">
+              <input
+                type="checkbox"
+                value={sintoma}
+                checked={sintomasActuales.includes(sintoma)}
+                onChange={(e) => {
+                  const nuevos = e.target.checked
+                    ? [...sintomasActuales, sintoma]
+                    : sintomasActuales.filter(s => s !== sintoma);
+                  onCampoChange(sintomasKey, nuevos.join(','));
+                }}
+                className="mr-2"
+              />
+              {sintoma}
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Subcomponente para Otra Enfermedad
+const OtraEnfermedadSection: React.FC<{ basePrefix: string; cuadrante: number; rama: number; caracterizacion: Record<string, string>; onCampoChange: (campo: string, valor: string) => void }> = ({ 
+  basePrefix, cuadrante, rama, caracterizacion, onCampoChange 
+}) => {
+  const prefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_otra_enfermedad`;
+  const activoKey = `${prefix}_activo`;
+  const sintomasKey = `${prefix}_sintomas`;
+  const agenteKey = `${prefix}_agente`;
+  const fotoKey = `${prefix}_foto`;
+
+  return (
+    <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+      <label className="flex items-center mb-3">
+        <input
+          type="checkbox"
+          checked={caracterizacion[activoKey] === 'true'}
+          onChange={(e) => onCampoChange(activoKey, e.target.checked ? 'true' : 'false')}
+          className="mr-2"
+        />
+        <span className="text-sm font-medium text-gray-700">Registrar otra enfermedad no listada</span>
+      </label>
+      
+      {caracterizacion[activoKey] === 'true' && (
+        <>
+          <div className="mb-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Síntomas de la enfermedad observada
+            </label>
+            <textarea
+              value={caracterizacion[sintomasKey] || ''}
+              onChange={(e) => onCampoChange(sintomasKey, e.target.value)}
+              className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
+              rows={2}
+              placeholder="Describa los síntomas observados"
+            />
+          </div>
+          
+          <div className="mb-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Agente causal (si se conoce)
+            </label>
+            <input
+              type="text"
+              value={caracterizacion[agenteKey] || ''}
+              onChange={(e) => onCampoChange(agenteKey, e.target.value)}
+              className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
+              placeholder="Ej: Hongo, bacteria, etc."
+            />
+          </div>
+          
+          <div className="mb-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Foto de los síntomas observados
+            </label>
+            <input
+              type="text"
+              value={caracterizacion[fotoKey] || ''}
+              onChange={(e) => onCampoChange(fotoKey, e.target.value)}
+              className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
+              placeholder="Ruta de la foto (simulado)"
+            />
+            <p className="text-xs text-gray-500 mt-1">Sube una foto de los síntomas observados</p>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+// Subcomponente para un cuadrante de una planta
+const CuadranteEnfermedades: React.FC<{ 
+  plantaIdx: number; 
+  cuadrante: number; 
+  rama: number; 
+  planta: PlantaBase; 
+  caracterizacion: Record<string, string>; 
+  onCampoChange: (campo: string, valor: string) => void 
+}> = ({ plantaIdx, cuadrante, rama, planta, caracterizacion, onCampoChange }) => {
+  const basePrefix = `enfermedades_planta_${plantaIdx + 1}`;
+  
+  // Agentes seleccionados para este cuadrante/rama
+  const agentesKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_agentes`;
+  const agentesSeleccionados = caracterizacion[agentesKey] ? caracterizacion[agentesKey].split(',') : [];
+
+  const handleAgenteToggle = (agente: string, checked: boolean) => {
+    let nuevos = [...agentesSeleccionados];
+    if (checked) {
+      if (!nuevos.includes(agente)) nuevos.push(agente);
+    } else {
+      nuevos = nuevos.filter(a => a !== agente);
+      // Limpiar todas las enfermedades de este agente
+      const agentePrefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_${agente}`;
+      Object.keys(caracterizacion).forEach(key => {
+        if (key.startsWith(agentePrefix)) {
+          onCampoChange(key, '');
+        }
+      });
+    }
+    onCampoChange(agentesKey, nuevos.join(','));
+  };
+
+  return (
+    <div className="ml-6 mb-6 p-4 border-l-4 border-blue-200 bg-gray-50 rounded">
+      <h5 className="font-medium text-md text-gray-700 mb-3">
+        Rama {rama} - Cuadrante {cuadrante}
+      </h5>
+
+      {/* Agente(s) causal(es) */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Agente(s) causal de las enfermedades vistas en campo (Selección múltiple)
+        </label>
+        <div className="flex flex-wrap gap-4">
+          {AGENTES.map(agente => (
+            <label key={agente.value} className="inline-flex items-center">
+              <input
+                type="checkbox"
+                checked={agentesSeleccionados.includes(agente.value)}
+                onChange={(e) => handleAgenteToggle(agente.value, e.target.checked)}
+                className="mr-2"
+              />
+              {agente.label}
+            </label>
+          ))}
+          <label className="inline-flex items-center">
+            <input
+              type="checkbox"
+              checked={agentesSeleccionados.includes('no_aplica')}
+              onChange={(e) => handleAgenteToggle('no_aplica', e.target.checked)}
+              className="mr-2"
+            />
+            No aplica
+          </label>
+        </div>
+      </div>
+
+      {/* Hongos */}
+      {agentesSeleccionados.includes('hongo') && (
+        <div className="mb-4 border-l-2 border-green-300 pl-3">
+          <h6 className="font-medium text-sm text-gray-700 mb-2">Enfermedades causadas por hongos</h6>
+          
+          {/* Checkboxes de enfermedades por hongos */}
+          <div className="mb-3">
+            {ENFERMEDADES_POR_AGENTE.hongo.map(enf => {
+              const enfKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_hongo_${enf.id}_activo`;
+              const activo = caracterizacion[enfKey] === 'true';
+              
+              return (
+                <div key={enf.id}>
+                  <label className="flex items-center text-sm mb-1">
+                    <input
+                      type="checkbox"
+                      checked={activo}
+                      onChange={(e) => onCampoChange(enfKey, e.target.checked ? 'true' : 'false')}
+                      className="mr-2"
+                    />
+                    {enf.label}
+                  </label>
+                  
+                  {activo && enf.id === 'antracnosis' && (
+                    <AntracnosisSection 
+                      basePrefix={basePrefix} 
+                      cuadrante={cuadrante} 
+                      rama={rama} 
+                      caracterizacion={caracterizacion} 
+                      onCampoChange={onCampoChange} 
+                    />
+                  )}
+                  
+                  {activo && enf.id === 'mancha_grasienta' && (
+                    <ManchaGrasientaSection 
+                      basePrefix={basePrefix} 
+                      cuadrante={cuadrante} 
+                      rama={rama} 
+                      caracterizacion={caracterizacion} 
+                      onCampoChange={onCampoChange} 
+                    />
+                  )}
+                </div>
+              );
+            })}
+            <label className="flex items-center text-sm">
+              <input
+                type="checkbox"
+                checked={caracterizacion[`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_hongo_no_aplica`] === 'true'}
+                onChange={(e) => onCampoChange(`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_hongo_no_aplica`, e.target.checked ? 'true' : 'false')}
+                className="mr-2"
+              />
+              No aplica
+            </label>
+          </div>
+        </div>
+      )}
+
+      {/* Bacterias */}
+      {agentesSeleccionados.includes('bacteria') && (
+        <div className="mb-4 border-l-2 border-blue-300 pl-3">
+          <h6 className="font-medium text-sm text-gray-700 mb-2">Enfermedades causadas por bacterias</h6>
+          
+          <div className="mb-3">
+            {ENFERMEDADES_POR_AGENTE.bacteria.map(enf => {
+              const enfKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_bacteria_${enf.id}_activo`;
+              const activo = caracterizacion[enfKey] === 'true';
+              
+              return (
+                <div key={enf.id}>
+                  <label className="flex items-center text-sm mb-1">
+                    <input
+                      type="checkbox"
+                      checked={activo}
+                      onChange={(e) => onCampoChange(enfKey, e.target.checked ? 'true' : 'false')}
+                      className="mr-2"
+                    />
+                    {enf.label}
+                  </label>
+                  
+                  {activo && enf.id === 'hlb' && (
+                    <HLBSection 
+                      basePrefix={basePrefix} 
+                      cuadrante={cuadrante} 
+                      rama={rama} 
+                      caracterizacion={caracterizacion} 
+                      onCampoChange={onCampoChange} 
+                    />
+                  )}
+                  
+                  {activo && enf.id === 'xylella' && (
+                    <XylellaSection 
+                      basePrefix={basePrefix} 
+                      cuadrante={cuadrante} 
+                      rama={rama} 
+                      caracterizacion={caracterizacion} 
+                      onCampoChange={onCampoChange} 
+                    />
+                  )}
+                </div>
+              );
+            })}
+            <label className="flex items-center text-sm">
+              <input
+                type="checkbox"
+                checked={caracterizacion[`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_bacteria_no_aplica`] === 'true'}
+                onChange={(e) => onCampoChange(`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_bacteria_no_aplica`, e.target.checked ? 'true' : 'false')}
+                className="mr-2"
+              />
+              No aplica
+            </label>
+          </div>
+        </div>
+      )}
+
+      {/* Oomicetos */}
+      {agentesSeleccionados.includes('oomiceto') && (
+        <div className="mb-4 border-l-2 border-yellow-300 pl-3">
+          <h6 className="font-medium text-sm text-gray-700 mb-2">Enfermedades causadas por oomicetos</h6>
+          
+          <div className="mb-3">
+            {ENFERMEDADES_POR_AGENTE.oomiceto.map(enf => {
+              const enfKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_oomiceto_${enf.id}_activo`;
+              const activo = caracterizacion[enfKey] === 'true';
+              
+              return (
+                <div key={enf.id}>
+                  <label className="flex items-center text-sm mb-1">
+                    <input
+                      type="checkbox"
+                      checked={activo}
+                      onChange={(e) => onCampoChange(enfKey, e.target.checked ? 'true' : 'false')}
+                      className="mr-2"
+                    />
+                    {enf.label}
+                  </label>
+                  
+                  {activo && enf.id === 'phytophthora' && (
+                    <PhytophthoraSection 
+                      basePrefix={basePrefix} 
+                      cuadrante={cuadrante} 
+                      rama={rama} 
+                      caracterizacion={caracterizacion} 
+                      onCampoChange={onCampoChange} 
+                    />
+                  )}
+                </div>
+              );
+            })}
+            <label className="flex items-center text-sm">
+              <input
+                type="checkbox"
+                checked={caracterizacion[`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_oomiceto_no_aplica`] === 'true'}
+                onChange={(e) => onCampoChange(`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_oomiceto_no_aplica`, e.target.checked ? 'true' : 'false')}
+                className="mr-2"
+              />
+              No aplica
+            </label>
+            <label className="flex items-center text-sm">
+              <input
+                type="checkbox"
+                checked={caracterizacion[`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_oomiceto_otro`] === 'true'}
+                onChange={(e) => onCampoChange(`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_oomiceto_otro`, e.target.checked ? 'true' : 'false')}
+                className="mr-2"
+              />
+              Otro
+            </label>
+            {caracterizacion[`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_oomiceto_otro`] === 'true' && (
+              <div className="mt-2">
+                <input
+                  type="text"
+                  value={caracterizacion[`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_oomiceto_otro_nombre`] || ''}
+                  onChange={(e) => onCampoChange(`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_oomiceto_otro_nombre`, e.target.value)}
+                  className="border rounded px-2 py-1 w-full text-sm"
+                  placeholder="Especifique otro oomiceto"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Virus */}
+      {agentesSeleccionados.includes('virus') && (
+        <div className="mb-4 border-l-2 border-purple-300 pl-3">
+          <h6 className="font-medium text-sm text-gray-700 mb-2">Enfermedades causadas por virus</h6>
+          
+          <div className="mb-3">
+            {ENFERMEDADES_POR_AGENTE.virus.map(enf => {
+              const enfKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_virus_${enf.id}_activo`;
+              const activo = caracterizacion[enfKey] === 'true';
+              
+              return (
+                <div key={enf.id}>
+                  <label className="flex items-center text-sm mb-1">
+                    <input
+                      type="checkbox"
+                      checked={activo}
+                      onChange={(e) => onCampoChange(enfKey, e.target.checked ? 'true' : 'false')}
+                      className="mr-2"
+                    />
+                    {enf.label}
+                  </label>
+                  
+                  {activo && enf.id === 'ctv' && (
+                    <CTVSection 
+                      basePrefix={basePrefix} 
+                      cuadrante={cuadrante} 
+                      rama={rama} 
+                      caracterizacion={caracterizacion} 
+                      onCampoChange={onCampoChange} 
+                    />
+                  )}
+                </div>
+              );
+            })}
+            <label className="flex items-center text-sm">
+              <input
+                type="checkbox"
+                checked={caracterizacion[`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_virus_no_aplica`] === 'true'}
+                onChange={(e) => onCampoChange(`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_virus_no_aplica`, e.target.checked ? 'true' : 'false')}
+                className="mr-2"
+              />
+              No aplica
+            </label>
+            <label className="flex items-center text-sm">
+              <input
+                type="checkbox"
+                checked={caracterizacion[`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_virus_otro`] === 'true'}
+                onChange={(e) => onCampoChange(`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_virus_otro`, e.target.checked ? 'true' : 'false')}
+                className="mr-2"
+              />
+              Otro
+            </label>
+            {caracterizacion[`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_virus_otro`] === 'true' && (
+              <div className="mt-2">
+                <input
+                  type="text"
+                  value={caracterizacion[`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_virus_otro_nombre`] || ''}
+                  onChange={(e) => onCampoChange(`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_virus_otro_nombre`, e.target.value)}
+                  className="border rounded px-2 py-1 w-full text-sm"
+                  placeholder="Especifique otro virus"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Nematodos */}
+      {agentesSeleccionados.includes('nematodo') && (
+        <div className="mb-4 border-l-2 border-orange-300 pl-3">
+          <h6 className="font-medium text-sm text-gray-700 mb-2">Nematodos</h6>
+          
+          <div className="mb-3">
+            <label className="flex items-center text-sm mb-1">
+              <input
+                type="checkbox"
+                checked={caracterizacion[`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_nematodo_presente`] === 'true'}
+                onChange={(e) => onCampoChange(`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_nematodo_presente`, e.target.checked ? 'true' : 'false')}
+                className="mr-2"
+              />
+              Presencia de nematodos
+            </label>
+            
+            {caracterizacion[`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_nematodo_presente`] === 'true' && (
+              <>
+                <div className="mt-2">
+                  <label className="block text-sm text-gray-600 mb-1">Posible nematodo</label>
+                  <select
+                    value={caracterizacion[`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_nematodo_tipo`] || ''}
+                    onChange={(e) => onCampoChange(`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_nematodo_tipo`, e.target.value)}
+                    className="border rounded px-2 py-1 w-full text-sm"
+                  >
+                    <option value="">-- Seleccione --</option>
+                    <option value="meloidogyne">Meloidogyne sp. / Tylenchulus sp.</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                </div>
+                {caracterizacion[`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_nematodo_tipo`] === 'otro' && (
+                  <div className="mt-2">
+                    <input
+                      type="text"
+                      value={caracterizacion[`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_nematodo_otro_nombre`] || ''}
+                      onChange={(e) => onCampoChange(`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_nematodo_otro_nombre`, e.target.value)}
+                      className="border rounded px-2 py-1 w-full text-sm"
+                      placeholder="Especifique el nematodo"
+                    />
+                  </div>
+                )}
+              </>
+            )}
+            <label className="flex items-center text-sm">
+              <input
+                type="checkbox"
+                checked={caracterizacion[`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_nematodo_no_aplica`] === 'true'}
+                onChange={(e) => onCampoChange(`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_nematodo_no_aplica`, e.target.checked ? 'true' : 'false')}
+                className="mr-2"
+              />
+              No aplica
+            </label>
+          </div>
+        </div>
+      )}
+
+      {/* Sección para Otra Enfermedad (independiente) */}
+      <OtraEnfermedadSection 
+        basePrefix={basePrefix} 
+        cuadrante={cuadrante} 
+        rama={rama} 
+        caracterizacion={caracterizacion} 
+        onCampoChange={onCampoChange} 
+      />
+    </div>
+  );
+};
+
+// Componente para una planta completa (4 cuadrantes)
+const PlantaEnfermedades: React.FC<{ index: number; planta: PlantaBase; caracterizacion: Record<string, string>; onCampoChange: (campo: string, valor: string) => void }> = ({ 
+  index, planta, caracterizacion, onCampoChange 
+}) => {
+  return (
+    <div className="border rounded-lg p-4 mb-8 bg-white shadow-sm">
+      <h4 className="font-semibold text-lg text-gray-800 mb-2">
+        {planta.label} (Código: {planta.codigo})
+      </h4>
+      <p className="text-sm text-gray-500 mb-4">
+        El árbol se divide en 4 cuadrantes. Seleccione una rama al azar de cada cuadrante y observe: daño en hojas, frutos, puntos de crecimiento, ramas, tronco y raíces.
+      </p>
+
+      {/* Renderizar los 4 cuadrantes */}
+      {[1, 2, 3, 4].map((cuadrante) => (
+        <CuadranteEnfermedades
+          key={`${planta.codigo}-cuadrante-${cuadrante}`}
+          plantaIdx={index}
+          cuadrante={cuadrante}
+          rama={cuadrante} // Una rama por cuadrante
+          planta={planta}
+          caracterizacion={caracterizacion}
+          onCampoChange={onCampoChange}
+        />
+      ))}
+    </div>
+  );
+};
+
+// Componente principal
 export const EnfermedadesSection: React.FC<EnfermedadesSectionProps> = ({
   plantas,
   caracterizacion,
   onCampoChange,
 }) => {
-  const prefix = 'enfermedades';
-
-  // Función auxiliar para actualizar un campo (maneja arrays/objetos como JSON)
-  const handleChange = (clave: string, valor: any) => {
-    const valorString = typeof valor === 'object' ? JSON.stringify(valor) : String(valor);
-    onCampoChange(clave, valorString);
-  };
-
-  // Obtener agentes seleccionados para una planta
-  const getAgentesPlanta = (codigo: string): string[] => {
-    const key = `${prefix}_${codigo}_agentes`;
-    return caracterizacion[key] ? JSON.parse(caracterizacion[key]) : [];
-  };
-
-  // Obtener enfermedades seleccionadas para una planta y agente
-  const getEnfermedadesPlantaAgente = (codigo: string, agente: string): string[] => {
-    const key = `${prefix}_${codigo}_${agente}_enfermedades`;
-    return caracterizacion[key] ? JSON.parse(caracterizacion[key]) : [];
-  };
-
-  // Manejar toggle de agente para una planta
-  const handleAgenteToggle = (codigo: string, agente: string, checked: boolean) => {
-    const key = `${prefix}_${codigo}_agentes`;
-    const actuales = getAgentesPlanta(codigo);
-    const nuevos = checked
-      ? [...actuales, agente]
-      : actuales.filter((a: string) => a !== agente);
-    handleChange(key, nuevos);
-
-    // Si se deselecciona un agente, limpiar todas las enfermedades y datos asociados
-    if (!checked) {
-      // Eliminar todas las claves que comiencen con `${prefix}_${codigo}_${agente}_`
-      Object.keys(caracterizacion).forEach(k => {
-        if (k.startsWith(`${prefix}_${codigo}_${agente}_`)) {
-          // No podemos eliminar directamente de caracterizacion, pero podemos setear a vacío?
-          // onCampoChange(k, ''); // Esto dejaría claves vacías, mejor no hacer nada por ahora
-          // Nota: Como caracterizacion es un objeto controlado por el padre, no podemos eliminar propiedades directamente.
-          // En su lugar, podemos setearlas a vacío o a un valor por defecto.
-          handleChange(k, '');
-        }
-      });
-    }
-  };
-
-  // Manejar toggle de enfermedad para una planta y agente
-  const handleEnfermedadToggle = (codigo: string, agente: string, enfermedadId: string, checked: boolean) => {
-    const key = `${prefix}_${codigo}_${agente}_enfermedades`;
-    const actuales = getEnfermedadesPlantaAgente(codigo, agente);
-    const nuevos = checked
-      ? [...actuales, enfermedadId]
-      : actuales.filter((e: string) => e !== enfermedadId);
-    handleChange(key, nuevos);
-
-    // Si se deselecciona una enfermedad, limpiar sus campos específicos
-    if (!checked) {
-      const baseKey = `${prefix}_${codigo}_${agente}_${enfermedadId}`;
-      // Eliminar todas las claves que comiencen con baseKey + '_'
-      Object.keys(caracterizacion).forEach(k => {
-        if (k.startsWith(baseKey + '_')) {
-          handleChange(k, '');
-        }
-      });
-    }
-  };
-
-  // Renderizar campos para una enfermedad específica en una planta
-  const renderEnfermedadFields = (codigo: string, agente: string, enfermedadId: string, enfermedadLabel: string) => {
-    const baseKey = `${prefix}_${codigo}_${agente}_${enfermedadId}`;
-
-    // Campos comunes
-    const hojasKey = `${baseKey}_hojas`; // para enfermedades que requieren número de hojas
-    const presenteKey = `${baseKey}_presente`; // para enfermedades que solo requieren presencia (check)
-    const sintomasKey = `${baseKey}_sintomas`;
-    const otroKey = `${baseKey}_otro`;
-    const vectorKey = `${baseKey}_vector`; // para HLB
-
-    // Valores actuales
-    const hojas = caracterizacion[hojasKey] || '';
-    const presente = caracterizacion[presenteKey] === 'true';
-    const sintomas = caracterizacion[sintomasKey] ? JSON.parse(caracterizacion[sintomasKey]) : [];
-    const otro = caracterizacion[otroKey] || '';
-    const vector = caracterizacion[vectorKey] || '';
-
-    // Definir qué tipo de campos mostrar según la enfermedad
-    if (enfermedadId === 'nematodos') {
-      // Nematodos tiene estructura compleja
-      const sintomasPlantaKey = `${baseKey}_sintomasPlanta`;
-      const sintomasRaizKey = `${baseKey}_sintomasRaiz`;
-      const posibleNematodoKey = `${baseKey}_posibleNematodo`;
-      const otroNematodoKey = `${baseKey}_otroNematodo`;
-
-      const sintomasPlanta = caracterizacion[sintomasPlantaKey] ? JSON.parse(caracterizacion[sintomasPlantaKey]) : [];
-      const sintomasRaiz = caracterizacion[sintomasRaizKey] ? JSON.parse(caracterizacion[sintomasRaizKey]) : [];
-      const posibleNematodo = caracterizacion[posibleNematodoKey] || '';
-      const otroNematodo = caracterizacion[otroNematodoKey] || '';
-
-      return (
-        <div key={enfermedadId} className="ml-4 mt-2 p-3 border-l-2 border-gray-300">
-          <h5 className="font-medium text-sm text-gray-700 mb-2">{enfermedadLabel}</h5>
-
-          {/* Checkbox de presencia (ya que es por planta) */}
-          <div className="mb-2">
-            <label className="flex items-center text-sm">
-              <input
-                type="checkbox"
-                checked={presente}
-                onChange={(e) => handleChange(presenteKey, e.target.checked)}
-                className="mr-2"
-              />
-              <span>¿Presente en esta planta?</span>
-            </label>
-          </div>
-
-          {presente && (
-            <>
-              {/* Síntomas en la planta */}
-              <div className="mb-3">
-                <label className="block text-sm font-medium text-gray-600 mb-1">Síntomas en la planta</label>
-                <div className="space-y-1">
-                  {SINTOMAS_POR_ENFERMEDAD.nematodos.planta.map((sintoma) => (
-                    <label key={sintoma} className="flex items-center text-sm">
-                      <input
-                        type="checkbox"
-                        checked={sintomasPlanta.includes(sintoma)}
-                        onChange={(e) => {
-                          const nuevos = e.target.checked
-                            ? [...sintomasPlanta, sintoma]
-                            : sintomasPlanta.filter((s: string) => s !== sintoma);
-                          handleChange(sintomasPlantaKey, nuevos);
-                        }}
-                        className="mr-2"
-                      />
-                      {sintoma}
-                    </label>
-                  ))}
-                </div>
-                <div className="mt-1">
-                  <input
-                    type="text"
-                    value={caracterizacion[`${baseKey}_otroSintomaPlanta`] || ''}
-                    onChange={(e) => handleChange(`${baseKey}_otroSintomaPlanta`, e.target.value)}
-                    className="border rounded px-2 py-1 w-full text-sm"
-                    placeholder="Otro síntoma en planta"
-                  />
-                </div>
-              </div>
-
-              {/* Síntomas en raíces */}
-              <div className="mb-3">
-                <label className="block text-sm font-medium text-gray-600 mb-1">Síntomas en raíces</label>
-                <div className="space-y-1">
-                  {SINTOMAS_POR_ENFERMEDAD.nematodos.raiz.map((sintoma) => (
-                    <label key={sintoma} className="flex items-center text-sm">
-                      <input
-                        type="checkbox"
-                        checked={sintomasRaiz.includes(sintoma)}
-                        onChange={(e) => {
-                          const nuevos = e.target.checked
-                            ? [...sintomasRaiz, sintoma]
-                            : sintomasRaiz.filter((s: string) => s !== sintoma);
-                          handleChange(sintomasRaizKey, nuevos);
-                        }}
-                        className="mr-2"
-                      />
-                      {sintoma}
-                    </label>
-                  ))}
-                </div>
-                <div className="mt-1">
-                  <input
-                    type="text"
-                    value={caracterizacion[`${baseKey}_otroSintomaRaiz`] || ''}
-                    onChange={(e) => handleChange(`${baseKey}_otroSintomaRaiz`, e.target.value)}
-                    className="border rounded px-2 py-1 w-full text-sm"
-                    placeholder="Otro síntoma en raíz"
-                  />
-                </div>
-              </div>
-
-              {/* Posible nematodo */}
-              <div className="mb-3">
-                <label className="block text-sm font-medium text-gray-600 mb-1">Posible nematodo</label>
-                <select
-                  value={posibleNematodo}
-                  onChange={(e) => handleChange(posibleNematodoKey, e.target.value)}
-                  className="border rounded px-2 py-1 w-full text-sm"
-                >
-                  <option value="">-- Seleccione --</option>
-                  {POSIBLES_NEMATODOS.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-                {posibleNematodo === 'otro' && (
-                  <input
-                    type="text"
-                    value={otroNematodo}
-                    onChange={(e) => handleChange(otroNematodoKey, e.target.value)}
-                    className="border rounded px-2 py-1 w-full mt-1 text-sm"
-                    placeholder="Especifique otro nematodo"
-                  />
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      );
-    }
-
-    // Enfermedades que requieren número de hojas (la mayoría)
-    if (['antracnosis', 'mancha_grasienta', 'hlb', 'xylella', 'ctv'].includes(enfermedadId)) {
-      return (
-        <div key={enfermedadId} className="ml-4 mt-2 p-3 border-l-2 border-gray-300">
-          <h5 className="font-medium text-sm text-gray-700 mb-2">{enfermedadLabel}</h5>
-          <div className="mb-2">
-            <label className="block text-sm text-gray-600">Número de hojas afectadas</label>
-            <input
-              type="number"
-              min="0"
-              value={hojas}
-              onChange={(e) => handleChange(hojasKey, e.target.value)}
-              className="border rounded px-2 py-1 w-32 text-sm"
-              placeholder="0"
-            />
-          </div>
-
-          {/* Síntomas */}
-          <div className="mb-2">
-            <label className="block text-sm font-medium text-gray-600 mb-1">Síntomas observados</label>
-            <div className="space-y-1">
-              {SINTOMAS_POR_ENFERMEDAD[enfermedadId as keyof typeof SINTOMAS_POR_ENFERMEDAD]?.map((sintoma: string) => (
-                <label key={sintoma} className="flex items-center text-sm">
-                  <input
-                    type="checkbox"
-                    checked={sintomas.includes(sintoma)}
-                    onChange={(e) => {
-                      const nuevos = e.target.checked
-                        ? [...sintomas, sintoma]
-                        : sintomas.filter((s: string) => s !== sintoma);
-                      handleChange(sintomasKey, nuevos);
-                    }}
-                    className="mr-2"
-                  />
-                  {sintoma}
-                </label>
-              ))}
-            </div>
-            <div className="mt-1">
-              <input
-                type="text"
-                value={otro}
-                onChange={(e) => handleChange(otroKey, e.target.value)}
-                className="border rounded px-2 py-1 w-full text-sm"
-                placeholder="Otro síntoma"
-              />
-            </div>
-          </div>
-
-          {/* Campo adicional para HLB */}
-          {enfermedadId === 'hlb' && (
-            <div className="mb-2">
-              <label className="block text-sm font-medium text-gray-600 mb-1">Vector Diaphorina citri</label>
-              <div className="flex space-x-4">
-                <label className="flex items-center text-sm">
-                  <input
-                    type="radio"
-                    name={`${baseKey}_vector`}
-                    value="si"
-                    checked={vector === 'si'}
-                    onChange={(e) => handleChange(vectorKey, e.target.value)}
-                    className="mr-1"
-                  />
-                  Sí
-                </label>
-                <label className="flex items-center text-sm">
-                  <input
-                    type="radio"
-                    name={`${baseKey}_vector`}
-                    value="no"
-                    checked={vector === 'no'}
-                    onChange={(e) => handleChange(vectorKey, e.target.value)}
-                    className="mr-1"
-                  />
-                  No
-                </label>
-              </div>
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    // Para phytophthora (oomicetos) que solo requiere presencia y síntomas
-    if (enfermedadId === 'phytophthora') {
-      return (
-        <div key={enfermedadId} className="ml-4 mt-2 p-3 border-l-2 border-gray-300">
-          <h5 className="font-medium text-sm text-gray-700 mb-2">{enfermedadLabel}</h5>
-          <div className="mb-2">
-            <label className="flex items-center text-sm">
-              <input
-                type="checkbox"
-                checked={presente}
-                onChange={(e) => handleChange(presenteKey, e.target.checked)}
-                className="mr-2"
-              />
-              <span>¿Presente en esta planta?</span>
-            </label>
-          </div>
-
-          {presente && (
-            <div className="mb-2">
-              <label className="block text-sm font-medium text-gray-600 mb-1">Síntomas observados</label>
-              <div className="space-y-1">
-                {SINTOMAS_POR_ENFERMEDAD.phytophthora.map((sintoma) => (
-                  <label key={sintoma} className="flex items-center text-sm">
-                    <input
-                      type="checkbox"
-                      checked={sintomas.includes(sintoma)}
-                      onChange={(e) => {
-                        const nuevos = e.target.checked
-                          ? [...sintomas, sintoma]
-                          : sintomas.filter((s: string) => s !== sintoma);
-                        handleChange(sintomasKey, nuevos);
-                      }}
-                      className="mr-2"
-                    />
-                    {sintoma}
-                  </label>
-                ))}
-              </div>
-              <div className="mt-1">
-                <input
-                  type="text"
-                  value={otro}
-                  onChange={(e) => handleChange(otroKey, e.target.value)}
-                  className="border rounded px-2 py-1 w-full text-sm"
-                  placeholder="Otro síntoma"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    return null;
-  };
-
   return (
     <div className="bg-gray-50 p-6 rounded-lg shadow-md">
       <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-        Monitoreo de Enfermedades por Planta
+        Monitoreo de Enfermedades
       </h2>
 
-      <p className="text-sm text-gray-600 mb-4">
-        Para cada planta, seleccione los agentes causales observados y luego las enfermedades específicas.
+      <div className="mb-6 p-4 bg-white rounded-lg shadow-sm border">
+        <p className="text-sm text-gray-700">
+          <span className="font-bold">Metodología de monitoreo:</span> Para cada árbol seleccionado, divida la copa en 4 cuadrantes. 
+          Seleccione una rama al azar de cada cuadrante. Observe: daño en hojas, frutos, puntos de crecimiento, ramas, tronco y raíces.
+        </p>
+      </div>
+
+      <h3 className="text-xl font-bold text-gray-800 mb-4">
+        Árboles seleccionados para monitoreo
+      </h3>
+      <p className="text-sm text-gray-600 mb-6">
+        Se han generado {plantas.length} árbol(es) para monitoreo. Para cada uno, evalúe los 4 cuadrantes de forma independiente.
       </p>
 
-      {plantas.map((planta) => {
-        const codigo = planta.codigo;
-        const agentesSeleccionados = getAgentesPlanta(codigo);
+      {plantas.map((planta, idx) => (
+        <PlantaEnfermedades
+          key={planta.codigo}
+          index={idx}
+          planta={planta}
+          caracterizacion={caracterizacion}
+          onCampoChange={onCampoChange}
+        />
+      ))}
 
-        return (
-          <div key={codigo} className="border rounded-lg p-4 mb-6 bg-white shadow-sm">
-            <h3 className="font-semibold text-lg text-gray-800 mb-3">
-              {planta.label} (Código: {codigo})
-            </h3>
-
-            {/* Selector de agentes (múltiple) */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Agentes causales presentes *
-              </label>
-              <div className="flex flex-wrap gap-4">
-                {AGENTES.map(agente => (
-                  <label key={agente.value} className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={agentesSeleccionados.includes(agente.value)}
-                      onChange={(e) => handleAgenteToggle(codigo, agente.value, e.target.checked)}
-                      className="mr-2"
-                    />
-                    <span className="text-sm">{agente.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Por cada agente seleccionado, mostrar sus enfermedades */}
-            {agentesSeleccionados.map(agente => {
-              const enfermedades = ENFERMEDADES_POR_AGENTE[agente as keyof typeof ENFERMEDADES_POR_AGENTE] || [];
-              const enfermedadesSeleccionadas = getEnfermedadesPlantaAgente(codigo, agente);
-
-              return (
-                <div key={agente} className="ml-2 mb-4 p-3 border rounded bg-gray-50">
-                  <h4 className="font-medium text-md text-gray-700 mb-2">
-                    {AGENTES.find(a => a.value === agente)?.label}
-                  </h4>
-
-                  {/* Checkboxes de enfermedades para este agente */}
-                  <div className="mb-3">
-                    <label className="block text-sm font-medium text-gray-600 mb-1">
-                      Enfermedades observadas
-                    </label>
-                    <div className="space-y-1">
-                      {enfermedades.map(enf => (
-                        <label key={enf.id} className="flex items-center text-sm">
-                          <input
-                            type="checkbox"
-                            checked={enfermedadesSeleccionadas.includes(enf.id)}
-                            onChange={(e) => handleEnfermedadToggle(codigo, agente, enf.id, e.target.checked)}
-                            className="mr-2"
-                          />
-                          {enf.label}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Campos para cada enfermedad seleccionada */}
-                  {enfermedadesSeleccionadas.map(enfermedadId => {
-                    const enfermedad = enfermedades.find(e => e.id === enfermedadId);
-                    if (!enfermedad) return null;
-                    return renderEnfermedadFields(codigo, agente, enfermedadId, enfermedad.label);
-                  })}
-                </div>
-              );
-            })}
-          </div>
-        );
-      })}
+      {/* Nota sobre umbrales */}
+      <div className="mt-6 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-sm text-gray-700">
+        <p className="font-medium mb-1">📝 Umbrales de acción:</p>
+        <ul className="list-disc list-inside space-y-1">
+          <li><span className="font-medium">Antracnosis y Mancha grasienta:</span> &gt;5% de árboles con síntomas activos</li>
+          <li><span className="font-medium">Xylella fastidiosa:</span> Cualquier árbol positivo requiere manejo cuarentenario</li>
+          <li><span className="font-medium">Phytophthora:</span> &gt;5% de árboles con lesiones activas</li>
+          <li><span className="font-medium">CTV:</span> Cualquier árbol positivo requiere manejo cuarentenario</li>
+        </ul>
+      </div>
     </div>
   );
 };
