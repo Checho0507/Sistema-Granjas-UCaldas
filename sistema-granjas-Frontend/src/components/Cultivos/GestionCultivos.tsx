@@ -1,4 +1,3 @@
-// src/components/Cultivos/GestionCultivos.tsx
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
@@ -6,7 +5,7 @@ import cultivoService from "../../services/cultivoService";
 import granjaService from "../../services/granjaService";
 import { StatsCard } from "../Common/StatsCard";
 import CultivosTable from "./CultivosTable";
-import CultivoForm from "./CultivosForm";
+import CultivoForm from "./CultivoForm";
 import exportService from "../../services/exportService";
 import type { CultivoFormData, CultivoEspecie } from "../../types/cultivoTypes";
 
@@ -19,7 +18,9 @@ export default function GestionCultivos() {
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState<string | null>(null);
     
-    // ✅ Estadísticas calculadas localmente (sin completados)
+    // Estado para errores de validación del formulario
+    const [erroresValidacion, setErroresValidacion] = useState<Record<string, string>>({});
+    
     const [estadisticas, setEstadisticas] = useState({
         total: 0,
         agricolas: 0,
@@ -27,14 +28,10 @@ export default function GestionCultivos() {
         activos: 0
     });
 
-    // Modales
     const [modalCrear, setModalCrear] = useState(false);
-
-    // Selecciones
     const [cultivoSeleccionado, setCultivoSeleccionado] = useState<CultivoEspecie | null>(null);
     const [editando, setEditando] = useState(false);
 
-    // Formulario - SIN fecha_inicio NI duracion_dias
     const [datosFormulario, setDatosFormulario] = useState<CultivoFormData>({
         nombre: "",
         tipo: "agricola",
@@ -43,18 +40,15 @@ export default function GestionCultivos() {
         granja_id: 0,
     });
 
-    // Exportación
     const [exporting, setExporting] = useState(false);
     const [exportMessage, setExportMessage] = useState('');
 
-    // Mostrar indicador de filtro activo
     useEffect(() => {
         if (programaId) {
             console.log(`🔍 Filtrando cultivos por programa ID: ${programaId}`);
         }
     }, [programaId]);
 
-    // Handler para exportar cultivos
     const handleExportCultivos = async () => {
         if (exporting) return;
 
@@ -75,12 +69,10 @@ export default function GestionCultivos() {
             setTimeout(() => setExportMessage(''), 5000);
         } catch (error: any) {
             console.error('❌ Error exportando cultivos:', error);
-
             toast.error('Error al exportar cultivos', {
                 duration: 4000,
                 position: 'top-right'
             });
-
             setExportMessage('Error al exportar.');
             setTimeout(() => setExportMessage(''), 5000);
         } finally {
@@ -88,7 +80,6 @@ export default function GestionCultivos() {
         }
     };
 
-    // ✅ Función para calcular estadísticas locales (sin completados)
     const calcularEstadisticasLocales = (cultivosData: CultivoEspecie[]) => {
         return {
             total: cultivosData.length,
@@ -106,20 +97,19 @@ export default function GestionCultivos() {
         try {
             setCargando(true);
             setError(null);
+            setErroresValidacion({});
 
             console.log('🔄 Cargando datos de cultivos...', programaId ? `para programa ${programaId}` : 'todos');
             const loadingToast = toast.loading('Cargando datos...');
 
             let datosCultivos: CultivoEspecie[];
             
-            // Lógica de filtrado por programa
             if (programaId) {
                 datosCultivos = await cultivoService.obtenerCultivosPorPrograma(Number(programaId));
             } else {
                 datosCultivos = await cultivoService.obtenerCultivos();
             }
 
-            // Obtener granjas (siempre se necesitan para los formularios)
             const datosGranjas = await granjaService.obtenerGranjas();
 
             toast.dismiss(loadingToast);
@@ -127,8 +117,6 @@ export default function GestionCultivos() {
 
             setCultivos(datosCultivos);
             setGranjas(datosGranjas);
-            
-            // ✅ Calcular estadísticas locales
             setEstadisticas(calcularEstadisticasLocales(datosCultivos));
 
         } catch (error: any) {
@@ -143,8 +131,37 @@ export default function GestionCultivos() {
         }
     };
 
+    // Función para procesar errores de validación del backend
+    const procesarErroresValidacion = (error: any): Record<string, string> => {
+        const errores: Record<string, string> = {};
+        
+        // Si el error tiene propiedad detail (de FastAPI)
+        if (error.detail && Array.isArray(error.detail)) {
+            error.detail.forEach((err: any) => {
+                // El campo está en err.loc, ej: ['body', 'descripcion']
+                const campo = err.loc?.[1] || 'general';
+                errores[campo] = err.msg;
+            });
+        } 
+        // Si es un error con múltiples líneas (de nuestro servicio)
+        else if (error.message && error.message.includes('\n')) {
+            const lineas = error.message.split('\n');
+            lineas.forEach((linea: string) => {
+                const [campo, mensaje] = linea.split(': ');
+                if (campo && mensaje) {
+                    errores[campo] = mensaje;
+                }
+            });
+        }
+        
+        return errores;
+    };
+
     const manejarCrear = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        // Limpiar errores de validación anteriores
+        setErroresValidacion({});
 
         try {
             setError(null);
@@ -177,13 +194,27 @@ export default function GestionCultivos() {
 
         } catch (error: any) {
             console.error('❌ Error guardando cultivo:', error);
-            setError(error.message || 'Error al guardar el cultivo');
-
-            toast.dismiss();
-            toast.error(`Error al guardar cultivo: ${error.message || 'Error desconocido'}`, {
-                duration: 4000,
-                position: 'top-right'
-            });
+            
+            // Procesar errores de validación
+            const erroresValidacion = procesarErroresValidacion(error);
+            
+            if (Object.keys(erroresValidacion).length > 0) {
+                // Mostrar errores en el formulario
+                setErroresValidacion(erroresValidacion);
+                
+                // Mostrar toast con resumen
+                toast.error('Por favor corrige los errores en el formulario', {
+                    duration: 4000,
+                    position: 'top-right'
+                });
+            } else {
+                // Error general
+                setError(error.message || 'Error al guardar el cultivo');
+                toast.error(`Error al guardar cultivo: ${error.message || 'Error desconocido'}`, {
+                    duration: 4000,
+                    position: 'top-right'
+                });
+            }
         }
     };
 
@@ -198,6 +229,7 @@ export default function GestionCultivos() {
         setCultivoSeleccionado(cultivo);
         setEditando(true);
         setModalCrear(true);
+        setErroresValidacion({}); // Limpiar errores al abrir
     };
 
     const manejarEliminar = async (id: number) => {
@@ -221,7 +253,6 @@ export default function GestionCultivos() {
         } catch (error: any) {
             console.error('❌ Error al eliminar cultivo:', error);
             setError(error.message || 'Error al eliminar el cultivo');
-
             toast.error(`Error al eliminar cultivo: ${error.message || 'Error desconocido'}`, {
                 duration: 4000,
                 position: 'top-right'
@@ -237,6 +268,7 @@ export default function GestionCultivos() {
             estado: "activo",
             granja_id: 0,
         });
+        setErroresValidacion({});
     };
 
     if (cargando) {
@@ -258,7 +290,6 @@ export default function GestionCultivos() {
                 </h1>
             </div>
 
-            {/* Mensaje de exportación */}
             <div className="flex items-center space-x-3 m-2 mb-6">
                 {exportMessage && (
                     <span className={`text-sm px-3 py-1 rounded ${exportMessage.includes('Error')
@@ -279,7 +310,6 @@ export default function GestionCultivos() {
                 </button>
             </div>
 
-            {/* Mostrar error global */}
             {error && (
                 <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
                     <div className="flex items-center">
@@ -295,7 +325,6 @@ export default function GestionCultivos() {
                 </div>
             )}
 
-            {/* ✅ Estadísticas ahora calculadas localmente (sin completados) */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <StatsCard
                     icon="fas fa-leaf"
@@ -323,7 +352,6 @@ export default function GestionCultivos() {
                 />
             </div>
 
-            {/* Botón Crear */}
             <div className="mb-6">
                 <button
                     onClick={() => {
@@ -338,14 +366,12 @@ export default function GestionCultivos() {
                 </button>
             </div>
 
-            {/* Tabla de cultivos */}
             <CultivosTable
                 cultivos={cultivos}
                 onEditar={abrirEditar}
                 onEliminar={manejarEliminar}
             />
 
-            {/* Modal de formulario */}
             <CultivoForm
                 isOpen={modalCrear}
                 onClose={() => {
@@ -358,6 +384,7 @@ export default function GestionCultivos() {
                 onSubmit={manejarCrear}
                 editando={editando}
                 granjas={granjas}
+                erroresValidacion={erroresValidacion}
             />
         </div>
     );

@@ -19,6 +19,21 @@ const getHeaders = (): HeadersInit => {
 const handleResponse = async (response: Response) => {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
+    
+    // FastAPI devuelve errores de validación con este formato
+    if (errorData.detail && Array.isArray(errorData.detail)) {
+      // Errores de validación de Pydantic
+      const validationErrors = errorData.detail.map((err: any) => {
+        const field = err.loc?.slice(1).join('.') || 'campo';
+        return `${field}: ${err.msg}`;
+      });
+      // Creamos un error con propiedad detail para poder procesarlo después
+      const error = new Error(validationErrors.join('\n'));
+      (error as any).detail = errorData.detail;
+      throw error;
+    }
+    
+    // Error simple
     throw new Error(
       errorData.detail || errorData.message || `Error ${response.status}: ${response.statusText}`
     );
@@ -53,7 +68,6 @@ export const cultivoService = {
       descripcion: datosCultivo.descripcion || null,
       estado: datosCultivo.estado,
       granja_id: datosCultivo.granja_id
-      // No se envían fecha_inicio ni duracion_dias
     };
 
     const response = await fetch(`${API_BASE_URL}/cultivos/`, {
@@ -64,18 +78,14 @@ export const cultivoService = {
     return handleResponse(response);
   },
 
-  // ✅ NUEVA FUNCIÓN: Obtener cultivos por programa (a través de lotes)
+  // Obtener cultivos por programa (a través de lotes)
   async obtenerCultivosPorPrograma(programaId: number): Promise<CultivoEspecie[]> {
     try {
-      // 1. Obtener todos los lotes del programa
       const lotes = await loteService.obtenerLotesPorPrograma(programaId);
-
-      // 2. Extraer IDs únicos de cultivos de esos lotes
       const cultivoIds = [...new Set(lotes.map(lote => lote.cultivo_id).filter(Boolean))];
 
       if (cultivoIds.length === 0) return [];
 
-      // 3. Obtener los cultivos por sus IDs
       const promesas = cultivoIds.map(id => this.obtenerCultivoPorId(id));
       const cultivos = await Promise.all(promesas);
 
@@ -95,7 +105,6 @@ export const cultivoService = {
     if (datosCultivo.descripcion !== undefined) payload.descripcion = datosCultivo.descripcion;
     if (datosCultivo.estado !== undefined) payload.estado = datosCultivo.estado;
     if (datosCultivo.granja_id !== undefined) payload.granja_id = datosCultivo.granja_id;
-    // No se incluyen fecha_inicio ni duracion_dias
 
     const response = await fetch(`${API_BASE_URL}/cultivos/${id}`, {
       method: 'PUT',
@@ -119,7 +128,6 @@ export const cultivoService = {
 
   // ========== ESTADÍSTICAS ==========
 
-  // OBTENER estadísticas de cultivos - SIN completados
   async obtenerEstadisticas(): Promise<CultivoStats> {
     const cultivos = await this.obtenerCultivos();
 
@@ -128,13 +136,11 @@ export const cultivoService = {
       agricolas: cultivos.filter(c => c.tipo === 'agricola').length,
       pecuarios: cultivos.filter(c => c.tipo === 'pecuario').length,
       activos: cultivos.filter(c => c.estado === 'activo').length
-      // Eliminado: completados
     };
   },
 
   // ========== FILTROS ESPECIALES ==========
 
-  // OBTENER cultivos por granja (usando endpoint específico)
   async obtenerCultivosPorGranja(granjaId: number): Promise<CultivoEspecie[]> {
     const response = await fetch(`${API_BASE_URL}/cultivos/granja/${granjaId}`, {
       headers: getHeaders()
@@ -142,7 +148,6 @@ export const cultivoService = {
     return handleResponse(response);
   },
 
-  // OBTENER cultivos por tipo
   async obtenerCultivosPorTipo(tipo: string): Promise<CultivoEspecie[]> {
     const response = await fetch(`${API_BASE_URL}/cultivos/?tipo=${tipo}`, {
       headers: getHeaders()
@@ -150,14 +155,5 @@ export const cultivoService = {
     return handleResponse(response);
   }
 };
-
-// Alias para compatibilidad
-export const getCultivos = cultivoService.obtenerCultivos;
-export const getCultivoById = cultivoService.obtenerCultivoPorId;
-export const createCultivo = cultivoService.crearCultivo;
-export const updateCultivo = cultivoService.actualizarCultivo;
-export const deleteCultivo = cultivoService.eliminarCultivo;
-export const getCultivosPorGranja = cultivoService.obtenerCultivosPorGranja;
-export const getEstadisticasCultivos = cultivoService.obtenerEstadisticas;
 
 export default cultivoService;

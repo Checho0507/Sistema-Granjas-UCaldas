@@ -10,6 +10,7 @@ interface CultivoFormProps {
     onSubmit: (e: React.FormEvent) => void;
     editando: boolean;
     granjas: any[];
+    erroresValidacion?: Record<string, string>; // Nueva prop
 }
 
 const CultivoForm: React.FC<CultivoFormProps> = ({
@@ -19,7 +20,8 @@ const CultivoForm: React.FC<CultivoFormProps> = ({
     setDatosFormulario,
     onSubmit,
     editando,
-    granjas
+    granjas,
+    erroresValidacion = {} // Valor por defecto
 }) => {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
@@ -30,13 +32,11 @@ const CultivoForm: React.FC<CultivoFormProps> = ({
         }));
     };
 
-    // Opciones de tipo
     const tipos = [
         { value: 'agricola', label: 'Agrícola' },
         { value: 'pecuario', label: 'Pecuario' }
     ];
 
-    // Opciones de estado
     const estados = [
         { value: 'activo', label: 'Activo' },
         { value: 'inactivo', label: 'Inactivo' }
@@ -49,7 +49,6 @@ const CultivoForm: React.FC<CultivoFormProps> = ({
             width="max-w-2xl"
         >
             <div className="space-y-4">
-                {/* Título */}
                 <div className="border-b pb-3">
                     <h3 className="text-xl font-bold text-gray-800">
                         {editando ? 'Editar Cultivo/Especie' : 'Nuevo Cultivo/Especie'}
@@ -68,10 +67,15 @@ const CultivoForm: React.FC<CultivoFormProps> = ({
                                 name="nombre"
                                 value={datosFormulario.nombre}
                                 onChange={handleChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                                    erroresValidacion.nombre ? 'border-red-500' : 'border-gray-300'
+                                }`}
                                 required
                                 placeholder="Ej: Café Caturra, Ganado Lechero Holstein"
                             />
+                            {erroresValidacion.nombre && (
+                                <p className="text-red-500 text-xs mt-1">{erroresValidacion.nombre}</p>
+                            )}
                         </div>
 
                         {/* Tipo */}
@@ -83,7 +87,9 @@ const CultivoForm: React.FC<CultivoFormProps> = ({
                                 name="tipo"
                                 value={datosFormulario.tipo}
                                 onChange={handleChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                                    erroresValidacion.tipo ? 'border-red-500' : 'border-gray-300'
+                                }`}
                                 required
                             >
                                 <option value="">Seleccionar tipo</option>
@@ -93,6 +99,9 @@ const CultivoForm: React.FC<CultivoFormProps> = ({
                                     </option>
                                 ))}
                             </select>
+                            {erroresValidacion.tipo && (
+                                <p className="text-red-500 text-xs mt-1">{erroresValidacion.tipo}</p>
+                            )}
                         </div>
 
                         {/* Estado */}
@@ -104,7 +113,9 @@ const CultivoForm: React.FC<CultivoFormProps> = ({
                                 name="estado"
                                 value={datosFormulario.estado}
                                 onChange={handleChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                                    erroresValidacion.estado ? 'border-red-500' : 'border-gray-300'
+                                }`}
                                 required
                             >
                                 {estados.map(estado => (
@@ -113,6 +124,9 @@ const CultivoForm: React.FC<CultivoFormProps> = ({
                                     </option>
                                 ))}
                             </select>
+                            {erroresValidacion.estado && (
+                                <p className="text-red-500 text-xs mt-1">{erroresValidacion.estado}</p>
+                            )}
                         </div>
 
                         {/* Granja */}
@@ -124,7 +138,9 @@ const CultivoForm: React.FC<CultivoFormProps> = ({
                                 name="granja_id"
                                 value={datosFormulario.granja_id || ''}
                                 onChange={handleChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                                    erroresValidacion.granja_id ? 'border-red-500' : 'border-gray-300'
+                                }`}
                                 required
                             >
                                 <option value="">Seleccionar granja</option>
@@ -134,6 +150,9 @@ const CultivoForm: React.FC<CultivoFormProps> = ({
                                     </option>
                                 ))}
                             </select>
+                            {erroresValidacion.granja_id && (
+                                <p className="text-red-500 text-xs mt-1">{erroresValidacion.granja_id}</p>
+                            )}
                         </div>
 
                         {/* Descripción */}
@@ -145,10 +164,15 @@ const CultivoForm: React.FC<CultivoFormProps> = ({
                                 name="descripcion"
                                 value={datosFormulario.descripcion}
                                 onChange={handleChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                                    erroresValidacion.descripcion ? 'border-red-500' : 'border-gray-300'
+                                }`}
                                 rows={3}
                                 placeholder="Descripción del cultivo o especie..."
                             />
+                            {erroresValidacion.descripcion && (
+                                <p className="text-red-500 text-xs mt-1">{erroresValidacion.descripcion}</p>
+                            )}
                         </div>
                     </div>
 
