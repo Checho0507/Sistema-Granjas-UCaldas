@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from typing import Optional, List
 from datetime import datetime
 import re
@@ -17,12 +17,17 @@ class LoteBase(BaseModel):
     def validar_nombre(cls, v):
         if not v or len(v.strip()) == 0:
             raise ValueError('El nombre del lote no puede estar vacío')
+        
         if len(v.strip()) < 3:
             raise ValueError('El nombre del lote debe tener al menos 3 caracteres')
+        
         if len(v) > 100:
             raise ValueError('El nombre del lote no puede tener más de 100 caracteres')
+        
+        # Validar formato del nombre (letras, números, espacios, puntos, guiones, paréntesis)
         if not re.match(r'^[a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s\-.,()]+$', v):
             raise ValueError('El nombre del lote contiene caracteres no permitidos')
+        
         return v.strip()
 
     @field_validator('tipo_lote_id')
@@ -49,14 +54,51 @@ class LoteBase(BaseModel):
             raise ValueError('El cultivo_id debe ser un número positivo')
         return v
 
+    @field_validator('nombre_cultivo')
+    def validar_nombre_cultivo(cls, v):
+        if v is not None:
+            if len(v.strip()) < 2:
+                raise ValueError('El nombre del cultivo debe tener al menos 2 caracteres')
+            
+            if len(v) > 150:
+                raise ValueError('El nombre del cultivo no puede tener más de 150 caracteres')
+            
+            if not re.match(r'^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s\-\'\.0-9]+$', v):
+                raise ValueError('El nombre del cultivo contiene caracteres no permitidos')
+        
+        return v
+    
     @field_validator('estado')
     def validar_estado(cls, v):
-        if v is not None:
-            estados_permitidos = ['activo', 'inactivo']
-            if v.lower() not in estados_permitidos:
-                raise ValueError(f'Estado no válido. Estados permitidos: {", ".join(estados_permitidos)}')
-        return v
+        estados_permitidos = ['activo', 'inactivo']
+        
+        if v.lower() not in estados_permitidos:
+            raise ValueError(f'Estado no válido. Estados permitidos: {", ".join(estados_permitidos)}')
+        
+        return v.lower()
 
+    @model_validator(mode='after')
+    def validar_fechas_coherentes(cls, values):
+        fecha_inicio = values.fecha_inicio
+        
+        # Validar que la fecha de inicio no sea en el futuro muy lejano
+        if fecha_inicio:
+            from datetime import datetime as dt
+            if fecha_inicio > dt.now().replace(year=dt.now().year + 5):
+                raise ValueError('La fecha de inicio no puede ser más de 5 años en el futuro')
+        
+        return values
+
+    @model_validator(mode='after')
+    def validar_cultivo_consistente(cls, values):
+        cultivo_id = values.cultivo_id
+        nombre_cultivo = values.nombre_cultivo
+        
+        # Si se proporciona cultivo_id, también debería tener nombre_cultivo
+        if cultivo_id and not nombre_cultivo:
+            raise ValueError('Si especifica cultivo_id, debe proporcionar nombre_cultivo')
+        
+        return values
 class LoteCreate(LoteBase):
     pass
 
@@ -75,23 +117,58 @@ class LoteUpdate(BaseModel):
         if v is not None:
             if len(v.strip()) < 3:
                 raise ValueError('El nombre del lote debe tener al menos 3 caracteres')
+            
             if len(v) > 100:
                 raise ValueError('El nombre del lote no puede tener más de 100 caracteres')
+            
+            # CORREGIDO: Añadí paréntesis y puntos a los caracteres permitidos para mantener consistencia con LoteBase
             if not re.match(r'^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s\-\_0-9.,()]+$', v):
                 raise ValueError('El nombre del lote contiene caracteres no permitidos')
+            
         return v
 
     @field_validator('estado')
     def validar_estado_update(cls, v):
         if v is not None:
             estados_permitidos = ['activo', 'inactivo']
+            
             if v.lower() not in estados_permitidos:
-                raise ValueError(f'Estado no válido')
+                raise ValueError(f'Estado no válido. Estados permitidos: {", ".join(estados_permitidos)}')
+        
         return v
+
+    @model_validator(mode='after')
+    def validar_al_menos_un_campo(cls, values):
+        campos = [
+            values.nombre, values.tipo_lote_id, values.granja_id, values.nombre_granja,
+            values.programa_id, values.cultivo_id, values.nombre_cultivo,
+            values.fecha_inicio, values.estado
+        ]
+        
+        if all(campo is None for campo in campos):
+            raise ValueError('Debe proporcionar al menos un campo para actualizar')
+        
+        return values
 
 class LoteResponse(LoteBase):
     id: int
+    estado: str
     fecha_creacion: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+# Nota: Estos imports deben estar disponibles cuando se usen estas clases
+# from app.schemas.cultivo_schema import CultivoEspecieResponse
+# from app.schemas.tipo_lote_schema import TipoLoteResponse
+# from app.schemas.granja_schema import GranjaResponse
+# from app.schemas.programa_schema import ProgramaResponse
+
+class LoteWithRelations(LoteResponse):
+    cultivo: Optional['CultivoEspecieResponse'] = None
+    tipo_lote: Optional['TipoLoteResponse'] = None
+    granja: Optional['GranjaResponse'] = None
+    programa: Optional['ProgramaResponse'] = None
     
     class Config:
         from_attributes = True

@@ -1,6 +1,6 @@
-from pydantic import BaseModel, field_validator
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel, field_validator, model_validator
 import re
 
 class CultivoEspecieBase(BaseModel):
@@ -14,20 +14,31 @@ class CultivoEspecieBase(BaseModel):
     def validar_nombre(cls, v):
         if not v or len(v.strip()) == 0:
             raise ValueError('El nombre del cultivo/especie no puede estar vacío')
+        
         if len(v.strip()) < 3:
             raise ValueError('El nombre del cultivo/especie debe tener al menos 3 caracteres')
+        
         if len(v) > 150:
             raise ValueError('El nombre del cultivo/especie no puede tener más de 150 caracteres')
+        
+        # Validar formato del nombre (letras, números, espacios, guiones, paréntesis)
         if not re.match(r'^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s\-\'\.\(\)0-9]+$', v):
             raise ValueError('El nombre del cultivo/especie contiene caracteres no permitidos')
+        
+        # Validar que no sea solo números
+        if v.strip().replace(' ', '').isdigit():
+            raise ValueError('El nombre del cultivo/especie no puede ser solo números')
+        
         return v.strip()
 
     @field_validator('tipo')
     def validar_tipo(cls, v):
         tipos_permitidos = ['agricola', 'pecuario']
+        
         v_lower = v.lower()
         if v_lower not in tipos_permitidos:
             raise ValueError(f'Tipo no válido. Tipos permitidos: {", ".join(tipos_permitidos)}')
+        
         return v_lower
 
     @field_validator('granja_id')
@@ -41,16 +52,20 @@ class CultivoEspecieBase(BaseModel):
         if v is not None:
             if len(v.strip()) < 10:
                 raise ValueError('La descripción debe tener al menos 10 caracteres')
+            
             if len(v) > 500:
                 raise ValueError('La descripción no puede tener más de 500 caracteres')
+        
         return v
 
     @field_validator('estado')
     def validar_estado(cls, v):
         if v is not None:
             estados_permitidos = ['activo', 'inactivo']
+            
             if v.lower() not in estados_permitidos:
                 raise ValueError(f'Estado no válido. Estados permitidos: {", ".join(estados_permitidos)}')
+        
         return v
 
 class CultivoEspecieCreate(CultivoEspecieBase):
@@ -67,19 +82,38 @@ class CultivoEspecieUpdate(BaseModel):
         if v is not None:
             if len(v.strip()) < 3:
                 raise ValueError('El nombre del cultivo/especie debe tener al menos 3 caracteres')
+            
             if len(v) > 150:
                 raise ValueError('El nombre del cultivo/especie no puede tener más de 150 caracteres')
+            
             if not re.match(r'^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s\-\'\.\(\)0-9]+$', v):
                 raise ValueError('El nombre del cultivo/especie contiene caracteres no permitidos')
+            
+            if v.strip().replace(' ', '').isdigit():
+                raise ValueError('El nombre del cultivo/especie no puede ser solo números')
+            
         return v
 
     @field_validator('tipo')
     def validar_tipo_update(cls, v):
         if v is not None:
             tipos_permitidos = ['agricola', 'pecuario']
+            
             v_lower = v.lower()
             if v_lower not in tipos_permitidos:
-                raise ValueError(f'Tipo no válido')
+                raise ValueError(f'Tipo no válido. Tipos permitidos: {", ".join(tipos_permitidos)}')
+            
+        return v
+
+    @field_validator('descripcion')
+    def validar_descripcion_update(cls, v):
+        if v is not None:
+            if len(v.strip()) < 10:
+                raise ValueError('La descripción debe tener al menos 10 caracteres')
+            
+            if len(v) > 500:
+                raise ValueError('La descripción no puede tener más de 500 caracteres')
+        
         return v
 
 class CultivoEspecieResponse(CultivoEspecieBase):
