@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import granjaService from '../../services/granjaService';
 import programaService from '../../services/programaService';
 import asignacionService from '../../services/asignacionService';
-import { GranjaForm } from './GranjaForm';
+import { GranjaForm } from './GranjasForm';
 import type { Granja, Programa } from '../../types/granjaTypes';
 
 interface ProgramaResumen {
