@@ -129,10 +129,7 @@ export default function GestionProgramas() {
 
       // Cerrar el modal
       cerrarModalCrear();
-
-      // 👇 FORZAR RECARGA DEL COMPONENTE NAVEGANDO A LA MISMA RUTA
-      navigate(0); // Esto recarga la ruta actual
-
+      setProgramas(await programaService.obtenerProgramas());
     } catch (error: any) {
       console.error("❌ Error al guardar programa:", error);
 
