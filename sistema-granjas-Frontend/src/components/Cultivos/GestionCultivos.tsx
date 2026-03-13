@@ -5,7 +5,7 @@ import cultivoService from "../../services/cultivoService";
 import granjaService from "../../services/granjaService";
 import { StatsCard } from "../Common/StatsCard";
 import CultivosTable from "./CultivosTable";
-import CultivoForm from "./CultivoForm";
+import CultivoForm from "./CultivosForm";
 import exportService from "../../services/exportService";
 import type { CultivoFormData, CultivoEspecie } from "../../types/cultivoTypes";
 
