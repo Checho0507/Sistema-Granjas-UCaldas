@@ -475,7 +475,3 @@ export default function GestionProgramas() {
     </div>
   );
 }
-
-function cargarDatos() {
-  throw new Error("Function not implemented.");
-}
