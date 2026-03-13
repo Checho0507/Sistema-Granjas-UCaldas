@@ -5,7 +5,6 @@ interface Props {
   plantas: PlantaFenologico[];
   caracterizacion: Record<string, string>;
   onCampoChange: (campo: string, valor: string) => void;
-  // onFaseChange ya no se utiliza; todo se maneja con onCampoChange
 }
 
 export const FenologicoSection: React.FC<Props> = ({
@@ -105,7 +104,7 @@ export const FenologicoSection: React.FC<Props> = ({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                       <div className="flex flex-col">
                         <label className="text-sm font-medium text-gray-700 mb-1">
-                          Número total de puntos de crecimiento evaluados
+                          Número total de puntos de crecimiento evaluados en la Rama {j}
                         </label>
                         <input
                           type="number"
@@ -147,7 +146,7 @@ export const FenologicoSection: React.FC<Props> = ({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                       <div className="flex flex-col">
                         <label className="text-sm font-medium text-gray-700 mb-1">
-                          Número total de flores evaluadas
+                          Número total de flores evaluadas en la Rama {j}
                         </label>
                         <input
                           type="number"
@@ -194,7 +193,7 @@ export const FenologicoSection: React.FC<Props> = ({
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="flex flex-col">
                           <label className="text-sm font-medium text-gray-700 mb-1">
-                            Número total de frutos observados
+                            Número total de frutos observados en la Rama {j}
                           </label>
                           <input
                             type="number"
