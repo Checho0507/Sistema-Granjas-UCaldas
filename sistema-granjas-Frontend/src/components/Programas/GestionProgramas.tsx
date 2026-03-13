@@ -221,6 +221,7 @@ export default function GestionProgramas() {
     if (!confirm("¿Estás seguro de eliminar este programa?")) return;
     try {
       await programaService.eliminarPrograma(id);
+      await cargarDatos();
       toast.success("Programa eliminado correctamente");
     } catch (error: any) {
       setError(error.message || "Error al eliminar el programa");
@@ -473,4 +474,8 @@ export default function GestionProgramas() {
       />
     </div>
   );
+}
+
+function cargarDatos() {
+  throw new Error("Function not implemented.");
 }
