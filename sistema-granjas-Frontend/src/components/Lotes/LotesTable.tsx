@@ -51,14 +51,12 @@ const LotesTable: React.FC<LotesTableProps> = ({
                         return { 
                             id, 
                             nombre: res.nombre,
-                            duracion_dias: res.duracion_dias || 0,
                             tipo: res.tipo 
                         };
                     } catch {
                         return { 
                             id, 
-                            nombre: 'No encontrado',
-                            duracion_dias: 0 
+                            nombre: 'No encontrado'
                         };
                     }
                 });
@@ -173,8 +171,7 @@ const LotesTable: React.FC<LotesTableProps> = ({
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cultivo</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Programa</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Inicio / Fin</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duración</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Siembra</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gestión</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                         </tr>
@@ -205,11 +202,6 @@ const LotesTable: React.FC<LotesTableProps> = ({
                                         <div className="text-sm text-gray-900">
                                             {cultivo?.nombre || lote.nombre_cultivo || '—'}
                                         </div>
-                                        {cultivo && (
-                                            <div className="text-xs text-gray-500">
-                                                Duración: {cultivo.duracion_dias} días
-                                            </div>
-                                        )}
                                     </td>
 
                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -226,22 +218,6 @@ const LotesTable: React.FC<LotesTableProps> = ({
 
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         <div>Inicio: {formatearFecha(lote.fecha_inicio)}</div>
-                                        <div className="text-xs">
-                                            Fin: {calcularFechaFin(lote.fecha_inicio, lote.cultivo_id)}
-                                        </div>
-                                    </td>
-
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {diasTranscurridos !== null ? (
-                                            <>
-                                                <div>{diasTranscurridos} días</div>
-                                                {cultivo?.duracion_dias && (
-                                                    <div className="text-xs">
-                                                        {Math.round((diasTranscurridos / cultivo.duracion_dias) * 100)}% completado
-                                                    </div>
-                                                )}
-                                            </>
-                                        ) : '-'}
                                     </td>
 
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
