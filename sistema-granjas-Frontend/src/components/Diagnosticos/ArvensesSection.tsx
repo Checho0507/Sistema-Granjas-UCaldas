@@ -89,7 +89,7 @@ export const ArvensesSection: React.FC<ArvensesSectionProps> = ({
       });
       campos.push(`${zona}_otra_especie_nombre`);
       campos.push(`${zona}_otra_especie_porcentaje`);
-      
+
       campos.forEach(campo => {
         setValor(codigo, campo, '');
       });
@@ -169,7 +169,7 @@ export const ArvensesSection: React.FC<ArvensesSectionProps> = ({
             {zonaPlato && (
               <div className="mb-6 p-4 border rounded bg-gray-50">
                 <h5 className="font-medium text-md text-gray-700 mb-3">Evaluación en Plato</h5>
-                
+
                 {/* Altura promedio */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -195,6 +195,9 @@ export const ArvensesSection: React.FC<ArvensesSectionProps> = ({
                 {/* Arvenses Nobles */}
                 <div className="mb-4">
                   <h6 className="font-medium text-sm text-gray-700 mb-2">Arvenses Nobles y % de cobertura</h6>
+                  <p className="text-xs text-gray-500 mb-2">
+                    (Si no hay presencia de arvenses nobles, coloque 0 en el porcentaje de cobertura)
+                  </p>
                   <div className="space-y-2">
                     {ARVENSES_NOBLES.map((arvense) => (
                       <div key={arvense.id} className="grid grid-cols-2 gap-2 items-center">
@@ -239,6 +242,9 @@ export const ArvensesSection: React.FC<ArvensesSectionProps> = ({
                 {/* Arvenses Agresivas */}
                 <div className="mb-4">
                   <h6 className="font-medium text-sm text-gray-700 mb-2">Arvenses Agresivas y % de cobertura</h6>
+                  <p className="text-xs text-gray-500 mb-2">
+                    (Si no hay presencia de arvenses agresivas, coloque 0 en el porcentaje de cobertura)
+                  </p>
                   <div className="space-y-2">
                     {ARVENSES_AGRESIVAS.map((arvense) => (
                       <div key={arvense.id} className="grid grid-cols-2 gap-2 items-center">
@@ -286,7 +292,7 @@ export const ArvensesSection: React.FC<ArvensesSectionProps> = ({
             {zonaCalle && (
               <div className="mb-4 p-4 border rounded bg-gray-50">
                 <h5 className="font-medium text-md text-gray-700 mb-3">Evaluación en Calle</h5>
-                
+
                 {/* Altura promedio */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
