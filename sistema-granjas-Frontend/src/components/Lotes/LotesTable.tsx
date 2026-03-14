@@ -214,7 +214,6 @@ const LotesTable: React.FC<LotesTableProps> = ({
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Granja</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cultivos</th>
@@ -231,9 +230,6 @@ const LotesTable: React.FC<LotesTableProps> = ({
                             
                             return (
                                 <tr key={lote.id} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className="text-sm font-medium text-gray-500">#{lote.id}</span>
-                                    </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="text-sm font-medium text-gray-900">{lote.nombre}</div>
                                     </td>
