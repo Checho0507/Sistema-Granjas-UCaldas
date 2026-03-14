@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom'; // 👈 Importar useNavigate
+import React, { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { CultivoEspecie } from '../../types/cultivoTypes';
 import granjaService from '../../services/granjaService';
 
@@ -14,9 +14,14 @@ const CultivosTable: React.FC<CultivosTableProps> = ({
     onEditar,
     onEliminar
 }) => {
-    const navigate = useNavigate(); // 👈 Para navegación
+    const navigate = useNavigate();
     const [granjasMap, setGranjasMap] = useState<Record<number, string>>({});
     const [cargando, setCargando] = useState(false);
+
+    // 👇 ORDENAR CULTIVOS POR ID (de menor a mayor)
+    const cultivosOrdenados = useMemo(() => {
+        return [...cultivos].sort((a, b) => a.id - b.id);
+    }, [cultivos]);
 
     useEffect(() => {
         const cargarNombresGranjas = async () => {
@@ -55,7 +60,6 @@ const CultivosTable: React.FC<CultivosTableProps> = ({
         cargarNombresGranjas();
     }, [cultivos]);
 
-    // ✅ NUEVA FUNCIÓN: Ver lotes que usan este cultivo
     const verLotesConCultivo = (e: React.MouseEvent, cultivoId: number, cultivoNombre: string) => {
         e.stopPropagation();
         navigate(`/lotes?cultivoId=${cultivoId}&cultivoNombre=${encodeURIComponent(cultivoNombre)}`);
@@ -78,6 +82,10 @@ const CultivosTable: React.FC<CultivosTableProps> = ({
         }
     };
 
+    // Logs para depuración (opcional)
+    console.log('📋 Cultivos originales:', cultivos);
+    console.log('📋 Cultivos ordenados:', cultivosOrdenados);
+
     return (
         <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
@@ -97,6 +105,9 @@ const CultivosTable: React.FC<CultivosTableProps> = ({
                     <thead className="bg-gray-50">
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                ID
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Nombre
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -114,8 +125,11 @@ const CultivosTable: React.FC<CultivosTableProps> = ({
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {cultivos.map((cultivo) => (
+                        {cultivosOrdenados.map((cultivo) => (
                             <tr key={cultivo.id} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className="text-sm font-medium text-gray-500">#{cultivo.id}</span>
+                                </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div>
                                         <p className="text-sm font-medium text-gray-900">{cultivo.nombre}</p>
@@ -141,7 +155,6 @@ const CultivosTable: React.FC<CultivosTableProps> = ({
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                     <div className="flex space-x-2">
-                                        {/* ✅ NUEVO BOTÓN: Ver lotes con este cultivo */}
                                         <button
                                             onClick={(e) => verLotesConCultivo(e, cultivo.id, cultivo.nombre)}
                                             className="text-purple-600 hover:text-purple-900 p-1.5 hover:bg-purple-50 rounded transition-colors"
