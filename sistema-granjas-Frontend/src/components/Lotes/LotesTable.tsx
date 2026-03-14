@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import programaService from '../../services/programaService';
 import cultivoService from '../../services/cultivoService';
-import granjaService from '../../services/granjaService'; // Asegúrate de importar
+import granjaService from '../../services/granjaService';
 
 interface LotesTableProps {
     lotes: any[];
@@ -14,11 +14,11 @@ const LotesTable: React.FC<LotesTableProps> = ({
     onEditar,
     onEliminar
 }) => {
-
     // Mapas
     const [programasMap, setProgramasMap] = useState<Record<number, string>>({});
     const [cultivosMap, setCultivosMap] = useState<Record<number, any>>({});
     const [granjasMap, setGranjasMap] = useState<Record<number, any>>({});
+    const [cultivosPorLote, setCultivosPorLote] = useState<Record<number, any[]>>({});
     
     const [cargando, setCargando] = useState(false);
 
@@ -31,8 +31,21 @@ const LotesTable: React.FC<LotesTableProps> = ({
             try {
                 // IDs únicos
                 const programasIds = Array.from(new Set(lotes.map(l => l.programa_id).filter(Boolean)));
-                const cultivosIds = Array.from(new Set(lotes.map(l => l.cultivo_id).filter(Boolean)));
+                const cultivosIdsSet = new Set<number>();
+                const cultivosPorLoteMap: Record<number, any[]> = {};
+                
+                // Recolectar todos los cultivos de todos los lotes (ahora son arrays)
+                lotes.forEach(lote => {
+                    if (lote.cultivos_ids && Array.isArray(lote.cultivos_ids)) {
+                        cultivosPorLoteMap[lote.id] = [];
+                        lote.cultivos_ids.forEach((id: number) => {
+                            cultivosIdsSet.add(id);
+                        });
+                    }
+                });
+                
                 const granjasIds = Array.from(new Set(lotes.map(l => l.granja_id).filter(Boolean)));
+                const cultivosIds = Array.from(cultivosIdsSet);
 
                 // Promesas para programas
                 const programasPromises = programasIds.map(async (id) => {
@@ -56,7 +69,8 @@ const LotesTable: React.FC<LotesTableProps> = ({
                     } catch {
                         return { 
                             id, 
-                            nombre: 'No encontrado'
+                            nombre: 'No encontrado',
+                            tipo: 'desconocido'
                         };
                     }
                 });
@@ -88,9 +102,19 @@ const LotesTable: React.FC<LotesTableProps> = ({
                 const granMap: Record<number, any> = {};
                 granjasResp.forEach(g => granMap[g.id] = g);
 
+                // Construir mapa de cultivos por lote
+                lotes.forEach(lote => {
+                    if (lote.cultivos_ids && Array.isArray(lote.cultivos_ids)) {
+                        cultivosPorLoteMap[lote.id] = lote.cultivos_ids
+                            .map((id: number) => cultMap[id])
+                            .filter(Boolean);
+                    }
+                });
+
                 setProgramasMap(progMap);
                 setCultivosMap(cultMap);
                 setGranjasMap(granMap);
+                setCultivosPorLote(cultivosPorLoteMap);
                 
             } catch (error) {
                 console.error('Error cargando datos relacionados:', error);
@@ -107,6 +131,8 @@ const LotesTable: React.FC<LotesTableProps> = ({
         switch (estado?.toLowerCase()) {
             case 'activo': return 'bg-green-100 text-green-800';
             case 'inactivo': return 'bg-gray-100 text-gray-800';
+            case 'pendiente': return 'bg-yellow-100 text-yellow-800';
+            case 'completado': return 'bg-blue-100 text-blue-800';
             default: return 'bg-gray-100 text-gray-800';
         }
     };
@@ -120,10 +146,44 @@ const LotesTable: React.FC<LotesTableProps> = ({
         }
     };
 
-    const obtenerTipoGestion = (cultivoId: number | null | undefined) => {
-        if (!cultivoId) return '-';
-        const cultivo = cultivosMap[cultivoId];
-        return cultivo?.tipo || '-';
+    const getTipoColor = (tipo: string) => {
+        switch (tipo?.toLowerCase()) {
+            case 'agricola': return 'bg-green-100 text-green-800';
+            case 'pecuario': return 'bg-amber-100 text-amber-800';
+            default: return 'bg-gray-100 text-gray-800';
+        }
+    };
+
+    const renderCultivos = (loteId: number) => {
+        const cultivosLote = cultivosPorLote[loteId] || [];
+        
+        if (cultivosLote.length === 0) {
+            return <span className="text-gray-400 text-sm italic">—</span>;
+        }
+
+        const cultivosVisibles = cultivosLote.slice(0, 2);
+        const restantes = cultivosLote.length - 2;
+
+        return (
+            <div className="flex flex-wrap gap-1">
+                {cultivosVisibles.map((cultivo) => (
+                    <span
+                        key={cultivo.id}
+                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getTipoColor(cultivo.tipo)}`}
+                    >
+                        <i className={`fas ${
+                            cultivo.tipo === 'agricola' ? 'fa-seedling' : 'fa-paw'
+                        } mr-1 text-xs`}></i>
+                        {cultivo.nombre}
+                    </span>
+                ))}
+                {restantes > 0 && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-50 text-gray-600 border border-gray-200">
+                        +{restantes} más
+                    </span>
+                )}
+            </div>
+        );
     };
 
     return (
@@ -142,19 +202,18 @@ const LotesTable: React.FC<LotesTableProps> = ({
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Granja</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cultivo</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cultivos</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Programa</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Siembra</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gestión</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Inicio</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                         </tr>
                     </thead>
 
                     <tbody className="bg-white divide-y divide-gray-200">
                         {lotes.map((lote) => {
-                            const cultivo = cultivosMap[lote.cultivo_id];
                             const granja = granjasMap[lote.granja_id];
+                            
                             return (
                                 <tr key={lote.id} className="hover:bg-gray-50 transition-colors">
                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -167,10 +226,8 @@ const LotesTable: React.FC<LotesTableProps> = ({
                                         </div>
                                     </td>
 
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm text-gray-900">
-                                            {cultivo?.nombre || lote.nombre_cultivo || '—'}
-                                        </div>
+                                    <td className="px-6 py-4">
+                                        {renderCultivos(lote.id)}
                                     </td>
 
                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -186,25 +243,21 @@ const LotesTable: React.FC<LotesTableProps> = ({
                                     </td>
 
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        <div>Inicio: {formatearFecha(lote.fecha_inicio)}</div>
-                                    </td>
-
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {obtenerTipoGestion(lote.cultivo_id)}
+                                        {formatearFecha(lote.fecha_inicio)}
                                     </td>
 
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                         <div className="flex space-x-3">
                                             <button
                                                 onClick={() => onEditar(lote)}
-                                                className="text-yellow-600 hover:text-yellow-900 transition-colors"
+                                                className="text-yellow-600 hover:text-yellow-900 transition-colors p-2 hover:bg-yellow-50 rounded"
                                                 title="Editar lote"
                                             >
                                                 <i className="fas fa-edit"></i>
                                             </button>
                                             <button
                                                 onClick={() => onEliminar(lote.id)}
-                                                className="text-red-600 hover:text-red-900 transition-colors"
+                                                className="text-red-600 hover:text-red-900 transition-colors p-2 hover:bg-red-50 rounded"
                                                 title="Eliminar lote"
                                             >
                                                 <i className="fas fa-trash"></i>
