@@ -168,7 +168,7 @@ export const FenologicoSection: React.FC<Props> = ({
                     {/* Fase Vegetativa */}
                     {isFaseSeleccionada(idxPlanta, j, "vegetativa") && (
                       <div className="border-t pt-4">
-                        <h6 className="font-medium text-green-700 mb-3">🌱 Fase Vegetativa</h6>
+                        <h6 className="font-medium mb-3">Fase Vegetativa</h6>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="flex flex-col">
                             <label className="text-sm font-medium text-gray-700 mb-1">
@@ -214,7 +214,7 @@ export const FenologicoSection: React.FC<Props> = ({
                     {/* Fase Floración */}
                     {isFaseSeleccionada(idxPlanta, j, "floracion") && (
                       <div className="border-t pt-4">
-                        <h6 className="font-medium text-pink-700 mb-3">🌸 Fase de Floración</h6>
+                        <h6 className="font-medium mb-3">Fase de Floración</h6>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="flex flex-col">
                             <label className="text-sm font-medium text-gray-700 mb-1">
@@ -264,7 +264,7 @@ export const FenologicoSection: React.FC<Props> = ({
                     {/* Fase Fructificación */}
                     {isFaseSeleccionada(idxPlanta, j, "fructificacion") && (
                       <div className="border-t pt-4">
-                        <h6 className="font-medium text-orange-700 mb-3">🍊 Fase de Fructificación</h6>
+                        <h6 className="font-medium mb-3">Fase de Fructificación</h6>
                         <div className="space-y-4">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="flex flex-col">
@@ -380,13 +380,13 @@ export const FenologicoSection: React.FC<Props> = ({
                       <span className="font-medium">Fases activas:</span>
                       {fasesSeleccionadas.map(fase => (
                         <span key={fase} className={`px-2 py-1 rounded-full ${
-                          fase === 'vegetativa' ? 'bg-green-100 text-green-800' :
-                          fase === 'floracion' ? 'bg-pink-100 text-pink-800' :
-                          'bg-orange-100 text-orange-800'
+                          fase === 'vegetativa' ? 'bg-green-100' :
+                          fase === 'floracion' ? 'bg-pink-100' :
+                          'bg-orange-100'
                         }`}>
-                          {fase === 'vegetativa' ? '🌱 Vegetativa' :
-                           fase === 'floracion' ? '🌸 Floración' :
-                           '🍊 Fructificación'}
+                          {fase === 'vegetativa' ? 'Vegetativa' :
+                           fase === 'floracion' ? 'Floración' :
+                           'Fructificación'}
                         </span>
                       ))}
                     </div>
