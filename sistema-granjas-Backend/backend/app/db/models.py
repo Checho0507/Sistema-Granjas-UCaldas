@@ -344,13 +344,12 @@ class CultivoEspecie(Base):
     nombre = Column(String(150), nullable=False)
     tipo = Column(String(50), nullable=False)
     descripcion = Column(Text)
-    duracion_dias = Column(Integer, nullable=True)
     estado = Column(String(50), default="activo")
 
     granja_id = Column(Integer, ForeignKey("granjas.id"), nullable=False)
     granja = relationship("Granja", back_populates="cultivos")
 
-    # 👇 NUEVA RELACIÓN: muchos a muchos con lotes (SIN la relación antigua)
+    # Relación muchos a muchos con lotes
     lotes_asignados = relationship(
         "LoteCultivo", 
         back_populates="cultivo",
