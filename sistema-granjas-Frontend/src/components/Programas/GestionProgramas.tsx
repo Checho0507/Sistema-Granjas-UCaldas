@@ -321,40 +321,6 @@ export default function GestionProgramas() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center space-x-3 m-2 mb-4">
-        {exportMessage && (
-          <span className={`text-sm px-3 py-1 rounded ${exportMessage.includes("Error")
-            ? "bg-red-100 text-red-600"
-            : "bg-green-100 text-green-600"
-            }`}>
-            {exportMessage}
-          </span>
-        )}
-        <button
-          onClick={handleExportProgramas}
-          disabled={exporting}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 disabled:opacity-50 transition-colors"
-        >
-          <i className={`fas ${exporting ? "fa-spinner fa-spin" : "fa-file-excel"}`}></i>
-          <span>{exporting ? "Exportando..." : "Exportar a Excel"}</span>
-        </button>
-      </div>
-
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          <div className="flex items-center">
-            <i className="fas fa-exclamation-triangle mr-2"></i>
-            <strong>Error:</strong> {error}
-          </div>
-          <button
-            onClick={() => setError(null)}
-            className="float-right text-red-800 hover:text-red-900"
-          >
-            <i className="fas fa-times"></i>
-          </button>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <StatsCard
           icon="fas fa-clipboard-list"
