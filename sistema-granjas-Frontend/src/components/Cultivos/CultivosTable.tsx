@@ -105,9 +105,6 @@ const CultivosTable: React.FC<CultivosTableProps> = ({
                     <thead className="bg-gray-50">
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                ID
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Nombre
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -127,9 +124,6 @@ const CultivosTable: React.FC<CultivosTableProps> = ({
                     <tbody className="bg-white divide-y divide-gray-200">
                         {cultivosOrdenados.map((cultivo) => (
                             <tr key={cultivo.id} className="hover:bg-gray-50">
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    <span className="text-sm font-medium text-gray-500">#{cultivo.id}</span>
-                                </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div>
                                         <p className="text-sm font-medium text-gray-900">{cultivo.nombre}</p>
