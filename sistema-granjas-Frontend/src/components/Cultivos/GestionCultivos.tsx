@@ -180,15 +180,6 @@ export default function GestionCultivos() {
                 <h1 className="text-2xl font-bold">
                     {programaId ? "Cultivos del Programa" : "Gestión de Cultivos"}
                 </h1>
-                {programaId && (
-                    <button
-                        onClick={() => window.history.back()}
-                        className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition flex items-center gap-2"
-                    >
-                        <i className="fas fa-arrow-left"></i>
-                        Volver
-                    </button>
-                )}
             </div>
 
             {error && (
