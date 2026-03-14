@@ -219,7 +219,7 @@ const LotesTable: React.FC<LotesTableProps> = ({
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cultivos</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Programa</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Inicio</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Siembra</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                         </tr>
                     </thead>
@@ -257,7 +257,7 @@ const LotesTable: React.FC<LotesTableProps> = ({
                                     </td>
 
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {formatearFecha(lote.fecha_inicio)}
+                                        Inicio: {formatearFecha(lote.fecha_inicio)}
                                     </td>
 
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
