@@ -25,7 +25,7 @@ class GranjaPrograma(Base):
 
 # 👇 TABLA PIVOTE CORREGIDA: Solo lote_id y cultivo_id (sin campos adicionales)
 class LoteCultivo(Base):
-    __tablename__ = "lote_cultivos"
+    __tablename__ = "lote_cultivo"
     
     lote_id = Column(Integer, ForeignKey("lotes.id", ondelete="CASCADE"), primary_key=True)
     cultivo_id = Column(Integer, ForeignKey("cultivos_especies.id", ondelete="CASCADE"), primary_key=True)
