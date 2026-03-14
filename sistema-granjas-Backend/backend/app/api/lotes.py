@@ -9,12 +9,14 @@ from app.CRUD.lotes import (
     get_lotes, get_lote, create_lote, update_lote, delete_lote,
     get_lotes_por_programa, get_lotes_por_granja, get_lotes_activos,
     buscar_lotes_por_nombre, get_estadisticas_lotes,
-    get_lotes_por_cultivo  # 👈 Nueva importación
+    get_lotes_por_cultivo
 )
+from app.CRUD import lote_cultivos  # 👈 NUEVO
 from app.schemas.lote_schema import (
-    LoteCreate, LoteUpdate, LoteResponse
+    LoteCreate, LoteUpdate, LoteResponse, LoteWithRelations,
+    LoteCultivoResponse, LoteCultivoCreate, LoteCultivoUpdate
 )
-from app.db.models import Lote
+from app.db.models import Lote, LoteCultivo
 
 router = APIRouter(prefix="/lotes", tags=["Lotes"])
 
@@ -27,7 +29,7 @@ def listar_lotes(
     limit: int = Query(100, ge=1, le=1000),
     programa_id: Optional[int] = Query(None, description="Filtrar por programa ID"),
     granja_id: Optional[int] = Query(None, description="Filtrar por granja ID"),
-    cultivo_id: Optional[int] = Query(None, description="Filtrar por cultivo ID"),  # 👈 NUEVO
+    cultivo_id: Optional[int] = Query(None, description="Filtrar por cultivo ID"),
     estado: Optional[str] = Query(None, description="Filtrar por estado"),
     db: Session = Depends(get_db),
     _=role_required
@@ -37,7 +39,7 @@ def listar_lotes(
     - programa_id: Filtrar por programa específico
     - granja_id: Filtrar por granja específica
     - cultivo_id: Filtrar por cultivo específico
-    - estado: Filtrar por estado (activo, inactivo)
+    - estado: Filtrar por estado (activo, inactivo, etc.)
     """
     return get_lotes(
         db, 
@@ -45,7 +47,7 @@ def listar_lotes(
         limit=limit, 
         programa_id=programa_id, 
         granja_id=granja_id,
-        cultivo_id=cultivo_id,  # 👈 NUEVO
+        cultivo_id=cultivo_id,
         estado=estado
     )
 
@@ -61,13 +63,87 @@ def obtener_lote(
         raise HTTPException(status_code=404, detail="Lote no encontrado")
     return lote
 
+# 👇 NUEVO ENDPOINT: Obtener lote con relaciones
+@router.get("/{lote_id}/detalle", response_model=LoteWithRelations)
+def obtener_lote_detalle(
+    lote_id: int,
+    db: Session = Depends(get_db),
+    _=role_required
+):
+    """Obtener un lote con todas sus relaciones (cultivos, tipo, granja, programa)"""
+    lote = get_lote(db, lote_id)
+    if not lote:
+        raise HTTPException(status_code=404, detail="Lote no encontrado")
+    
+    # Convertir a dict y agregar relaciones
+    lote_dict = {
+        "id": lote.id,
+        "nombre": lote.nombre,
+        "tipo_lote_id": lote.tipo_lote_id,
+        "granja_id": lote.granja_id,
+        "programa_id": lote.programa_id,
+        "fecha_inicio": lote.fecha_inicio,
+        "estado": lote.estado,
+        "fecha_creacion": lote.created_at if hasattr(lote, 'created_at') else None,
+        "cultivos_asignados": [],
+        "cultivos_detalle": [],
+        "tipo_lote": None,
+        "granja": None,
+        "programa": None
+    }
+    
+    # Agregar cultivos asignados
+    for lc in lote.cultivos_asignados:
+        lote_dict["cultivos_asignados"].append({
+            "id": lc.id,
+            "lote_id": lc.lote_id,
+            "cultivo_id": lc.cultivo_id,
+            "fecha_siembra": lc.fecha_siembra,
+            "fecha_estimada_cosecha": lc.fecha_estimada_cosecha,
+            "area_sembrada": lc.area_sembrada,
+            "densidad_siembra": lc.densidad_siembra,
+            "observaciones": lc.observaciones,
+            "created_at": lc.created_at,
+            "updated_at": lc.updated_at
+        })
+        
+        if lc.cultivo:
+            lote_dict["cultivos_detalle"].append({
+                "id": lc.cultivo.id,
+                "nombre": lc.cultivo.nombre,
+                "tipo": lc.cultivo.tipo
+            })
+    
+    # Agregar relaciones simples
+    if lote.tipo_lote:
+        lote_dict["tipo_lote"] = {
+            "id": lote.tipo_lote.id,
+            "nombre": lote.tipo_lote.nombre
+        }
+    
+    if lote.granja:
+        lote_dict["granja"] = {
+            "id": lote.granja.id,
+            "nombre": lote.granja.nombre,
+            "ubicacion": lote.granja.ubicacion
+        }
+    
+    if lote.programa:
+        lote_dict["programa"] = {
+            "id": lote.programa.id,
+            "nombre": lote.programa.nombre,
+            "tipo": lote.programa.tipo
+        }
+    
+    return lote_dict
+
 @router.post("/", response_model=LoteResponse, status_code=201)
 def crear_lote(
     data: LoteCreate, 
     db: Session = Depends(get_db), 
     _=role_required
 ):
-    """Crear un nuevo lote"""
+    """Crear un nuevo lote con sus cultivos"""
     return create_lote(db, data)
 
 @router.put("/{lote_id}", response_model=LoteResponse)
@@ -77,7 +153,7 @@ def editar_lote(
     db: Session = Depends(get_db), 
     _=role_required
 ):
-    """Actualizar un lote existente"""
+    """Actualizar un lote existente y sus cultivos"""
     lote = get_lote(db, lote_id)
     if not lote:
         raise HTTPException(status_code=404, detail="Lote no encontrado")
@@ -96,7 +172,60 @@ def eliminar_lote(
     delete_lote(db, lote)
     return {"message": "✅ Lote eliminado correctamente"}
 
-# === ENDPOINTS ESPECÍFICOS ===
+# === ENDPOINTS PARA GESTIÓN DE CULTIVOS DEL LOTE ===
+
+@router.get("/{lote_id}/cultivos", response_model=List[LoteCultivoResponse])
+def listar_cultivos_del_lote(
+    lote_id: int,
+    db: Session = Depends(get_db),
+    _=role_required
+):
+    """Listar todos los cultivos asignados a un lote"""
+    # Verificar que el lote existe
+    lote = get_lote(db, lote_id)
+    if not lote:
+        raise HTTPException(status_code=404, detail="Lote no encontrado")
+    
+    return lote_cultivos.get_lote_cultivos(db, lote_id)
+
+@router.post("/{lote_id}/cultivos", response_model=List[LoteCultivoResponse])
+def agregar_cultivos_a_lote(
+    lote_id: int,
+    cultivos_ids: List[int],
+    db: Session = Depends(get_db),
+    _=role_required
+):
+    """Agregar múltiples cultivos a un lote"""
+    # Verificar que el lote existe
+    lote = get_lote(db, lote_id)
+    if not lote:
+        raise HTTPException(status_code=404, detail="Lote no encontrado")
+    
+    return lote_cultivos.create_lote_cultivos(db, lote_id, cultivos_ids)
+
+@router.delete("/{lote_id}/cultivos/{cultivo_id}")
+def eliminar_cultivo_de_lote(
+    lote_id: int,
+    cultivo_id: int,
+    db: Session = Depends(get_db),
+    _=role_required
+):
+    """Eliminar un cultivo específico de un lote"""
+    # Buscar la relación
+    relacion = db.query(LoteCultivo).filter(
+        LoteCultivo.lote_id == lote_id,
+        LoteCultivo.cultivo_id == cultivo_id
+    ).first()
+    
+    if not relacion:
+        raise HTTPException(status_code=404, detail="El cultivo no está asignado a este lote")
+    
+    db.delete(relacion)
+    db.commit()
+    
+    return {"message": "✅ Cultivo eliminado del lote correctamente"}
+
+# === ENDPOINTS ESPECÍFICOS EXISTENTES ===
 
 @router.get("/por-programa/{programa_id}", response_model=List[LoteResponse])
 def listar_lotes_por_programa(
@@ -120,7 +249,6 @@ def listar_lotes_por_granja(
     """Listar todos los lotes de una granja específica"""
     return get_lotes_por_granja(db, granja_id, skip=skip, limit=limit)
 
-# 👇 NUEVO ENDPOINT: Lotes por cultivo específico
 @router.get("/por-cultivo/{cultivo_id}", response_model=List[LoteResponse])
 def listar_lotes_por_cultivo(
     cultivo_id: int,
@@ -132,7 +260,6 @@ def listar_lotes_por_cultivo(
     """Listar todos los lotes de un cultivo específico"""
     return get_lotes_por_cultivo(db, cultivo_id, skip=skip, limit=limit)
 
-# 👇 NUEVO ENDPOINT: Conteo de lotes por cultivo
 @router.get("/conteo/por-cultivo", response_model=List[dict])
 def contar_lotes_por_cultivo(
     db: Session = Depends(get_db),
@@ -142,19 +269,7 @@ def contar_lotes_por_cultivo(
     Retorna el conteo de lotes agrupados por cultivo_id
     Útil para mostrar en la tabla de cultivos cuántos lotes usan cada cultivo
     """
-    resultado = db.query(
-        Lote.cultivo_id,
-        func.count(Lote.id).label('total')
-    ).filter(
-        Lote.cultivo_id.isnot(None),
-        Lote.estado != "eliminado"
-    ).group_by(
-        Lote.cultivo_id
-    ).all()
-    
-    return [
-        {"cultivo_id": r[0], "total": r[1]} for r in resultado
-    ]
+    return lote_cultivos.contar_lotes_por_cultivo(db)
 
 @router.get("/estado/activos", response_model=List[LoteResponse])
 def listar_lotes_activos(
