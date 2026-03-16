@@ -156,7 +156,7 @@ const PhyllocnistisSection: React.FC<{ basePrefix: string; cuadrante: number; ra
   return (
     <div className="mt-4 p-4 bg-gray-100 rounded-lg">
       <h6 className="font-semibold mb-2 text-sm">
-        Monitoreo de <em>Phyllocnistis</em> sp. - Minador de los cítricos
+        Monitoreo de <em>Phyllocnistis sp.</em> - Minador de los cítricos
       </h6>
       <p className="text-xs text-gray-600 mb-2 italic">
         Revisar brotes nuevos. Observar: Galerías serpenteantes plateadas en el envés de la hoja, enrollamiento del borde foliar, presencia de larvas o pupa al final de la galería.
