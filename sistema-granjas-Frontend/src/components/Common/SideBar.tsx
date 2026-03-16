@@ -1,4 +1,3 @@
-// components/Sidebar.tsx
 import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -10,7 +9,7 @@ import usuarioService from '../../services/usuarioService';
 
 interface SidebarProps {
     isOpen?: boolean;
-    onClose?: () => void; // para móvil, poder cerrar al hacer clic en un enlace
+    onClose?: () => void; // para cerrar en móvil al hacer clic en un enlace
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
@@ -52,7 +51,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
         }
     };
 
-    // Función para determinar qué puede ver el usuario según su rol
     const canSee = (requiredRoles: string[]) => {
         if (!user || !user.rol) return false;
         return requiredRoles.includes(user.rol);
@@ -76,7 +74,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
         }
     };
 
-    // Manejar clic en enlace para cerrar sidebar en móvil
     const handleLinkClick = () => {
         if (onClose) onClose();
     };
@@ -162,9 +159,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                                     to="/gestion/granjas"
                                     onClick={handleLinkClick}
                                     className={({ isActive }) =>
-                                        `flex items-center space-x-2 p-2 rounded transition-colors ${isActive
-                                            ? 'bg-green-100 text-green-700'
-                                            : 'text-gray-700 hover:text-green-600 hover:bg-gray-50'
+                                        `flex items-center space-x-2 p-2 rounded transition-colors ${
+                                            isActive
+                                                ? 'bg-green-100 text-green-700'
+                                                : 'text-gray-700 hover:text-green-600 hover:bg-gray-50'
                                         }`
                                     }
                                 >
@@ -180,9 +178,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                                     to="/gestion/programas"
                                     onClick={handleLinkClick}
                                     className={({ isActive }) =>
-                                        `flex items-center space-x-2 p-2 rounded transition-colors ${isActive
-                                            ? 'bg-green-100 text-green-700'
-                                            : 'text-gray-700 hover:text-green-600 hover:bg-gray-50'
+                                        `flex items-center space-x-2 p-2 rounded transition-colors ${
+                                            isActive
+                                                ? 'bg-green-100 text-green-700'
+                                                : 'text-gray-700 hover:text-green-600 hover:bg-gray-50'
                                         }`
                                     }
                                 >
@@ -198,9 +197,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                                     to="/gestion/usuarios"
                                     onClick={handleLinkClick}
                                     className={({ isActive }) =>
-                                        `flex items-center space-x-2 p-2 rounded transition-colors ${isActive
-                                            ? 'bg-green-100 text-green-700'
-                                            : 'text-gray-700 hover:text-green-600 hover:bg-gray-50'
+                                        `flex items-center space-x-2 p-2 rounded transition-colors ${
+                                            isActive
+                                                ? 'bg-green-100 text-green-700'
+                                                : 'text-gray-700 hover:text-green-600 hover:bg-gray-50'
                                         }`
                                     }
                                 >
@@ -216,9 +216,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                                     to="/gestion/inventario"
                                     onClick={handleLinkClick}
                                     className={({ isActive }) =>
-                                        `flex items-center space-x-2 p-2 rounded transition-colors ${isActive
-                                            ? 'bg-green-100 text-green-700'
-                                            : 'text-gray-700 hover:text-green-600 hover:bg-gray-50'
+                                        `flex items-center space-x-2 p-2 rounded transition-colors ${
+                                            isActive
+                                                ? 'bg-green-100 text-green-700'
+                                                : 'text-gray-700 hover:text-green-600 hover:bg-gray-50'
                                         }`
                                     }
                                 >
@@ -234,9 +235,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                                     to="/gestion/diagnosticos"
                                     onClick={handleLinkClick}
                                     className={({ isActive }) =>
-                                        `flex items-center space-x-2 p-2 rounded transition-colors ${isActive
-                                            ? 'bg-green-100 text-green-700'
-                                            : 'text-gray-700 hover:text-green-600 hover:bg-gray-50'
+                                        `flex items-center space-x-2 p-2 rounded transition-colors ${
+                                            isActive
+                                                ? 'bg-green-100 text-green-700'
+                                                : 'text-gray-700 hover:text-green-600 hover:bg-gray-50'
                                         }`
                                     }
                                 >
@@ -252,9 +254,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                                     to="/gestion/recomendaciones"
                                     onClick={handleLinkClick}
                                     className={({ isActive }) =>
-                                        `flex items-center space-x-2 p-2 rounded transition-colors ${isActive
-                                            ? 'bg-green-100 text-green-700'
-                                            : 'text-gray-700 hover:text-green-600 hover:bg-gray-50'
+                                        `flex items-center space-x-2 p-2 rounded transition-colors ${
+                                            isActive
+                                                ? 'bg-green-100 text-green-700'
+                                                : 'text-gray-700 hover:text-green-600 hover:bg-gray-50'
                                         }`
                                     }
                                 >
@@ -270,9 +273,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                                     to="/gestion/labores"
                                     onClick={handleLinkClick}
                                     className={({ isActive }) =>
-                                        `flex items-center space-x-2 p-2 rounded transition-colors ${isActive
-                                            ? 'bg-green-100 text-green-700'
-                                            : 'text-gray-700 hover:text-green-600 hover:bg-gray-50'
+                                        `flex items-center space-x-2 p-2 rounded transition-colors ${
+                                            isActive
+                                                ? 'bg-green-100 text-green-700'
+                                                : 'text-gray-700 hover:text-green-600 hover:bg-gray-50'
                                         }`
                                     }
                                 >
@@ -409,10 +413,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                                     <span className="flex-1">{exporting ? 'Exportando Backup...' : 'Exportar Backup Completo'}</span>
                                 </button>
                                 {exportMessage && (
-                                    <div className={`text-xs mt-1 ml-2 px-2 py-1 rounded ${exportMessage.includes('Error')
-                                        ? 'bg-red-100 text-red-600'
-                                        : 'bg-green-100 text-green-600'
-                                        }`}>
+                                    <div className={`text-xs mt-1 ml-2 px-2 py-1 rounded ${
+                                        exportMessage.includes('Error')
+                                            ? 'bg-red-100 text-red-600'
+                                            : 'bg-green-100 text-green-600'
+                                    }`}>
                                         {exportMessage}
                                     </div>
                                 )}
