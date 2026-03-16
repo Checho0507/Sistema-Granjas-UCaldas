@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardHeader from '../components/Common/DashboardHeader';
-import Sidebar from '../components/Common/SideBar'; // Nota: importa Sidebar, no SideBar
+import Sidebar from '../components/Common/Sidebar'; // Importación corregida (minúsculas)
 import granjaService from '../services/granjaService';
 import programaService from '../services/programaService';
 import loteService from '../services/loteService';
