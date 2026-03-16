@@ -83,9 +83,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
     return (
         <aside className="fixed inset-y-0 left-0 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out z-40 md:translate-x-0 md:static md:inset-auto md:h-screen md:overflow-y-auto border-r border-gray-200">
             <div className="h-full overflow-y-auto p-4">
-                {/* Botón de cierre para móvil */}
-                <div className="flex justify-end md:hidden mb-4">
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+                {/* Botón de cierre para móvil - CORREGIDO */}
+                <div className="flex justify-end md:hidden pt-3 pr-3">
+                    <button
+                        onClick={onClose}
+                        className="p-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                        aria-label="Cerrar menú"
+                    >
                         <i className="fas fa-times text-2xl"></i>
                     </button>
                 </div>
