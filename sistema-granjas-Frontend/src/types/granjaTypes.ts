@@ -30,6 +30,23 @@ export interface Programa {
   fecha_creacion?: string;
 }
 
+export interface Lote {
+  id: number;
+  nombre: string;
+  descripcion: string;
+  granja_id: number;
+  activo: boolean;
+  fecha_creacion?: string;
+}
+
+export interface Cultivo {
+  id: number;
+  nombre: string;
+  descripcion: string;
+  lote_id: number;
+  activo: boolean;
+  fecha_creacion?: string;
+}
 export interface AsignacionUsuario {
   usuario_id: number;
   granja_id: number;
