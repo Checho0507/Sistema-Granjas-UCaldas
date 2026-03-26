@@ -34,7 +34,10 @@ export default function LogoutButton({ className = "", variant = "default" }: Pr
     if (variant === "minimal") {
         return (
             <button
-                onClick={handleLogout}
+                onClick={() => {
+                    handleLogout();
+                    navigate(0);
+                }}
                 disabled={loading}
                 className={`flex items-center text-gray-700 hover:text-red-600 px-3 py-2 rounded-lg hover:bg-red-50 transition-colors ${className}`}
             >
