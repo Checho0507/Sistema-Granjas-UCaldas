@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { DiagnosticoItem } from '../../types/diagnosticoTypes';
 import { CensoSection } from './CensoSection';
 import { FenologicoSection } from './FenologicoSection';
@@ -40,11 +40,19 @@ interface PlantaBase {
     label: string;
 }
 
+interface Lote {
+    id: number;
+    nombre: string;
+    granja_nombre?: string;
+    programa?: string; // 👈 Propiedad que indica a qué programa pertenece el lote
+    programa_id?: string; // O podría ser programa_id
+}
+
 interface DiagnosticoFormProps {
     diagnostico?: DiagnosticoItem;
     onSubmit: (data: any) => void;
     onCancel: () => void;
-    lotes: any[];
+    lotes: Lote[]; // 👈 Actualizado con el tipo Lote
     docentes: any[];
     estudiantes: any[];
     tipos: string[];
@@ -97,6 +105,18 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     const esDocente = currentUser?.rol_id === 2 || currentUser?.rol_id === 5;
     const esEstudiante = currentUser?.rol_id === 4;
 
+    // 👇 Filtrar lotes por programa seleccionado
+    const lotesFiltrados = useMemo(() => {
+        if (!programaSeleccionado) return [];
+        
+        return lotes.filter(lote => {
+            // Asumiendo que el lote tiene una propiedad 'programa' o 'programa_id'
+            // que coincide con el valor del programa (ej: 'fcc', 'fcf', etc.)
+            const programaLote = lote.programa || lote.programa_id;
+            return programaLote === programaSeleccionado;
+        });
+    }, [lotes, programaSeleccionado]);
+
     // Obtener monitoreos disponibles según el programa seleccionado
     const monitoreosDisponibles = programaSeleccionado
         ? MONITOREOS_POR_PROGRAMA[programaSeleccionado] || []
@@ -110,13 +130,16 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         }
     }, [esEdicion, diagnostico]);
 
-    // Auto-seleccionar lote si solo hay uno
+    // Auto-seleccionar lote si solo hay uno disponible después del filtro
     useEffect(() => {
-        if (lotes.length === 1 && !formData.lote_id) {
-            setFormData(prev => ({ ...prev, lote_id: lotes[0].id }));
-            setLoteSeleccionado(lotes[0].id.toString());
+        if (lotesFiltrados.length === 1 && !formData.lote_id && !loteSeleccionado) {
+            const loteUnico = lotesFiltrados[0];
+            setFormData(prev => ({ ...prev, lote_id: loteUnico.id.toString() }));
+            setLoteSeleccionado(loteUnico.id.toString());
+            const nuevas = generarPlantas(5);
+            setPlantasSeleccionadas(nuevas);
         }
-    }, [lotes]);
+    }, [lotesFiltrados]);
 
     // Autoseleccionar estudiante según rol
     useEffect(() => {
@@ -160,6 +183,9 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         const programa = e.target.value;
         setProgramaSeleccionado(programa);
         setTipoMonitoreo(''); // Resetear tipo de monitoreo al cambiar programa
+        setLoteSeleccionado(''); // 👈 Resetear lote seleccionado al cambiar programa
+        setFormData(prev => ({ ...prev, lote_id: '' })); // 👈 Resetear lote en formData
+        setPlantasSeleccionadas([]); // 👈 Resetear plantas
     };
 
     // Ir al paso 2
@@ -298,7 +324,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
 
             {paso === 1 && (
                 <div className="space-y-6">
-                    {/* 1. Selección de Programa - AHORA CON SELECT */}
+                    {/* 1. Selección de Programa */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                             Programa *
@@ -353,29 +379,40 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         </div>
                     )}
 
-                    {/* 3. Selección de Lote (solo visible si hay monitoreo) */}
+                    {/* 3. Selección de Lote (solo visible si hay monitoreo y hay lotes disponibles) */}
                     {tipoMonitoreo && (
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Lote *
                             </label>
-                            <select
-                                value={loteSeleccionado}
-                                onChange={handleLoteChange}
-                                className="w-full border rounded-lg p-3 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                required
-                            >
-                                <option value="">Seleccionar lote</option>
-                                {lotes.map(lote => (
-                                    <option key={lote.id} value={lote.id}>
-                                        {lote.nombre} ({lote.granja_nombre || 'Sin granja'})
-                                    </option>
-                                ))}
-                            </select>
-                            {loteSeleccionado && plantasSeleccionadas.length > 0 && (
-                                <p className="text-sm text-green-600 mt-2">
-                                    Se han generado 5 plantas aleatorias para el lote seleccionado.
-                                </p>
+                            {lotesFiltrados.length > 0 ? (
+                                <>
+                                    <select
+                                        value={loteSeleccionado}
+                                        onChange={handleLoteChange}
+                                        className="w-full border rounded-lg p-3 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        required
+                                    >
+                                        <option value="">Seleccionar lote</option>
+                                        {lotesFiltrados.map(lote => (
+                                            <option key={lote.id} value={lote.id}>
+                                                {lote.nombre} ({lote.granja_nombre || 'Sin granja'})
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {loteSeleccionado && plantasSeleccionadas.length > 0 && (
+                                        <p className="text-sm text-green-600 mt-2">
+                                            Se han generado 5 plantas aleatorias para el lote seleccionado.
+                                        </p>
+                                    )}
+                                </>
+                            ) : (
+                                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
+                                    <p className="text-sm text-yellow-700">
+                                        No hay lotes disponibles para el programa {programaLabel}. 
+                                        Por favor, contacta al administrador para registrar lotes en este programa.
+                                    </p>
+                                </div>
                             )}
                         </div>
                     )}
@@ -410,7 +447,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                 </p>
                                 <p className="text-sm text-gray-600">
                                     <span className="font-medium">Lote:</span> {
-                                        lotes.find(l => l.id.toString() === loteSeleccionado)?.nombre
+                                        lotesFiltrados.find(l => l.id.toString() === loteSeleccionado)?.nombre
                                     }
                                 </p>
                             </div>
