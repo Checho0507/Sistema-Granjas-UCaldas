@@ -36,6 +36,7 @@ export default function LogoutButton({ className = "", variant = "default" }: Pr
                 onClick={() => {
                     handleLogout();
                     navigate("/login");
+                    navigate(0)
                 }}
                 disabled={loading}
                 className={`flex items-center text-gray-700 hover:text-red-600 px-3 py-2 rounded-lg hover:bg-red-50 transition-colors ${className}`}
@@ -52,6 +53,7 @@ export default function LogoutButton({ className = "", variant = "default" }: Pr
                 onClick={() => {
                     handleLogout();
                     navigate("/login");
+                    navigate(0);
                 }}
                 disabled={loading}
                 className={`p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors ${className}`}
@@ -72,6 +74,7 @@ export default function LogoutButton({ className = "", variant = "default" }: Pr
             onClick={() => {
                     handleLogout();
                     navigate("/login");
+                    navigate(0);
                 }}
             disabled={loading}
             className={`
