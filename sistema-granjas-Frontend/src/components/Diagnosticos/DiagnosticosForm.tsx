@@ -8,27 +8,15 @@ import { ArvensesSection } from './ArvensesSection';
 import { ControladoresSection } from './ControladoresSection';
 import { PolinizadoresSection } from './PolinizadoresSection';
 
-// 👇 PROGRAMAS DISPONIBLES
-const PROGRAMAS = [
-    { value: 'sem', label: 'Semestrales (SEM)' },
-    { value: 'maq', label: 'Maquinaria Agrícola' },
-    { value: 'hcc', label: 'Hortalizas de Clima Cálido (HCC)' },
-    { value: 'hcf', label: 'Hortalizas de Clima Frío (HCF)' },
-    { value: 'fcc', label: 'Frutales de Clima Cálido (FCC)' },
-    { value: 'fcf', label: 'Frutales de Clima Frío (FCF)' },
-    { value: 'gan', label: 'Ganadería' },
-    { value: 'avi', label: 'Avicultura' },
-    { value: 'pis', label: 'Piscicultura' },
-    { value: 'pla', label: 'Plátano'}
-];
-
-// 👇 MAPEO DE MONITOREOS POR PROGRAMA
+// 👇 MAPEO DE MONITOREOS POR PROGRAMA (esto podría venir de BD también)
 const MONITOREOS_POR_PROGRAMA: Record<string, { value: string; label: string }[]> = {
-    fcc: [
+    // Estos IDs deberían coincidir con los programa_id de la BD
+    // Ejemplo: si en BD el programa Frutales de Clima Cálido tiene id 5
+    5: [  // ID del programa FCC
         { value: 'citricos', label: 'MONITOREO EN CÍTRICOS' },
         { value: 'aguacate', label: 'MONITOREO EN AGUACATE' }
     ],
-    fcf: [
+    6: [  // ID del programa FCF
         { value: 'manzano', label: 'MONITOREO EN MANZANO' },
         { value: 'peral', label: 'MONITOREO EN PERAL' },
         { value: 'durazno', label: 'MONITOREO EN DURAZNO' }
@@ -40,19 +28,25 @@ interface PlantaBase {
     label: string;
 }
 
+interface Programa {
+    id: number;
+    nombre: string;
+    codigo?: string;
+}
+
 interface Lote {
     id: number;
     nombre: string;
     granja_nombre?: string;
-    programa?: string; // 👈 Propiedad que indica a qué programa pertenece el lote
-    programa_id?: string; // O podría ser programa_id
+    programa_id: number; // 👈 Ahora es un número que referencia al programa
 }
 
 interface DiagnosticoFormProps {
     diagnostico?: DiagnosticoItem;
     onSubmit: (data: any) => void;
     onCancel: () => void;
-    lotes: Lote[]; // 👈 Actualizado con el tipo Lote
+    lotes: Lote[];
+    programas: Programa[]; // 👈 NUEVO: Recibir programas desde la BD
     docentes: any[];
     estudiantes: any[];
     tipos: string[];
@@ -67,6 +61,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     onSubmit,
     onCancel,
     lotes,
+    programas, // 👈 Recibimos programas desde la BD
     docentes,
     estudiantes,
     tipos,
@@ -77,7 +72,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
 }) => {
     // Estados del wizard
     const [paso, setPaso] = useState(1);
-    const [programaSeleccionado, setProgramaSeleccionado] = useState<string>('');
+    const [programaSeleccionadoId, setProgramaSeleccionadoId] = useState<number | null>(null);
     const [tipoMonitoreo, setTipoMonitoreo] = useState<string>('');
     const [loteSeleccionado, setLoteSeleccionado] = useState<string>('');
     const [plantasSeleccionadas, setPlantasSeleccionadas] = useState<PlantaBase[]>([]);
@@ -107,26 +102,30 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
 
     // 👇 Filtrar lotes por programa seleccionado
     const lotesFiltrados = useMemo(() => {
-        if (!programaSeleccionado) return [];
+        if (!programaSeleccionadoId) return [];
         
-        return lotes.filter(lote => {
-            // Asumiendo que el lote tiene una propiedad 'programa' o 'programa_id'
-            // que coincide con el valor del programa (ej: 'fcc', 'fcf', etc.)
-            const programaLote = lote.programa || lote.programa_id;
-            return programaLote === programaSeleccionado;
-        });
-    }, [lotes, programaSeleccionado]);
+        return lotes.filter(lote => lote.programa_id === programaSeleccionadoId);
+    }, [lotes, programaSeleccionadoId]);
 
     // Obtener monitoreos disponibles según el programa seleccionado
-    const monitoreosDisponibles = programaSeleccionado
-        ? MONITOREOS_POR_PROGRAMA[programaSeleccionado] || []
+    const monitoreosDisponibles = programaSeleccionadoId
+        ? MONITOREOS_POR_PROGRAMA[programaSeleccionadoId.toString()] || []
         : [];
+
+    // Obtener el programa seleccionado
+    const programaSeleccionado = programas.find(p => p.id === programaSeleccionadoId);
 
     // Si es edición, cargar en paso 2 con datos existentes
     useEffect(() => {
         if (esEdicion && diagnostico) {
             setPaso(2);
-            // Aquí podrías cargar programa y tipo de monitoreo si vinieran en el diagnóstico
+            // Si el diagnóstico tiene programa_id, lo seleccionamos
+            if (diagnostico.programa_id) {
+                setProgramaSeleccionadoId(diagnostico.programa_id);
+            }
+            if (diagnostico.tipo_monitoreo) {
+                setTipoMonitoreo(diagnostico.tipo_monitoreo);
+            }
         }
     }, [esEdicion, diagnostico]);
 
@@ -180,17 +179,17 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
 
     // Manejar cambio de programa
     const handleProgramaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const programa = e.target.value;
-        setProgramaSeleccionado(programa);
+        const programaId = e.target.value ? parseInt(e.target.value) : null;
+        setProgramaSeleccionadoId(programaId);
         setTipoMonitoreo(''); // Resetear tipo de monitoreo al cambiar programa
-        setLoteSeleccionado(''); // 👈 Resetear lote seleccionado al cambiar programa
-        setFormData(prev => ({ ...prev, lote_id: '' })); // 👈 Resetear lote en formData
-        setPlantasSeleccionadas([]); // 👈 Resetear plantas
+        setLoteSeleccionado(''); // Resetear lote seleccionado al cambiar programa
+        setFormData(prev => ({ ...prev, lote_id: '' })); // Resetear lote en formData
+        setPlantasSeleccionadas([]); // Resetear plantas
     };
 
     // Ir al paso 2
     const handleSiguiente = () => {
-        if (!programaSeleccionado) {
+        if (!programaSeleccionadoId) {
             alert('Debe seleccionar un programa');
             return;
         }
@@ -292,7 +291,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             lote_id: parseInt(formData.lote_id as string),
             estudiante_id: formData.estudiante_id ? parseInt(formData.estudiante_id as string) : undefined,
             docente_id: formData.docente_id ? parseInt(formData.docente_id as string) : undefined,
-            programa: programaSeleccionado,
+            programa_id: programaSeleccionadoId, // 👈 Guardamos el ID del programa
             tipo_monitoreo: tipoMonitoreo,
             plantas: plantasSeleccionadas,
             caracterizacion: caracterizacion,
@@ -302,9 +301,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         console.log("📤 Enviando datos:", datosSubmit);
         onSubmit(datosSubmit);
     };
-
-    // Obtener label del programa seleccionado
-    const programaLabel = PROGRAMAS.find(p => p.value === programaSeleccionado)?.label;
 
     return (
         <div className="p-6 max-h-[90vh] overflow-y-auto">
@@ -324,33 +320,33 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
 
             {paso === 1 && (
                 <div className="space-y-6">
-                    {/* 1. Selección de Programa */}
+                    {/* 1. Selección de Programa - DESDE BASE DE DATOS */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                             Programa *
                         </label>
                         <select
-                            value={programaSeleccionado}
+                            value={programaSeleccionadoId?.toString() || ''}
                             onChange={handleProgramaChange}
                             className="w-full border rounded-lg p-3 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             required
                         >
                             <option value="">Seleccionar programa</option>
-                            {PROGRAMAS.map(programa => (
-                                <option key={programa.value} value={programa.value}>
-                                    {programa.label}
+                            {programas.map(programa => (
+                                <option key={programa.id} value={programa.id}>
+                                    {programa.nombre}
                                 </option>
                             ))}
                         </select>
                         {programaSeleccionado && (
                             <p className="text-sm text-green-600 mt-2">
-                                Programa seleccionado: {programaLabel}
+                                Programa seleccionado: {programaSeleccionado.nombre}
                             </p>
                         )}
                     </div>
 
                     {/* 2. Selección de Tipo de Monitoreo (solo visible si hay programa) */}
-                    {programaSeleccionado && (
+                    {programaSeleccionadoId && (
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Tipo de Monitoreo *
@@ -409,7 +405,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                             ) : (
                                 <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
                                     <p className="text-sm text-yellow-700">
-                                        No hay lotes disponibles para el programa {programaLabel}. 
+                                        No hay lotes disponibles para el programa {programaSeleccionado?.nombre}. 
                                         Por favor, contacta al administrador para registrar lotes en este programa.
                                     </p>
                                 </div>
@@ -422,7 +418,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         <button
                             type="button"
                             onClick={handleSiguiente}
-                            disabled={!programaSeleccionado || !tipoMonitoreo || !loteSeleccionado}
+                            disabled={!programaSeleccionadoId || !tipoMonitoreo || !loteSeleccionado}
                             className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
                         >
                             Siguiente
@@ -438,7 +434,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         <div className="bg-gray-100 p-4 rounded-lg flex justify-between items-center">
                             <div>
                                 <p className="text-sm text-gray-600">
-                                    <span className="font-medium">Programa:</span> {programaLabel}
+                                    <span className="font-medium">Programa:</span> {programaSeleccionado?.nombre}
                                 </p>
                                 <p className="text-sm text-gray-600">
                                     <span className="font-medium">Tipo monitoreo:</span> {
