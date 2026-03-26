@@ -8,6 +8,20 @@ import { ArvensesSection } from './ArvensesSection';
 import { ControladoresSection } from './ControladoresSection';
 import { PolinizadoresSection } from './PolinizadoresSection';
 
+// 👇 PROGRAMAS DISPONIBLES
+const PROGRAMAS = [
+    { value: 'sem', label: 'Semestrales (SEM)' },
+    { value: 'maq', label: 'Maquinaria Agrícola' },
+    { value: 'hcc', label: 'Hortalizas de Clima Cálido (HCC)' },
+    { value: 'hcf', label: 'Hortalizas de Clima Frío (HCF)' },
+    { value: 'fcc', label: 'Frutales de Clima Cálido (FCC)' },
+    { value: 'fcf', label: 'Frutales de Clima Frío (FCF)' },
+    { value: 'gan', label: 'Ganadería' },
+    { value: 'avi', label: 'Avicultura' },
+    { value: 'pis', label: 'Piscicultura' },
+    { value: 'pla', label: 'Plátano'}
+];
+
 // 👇 MAPEO DE MONITOREOS POR PROGRAMA
 const MONITOREOS_POR_PROGRAMA: Record<string, { value: string; label: string }[]> = {
     fcc: [
@@ -55,7 +69,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
 }) => {
     // Estados del wizard
     const [paso, setPaso] = useState(1);
-    const [PROGRAMAS, setPROGRAMAS] = useState<{ value: string; label: string }[]>([]); // 👈 AHORA VIENE DE BD
     const [programaSeleccionado, setProgramaSeleccionado] = useState<string>('');
     const [tipoMonitoreo, setTipoMonitoreo] = useState<string>('');
     const [loteSeleccionado, setLoteSeleccionado] = useState<string>('');
@@ -83,29 +96,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     const esAdmin = currentUser?.rol_id === 1;
     const esDocente = currentUser?.rol_id === 2 || currentUser?.rol_id === 5;
     const esEstudiante = currentUser?.rol_id === 4;
-
-    // 👇 CARGAR PROGRAMAS DESDE LA BD
-    useEffect(() => {
-        const cargarProgramas = async () => {
-            try {
-                // Aquí llamas a tu API para obtener los programas
-                const response = await fetch('/api/programas/?skip=0&limit=100'); // Ajusta la URL según tu API
-                const data = await response.json();
-                
-                // Asumiendo que la API devuelve un array con { value: string, label: string }
-                setPROGRAMAS(data);
-            } catch (error) {
-                console.error('Error cargando programas:', error);
-                // Opcional: puedes mantener un fallback
-                setPROGRAMAS([
-                    { value: 'fcc', label: 'Frutales de Clima Cálido (FCC)' },
-                    { value: 'fcf', label: 'Frutales de Clima Frío (FCF)' }
-                ]);
-            }
-        };
-
-        cargarProgramas();
-    }, []);
 
     // Obtener monitoreos disponibles según el programa seleccionado
     const monitoreosDisponibles = programaSeleccionado
@@ -163,6 +153,13 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         } else {
             setPlantasSeleccionadas([]);
         }
+    };
+
+    // Manejar cambio de programa
+    const handleProgramaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const programa = e.target.value;
+        setProgramaSeleccionado(programa);
+        setTipoMonitoreo(''); // Resetear tipo de monitoreo al cambiar programa
     };
 
     // Ir al paso 2
@@ -269,8 +266,8 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             lote_id: parseInt(formData.lote_id as string),
             estudiante_id: formData.estudiante_id ? parseInt(formData.estudiante_id as string) : undefined,
             docente_id: formData.docente_id ? parseInt(formData.docente_id as string) : undefined,
-            programa: programaSeleccionado,        // 👈 Guardamos el programa
-            tipo_monitoreo: tipoMonitoreo,          // 👈 Guardamos el tipo de monitoreo
+            programa: programaSeleccionado,
+            tipo_monitoreo: tipoMonitoreo,
             plantas: plantasSeleccionadas,
             caracterizacion: caracterizacion,
             evidencias: evidencias.length > 0 ? evidencias : undefined
@@ -301,29 +298,24 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
 
             {paso === 1 && (
                 <div className="space-y-6">
-                    {/* 1. Selección de Programa */}
+                    {/* 1. Selección de Programa - AHORA CON SELECT */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                             Programa *
                         </label>
-                        <div className="grid grid-cols-2 gap-4">
+                        <select
+                            value={programaSeleccionado}
+                            onChange={handleProgramaChange}
+                            className="w-full border rounded-lg p-3 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            required
+                        >
+                            <option value="">Seleccionar programa</option>
                             {PROGRAMAS.map(programa => (
-                                <button
-                                    key={programa.value}
-                                    type="button"
-                                    onClick={() => {
-                                        setProgramaSeleccionado(programa.value);
-                                        setTipoMonitoreo(''); // Resetear tipo de monitoreo al cambiar programa
-                                    }}
-                                    className={`p-4 border-2 rounded-lg text-center transition ${programaSeleccionado === programa.value
-                                            ? 'border-blue-600 bg-blue-50'
-                                            : 'border-gray-200 hover:border-blue-300'
-                                        }`}
-                                >
-                                    <span className="font-medium">{programa.label}</span>
-                                </button>
+                                <option key={programa.value} value={programa.value}>
+                                    {programa.label}
+                                </option>
                             ))}
-                        </div>
+                        </select>
                         {programaSeleccionado && (
                             <p className="text-sm text-green-600 mt-2">
                                 Programa seleccionado: {programaLabel}
@@ -370,7 +362,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                             <select
                                 value={loteSeleccionado}
                                 onChange={handleLoteChange}
-                                className="w-full border rounded-lg p-3"
+                                className="w-full border rounded-lg p-3 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 required
                             >
                                 <option value="">Seleccionar lote</option>
@@ -394,7 +386,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                             type="button"
                             onClick={handleSiguiente}
                             disabled={!programaSeleccionado || !tipoMonitoreo || !loteSeleccionado}
-                            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
                         >
                             Siguiente
                         </button>
