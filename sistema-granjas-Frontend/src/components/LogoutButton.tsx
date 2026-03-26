@@ -14,7 +14,6 @@ export default function LogoutButton({ className = "", variant = "default" }: Pr
 
     const handleLogout = async () => {
         if (!confirm("¿Estás seguro de que quieres cerrar sesión?")) {
-            navigate("/login");
             return;
         }
 
