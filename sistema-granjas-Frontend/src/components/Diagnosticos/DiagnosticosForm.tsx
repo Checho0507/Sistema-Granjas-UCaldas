@@ -89,7 +89,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         const cargarProgramas = async () => {
             try {
                 // Aquí llamas a tu API para obtener los programas
-                const response = await fetch('/api/programas'); // Ajusta la URL según tu API
+                const response = await fetch('/api/programas/?skip=0&limit=100'); // Ajusta la URL según tu API
                 const data = await response.json();
                 
                 // Asumiendo que la API devuelve un array con { value: string, label: string }
