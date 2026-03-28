@@ -12,11 +12,11 @@ import { PolinizadoresSection } from './PolinizadoresSection';
 const MONITOREOS_POR_PROGRAMA: Record<string, { value: string; label: string }[]> = {
     // Estos IDs deberían coincidir con los programa_id de la BD
     // Ejemplo: si en BD el programa Frutales de Clima Cálido tiene id 5
-    5: [  // ID del programa FCC
+    '5': [  // ID del programa FCC
         { value: 'citricos', label: 'MONITOREO EN CÍTRICOS' },
         { value: 'aguacate', label: 'MONITOREO EN AGUACATE' }
     ],
-    6: [  // ID del programa FCF
+    '6': [  // ID del programa FCF
         { value: 'manzano', label: 'MONITOREO EN MANZANO' },
         { value: 'peral', label: 'MONITOREO EN PERAL' },
         { value: 'durazno', label: 'MONITOREO EN DURAZNO' }
@@ -38,21 +38,21 @@ interface Lote {
     id: number;
     nombre: string;
     granja_nombre?: string;
-    programa_id: number; // 👈 Ahora es un número que referencia al programa
+    programa_id: number;
 }
 
 interface DiagnosticoFormProps {
     diagnostico?: DiagnosticoItem;
     onSubmit: (data: any) => void;
     onCancel: () => void;
-    lotes: Lote[];
-    programas: Programa[]; // 👈 NUEVO: Recibir programas desde la BD
-    docentes: any[];
-    estudiantes: any[];
-    tipos: string[];
+    lotes?: Lote[]; // 👈 HACER OPCIONAL
+    programas?: Programa[]; // 👈 HACER OPCIONAL
+    docentes?: any[]; // 👈 HACER OPCIONAL
+    estudiantes?: any[]; // 👈 HACER OPCIONAL
+    tipos?: string[]; // 👈 HACER OPCIONAL
     estados?: string[];
-    condiciones_dia: string[];
-    currentUser: any;
+    condiciones_dia?: string[];
+    currentUser?: any; // 👈 HACER OPCIONAL
     esEdicion?: boolean;
 }
 
@@ -60,14 +60,14 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     diagnostico,
     onSubmit,
     onCancel,
-    lotes,
-    programas, // 👈 Recibimos programas desde la BD
-    docentes,
-    estudiantes,
-    tipos,
+    lotes = [], // 👈 VALOR POR DEFECTO
+    programas = [], // 👈 VALOR POR DEFECTO
+    docentes = [], // 👈 VALOR POR DEFECTO
+    estudiantes = [], // 👈 VALOR POR DEFECTO
+    tipos = [], // 👈 VALOR POR DEFECTO
     estados = ['abierto', 'en_revision', 'cerrado'],
     condiciones_dia = ['Soleado', 'Nublado', 'Lluvia'],
-    currentUser,
+    currentUser = null, // 👈 VALOR POR DEFECTO
     esEdicion = false
 }) => {
     // Estados del wizard
@@ -95,25 +95,30 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     const [descripcionesEvidencias, setDescripcionesEvidencias] = useState<string[]>([]);
     const [tiposEvidencia, setTiposEvidencia] = useState<string[]>([]);
 
-    // Roles
+    // Roles - CON MANEJO DE ERRORES
     const esAdmin = currentUser?.rol_id === 1;
     const esDocente = currentUser?.rol_id === 2 || currentUser?.rol_id === 5;
     const esEstudiante = currentUser?.rol_id === 4;
 
-    // 👇 Filtrar lotes por programa seleccionado
+    // 👇 Filtrar lotes por programa seleccionado - CON VALIDACIÓN
     const lotesFiltrados = useMemo(() => {
-        if (!programaSeleccionadoId) return [];
+        if (!programaSeleccionadoId || !lotes || lotes.length === 0) return [];
         
         return lotes.filter(lote => lote.programa_id === programaSeleccionadoId);
     }, [lotes, programaSeleccionadoId]);
 
     // Obtener monitoreos disponibles según el programa seleccionado
-    const monitoreosDisponibles = programaSeleccionadoId
-        ? MONITOREOS_POR_PROGRAMA[programaSeleccionadoId.toString()] || []
-        : [];
+    const monitoreosDisponibles = useMemo(() => {
+        if (!programaSeleccionadoId) return [];
+        const key = programaSeleccionadoId.toString();
+        return MONITOREOS_POR_PROGRAMA[key] || [];
+    }, [programaSeleccionadoId]);
 
     // Obtener el programa seleccionado
-    const programaSeleccionado = programas.find(p => p.id === programaSeleccionadoId);
+    const programaSeleccionado = useMemo(() => {
+        if (!programaSeleccionadoId || !programas || programas.length === 0) return null;
+        return programas.find(p => p.id === programaSeleccionadoId);
+    }, [programas, programaSeleccionadoId]);
 
     // Si es edición, cargar en paso 2 con datos existentes
     useEffect(() => {
@@ -138,14 +143,14 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             const nuevas = generarPlantas(5);
             setPlantasSeleccionadas(nuevas);
         }
-    }, [lotesFiltrados]);
+    }, [lotesFiltrados, formData.lote_id, loteSeleccionado]);
 
     // Autoseleccionar estudiante según rol
     useEffect(() => {
-        if (!formData.estudiante_id && esEstudiante) {
+        if (!formData.estudiante_id && esEstudiante && currentUser?.id) {
             setFormData(prev => ({ ...prev, estudiante_id: currentUser.id }));
         }
-    }, [currentUser, esEdicion]);
+    }, [currentUser, esEstudiante, formData.estudiante_id]);
 
     // Generar plantas aleatorias
     const generarPlantas = useCallback((cantidad: number): PlantaBase[] => {
@@ -291,7 +296,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             lote_id: parseInt(formData.lote_id as string),
             estudiante_id: formData.estudiante_id ? parseInt(formData.estudiante_id as string) : undefined,
             docente_id: formData.docente_id ? parseInt(formData.docente_id as string) : undefined,
-            programa_id: programaSeleccionadoId, // 👈 Guardamos el ID del programa
+            programa_id: programaSeleccionadoId,
             tipo_monitoreo: tipoMonitoreo,
             plantas: plantasSeleccionadas,
             caracterizacion: caracterizacion,
@@ -301,6 +306,17 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         console.log("📤 Enviando datos:", datosSubmit);
         onSubmit(datosSubmit);
     };
+
+    // Renderizado condicional para evitar errores
+    if (!programas || !lotes) {
+        return (
+            <div className="p-6">
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                    <p className="text-yellow-700">Cargando datos del formulario...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="p-6 max-h-[90vh] overflow-y-auto">
@@ -332,7 +348,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                             required
                         >
                             <option value="">Seleccionar programa</option>
-                            {programas.map(programa => (
+                            {programas && programas.map(programa => (
                                 <option key={programa.id} value={programa.id}>
                                     {programa.nombre}
                                 </option>
@@ -434,16 +450,16 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         <div className="bg-gray-100 p-4 rounded-lg flex justify-between items-center">
                             <div>
                                 <p className="text-sm text-gray-600">
-                                    <span className="font-medium">Programa:</span> {programaSeleccionado?.nombre}
+                                    <span className="font-medium">Programa:</span> {programaSeleccionado?.nombre || 'No seleccionado'}
                                 </p>
                                 <p className="text-sm text-gray-600">
                                     <span className="font-medium">Tipo monitoreo:</span> {
-                                        monitoreosDisponibles.find(m => m.value === tipoMonitoreo)?.label
+                                        monitoreosDisponibles.find(m => m.value === tipoMonitoreo)?.label || tipoMonitoreo
                                     }
                                 </p>
                                 <p className="text-sm text-gray-600">
                                     <span className="font-medium">Lote:</span> {
-                                        lotesFiltrados.find(l => l.id.toString() === loteSeleccionado)?.nombre
+                                        lotesFiltrados.find(l => l.id.toString() === loteSeleccionado)?.nombre || 'No seleccionado'
                                     }
                                 </p>
                             </div>
@@ -466,7 +482,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                     {diagnostico && (
                                         <div className={`px-3 py-1 rounded-full text-sm font-medium ${getEstadoColor(diagnostico.estado)}`}>
                                             <i className={`${getEstadoIcon(diagnostico.estado)} mr-2`}></i>
-                                            {diagnostico.estado.charAt(0).toUpperCase() + diagnostico.estado.slice(1)}
+                                            {diagnostico.estado?.charAt(0).toUpperCase() + diagnostico.estado?.slice(1) || ''}
                                         </div>
                                     )}
                                 </div>
@@ -511,7 +527,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                     required
                                 >
                                     <option value="">Seleccionar tipo</option>
-                                    {tipos.map(tipo => (
+                                    {tipos && tipos.map(tipo => (
                                         <option key={tipo} value={tipo}>
                                             {tipo.charAt(0).toUpperCase() + tipo.slice(1).replace(/_/g, ' ')}
                                         </option>
