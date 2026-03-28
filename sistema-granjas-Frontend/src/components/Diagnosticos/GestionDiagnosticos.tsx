@@ -3,7 +3,8 @@ import { toast } from 'react-hot-toast';
 import diagnosticoService from '../../services/diagnosticoService';
 import usuarioService from '../../services/usuarioService';
 import loteService from '../../services/loteService';
-import programaService from '../../services/programaService'; // 👈 NUEVO
+import programaService from '../../services/programaService';
+import monitoreoService from '../../services/monitoreoService'; // 👈 NUEVO
 import type { DiagnosticoItem, DiagnosticoFiltros } from '../../types/diagnosticoTypes';
 import Modal from '../Common/Modal';
 import DiagnosticosTable from './DiagnosticosTable';
@@ -12,7 +13,6 @@ import AsignarDocenteModal from './AsignarDocenteModal';
 import AgregarEvidenciaModal from './AgregarEvidenciaModal';
 import DetallesDiagnosticoModal from './DetallesDiagnosticoModal';
 import { useAuth } from '../../hooks/useAuth';
-import cultivoService from '../../services/cultivoService';
 import granjaService from '../../services/granjaService';
 import exportService from '../../services/exportService';
 
@@ -33,7 +33,8 @@ const GestionDiagnosticos: React.FC = () => {
     const [selectedDiagnostico, setSelectedDiagnostico] = useState<DiagnosticoItem | null>(null);
 
     const [lotes, setLotes] = useState<any[]>([]);
-    const [programas, setProgramas] = useState<any[]>([]); // 👈 NUEVO estado para programas
+    const [programas, setProgramas] = useState<any[]>([]);
+    const [monitoreos, setMonitoreos] = useState<any[]>([]); // 👈 NUEVO estado
     const [docentes, setDocentes] = useState<any[]>([]);
     const [estudiantes, setEstudiantes] = useState<any[]>([]);
     const [tiposDiagnostico, setTiposDiagnostico] = useState<string[]>([]);
@@ -79,7 +80,7 @@ const GestionDiagnosticos: React.FC = () => {
             const diagnosticosData = Array.isArray(data) ? data : (data?.items || data || []);
             setDiagnosticos(diagnosticosData);
 
-            // 👇 Cargar programas
+            // Cargar programas
             try {
                 const programasData = await programaService.obtenerProgramas();
                 console.log('✅ Programas cargados:', programasData);
@@ -88,6 +89,17 @@ const GestionDiagnosticos: React.FC = () => {
             } catch (programaError) {
                 console.error('❌ Error cargando programas:', programaError);
                 setProgramas([]);
+            }
+
+            // Cargar monitoreos (todos, aunque el formulario los cargará por programa, esto es por si se necesitan globalmente)
+            try {
+                const monitoreosData = await monitoreoService.obtenerMonitoreos();
+                console.log('✅ Monitoreos cargados:', monitoreosData);
+                const monitoreosArray = Array.isArray(monitoreosData) ? monitoreosData : (monitoreosData?.items || []);
+                setMonitoreos(monitoreosArray);
+            } catch (monitoreoError) {
+                console.error('❌ Error cargando monitoreos:', monitoreoError);
+                setMonitoreos([]);
             }
 
             // Cargar lotes (con sus granjas)
@@ -165,7 +177,7 @@ const GestionDiagnosticos: React.FC = () => {
         }
     };
 
-    // Handlers CRUD
+    // Handlers CRUD (iguales)
     const handleCrearDiagnostico = async (data: any) => {
         try {
             if (user?.rol_id === 4) data.estudiante_id = user.id;
@@ -283,7 +295,7 @@ const GestionDiagnosticos: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Filtros */}
+                {/* Filtros (igual) */}
                 <div className="bg-white p-4 rounded-lg shadow mb-6">
                     <h3 className="font-semibold mb-3">Filtros</h3>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -355,7 +367,8 @@ const GestionDiagnosticos: React.FC = () => {
                     onSubmit={handleCrearDiagnostico}
                     onCancel={() => setShowCrearModal(false)}
                     lotes={lotes}
-                    programas={programas}  // 👈 PASAMOS PROGRAMAS
+                    programas={programas}
+                    monitoreos={monitoreos}  // 👈 PASAMOS MONITOREOS (opcional, el formulario los cargará también)
                     docentes={docentes}
                     estudiantes={estudiantes}
                     tipos={tiposDiagnostico}
@@ -373,7 +386,8 @@ const GestionDiagnosticos: React.FC = () => {
                         onSubmit={(data) => handleActualizarDiagnostico(selectedDiagnostico.id, data)}
                         onCancel={() => setShowEditarModal(false)}
                         lotes={lotes}
-                        programas={programas}  // 👈 PASAMOS PROGRAMAS
+                        programas={programas}
+                        monitoreos={monitoreos}  // 👈 PASAMOS MONITOREOS
                         docentes={docentes}
                         estudiantes={estudiantes}
                         tipos={tiposDiagnostico}
@@ -384,7 +398,7 @@ const GestionDiagnosticos: React.FC = () => {
                 )}
             </Modal>
 
-            {/* MODAL ASIGNAR DOCENTE */}
+            {/* Otros modales igual */}
             {showAsignarDocenteModal && selectedDiagnostico && (
                 <AsignarDocenteModal
                     isOpen={showAsignarDocenteModal}
@@ -395,7 +409,6 @@ const GestionDiagnosticos: React.FC = () => {
                 />
             )}
 
-            {/* MODAL EVIDENCIA */}
             {showEvidenciaModal && selectedDiagnostico && (
                 <AgregarEvidenciaModal
                     isOpen={showEvidenciaModal}
@@ -405,7 +418,6 @@ const GestionDiagnosticos: React.FC = () => {
                 />
             )}
 
-            {/* MODAL DETALLES */}
             {showDetallesModal && selectedDiagnostico && (
                 <DetallesDiagnosticoModal
                     isOpen={showDetallesModal}
@@ -414,7 +426,6 @@ const GestionDiagnosticos: React.FC = () => {
                 />
             )}
 
-            {/* MODAL CERRAR */}
             <Modal isOpen={showCerrarModal} onClose={() => setShowCerrarModal(false)}>
                 {selectedDiagnostico && (
                     <div className="p-6">

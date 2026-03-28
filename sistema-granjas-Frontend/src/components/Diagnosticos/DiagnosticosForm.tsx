@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { DiagnosticoItem, CrearDiagnosticoDTO, ArchivoEvidencia } from '../../types/diagnosticoTypes';
+import { monitoreoService, Monitoreo } from '../../services/monitoreoService'; // 👈 NUEVO
 import { CensoSection } from './CensoSection';
 import { FenologicoSection } from './FenologicoSection';
 import { ArthropodSection } from './ArthropodSection';
@@ -8,19 +9,6 @@ import { ArvensesSection } from './ArvensesSection';
 import { ControladoresSection } from './ControladoresSection';
 import { PolinizadoresSection } from './PolinizadoresSection';
 import { toast } from 'react-toastify';
-
-// 👇 MAPEO DE MONITOREOS POR PROGRAMA
-const MONITOREOS_POR_PROGRAMA: Record<number, { value: string; label: string }[]> = {
-    5: [  // ID del programa Frutales de Clima Cálido (FCC)
-        { value: 'citricos', label: 'MONITOREO EN CÍTRICOS' },
-        { value: 'aguacate', label: 'MONITOREO EN AGUACATE' }
-    ],
-    6: [  // ID del programa Frutales de Clima Frío (FCF)
-        { value: 'manzano', label: 'MONITOREO EN MANZANO' },
-        { value: 'peral', label: 'MONITOREO EN PERAL' },
-        { value: 'durazno', label: 'MONITOREO EN DURAZNO' }
-    ]
-};
 
 interface PlantaBase {
     codigo: string;
@@ -50,13 +38,14 @@ interface DiagnosticoFormProps {
     diagnostico?: DiagnosticoItem;
     onSubmit: (data: CrearDiagnosticoDTO & { 
         programa_id?: number; 
-        tipo_monitoreo?: string;
+        tipo_monitoreo?: number;  // 👈 AHORA ES NÚMERO (ID)
         plantas?: PlantaBase[];
         caracterizacion?: Record<string, string>;
     }) => void;
     onCancel: () => void;
     lotes: Lote[];
     programas: Programa[];
+    monitoreos?: Monitoreo[];  // 👈 OPCIONAL, para recibir desde padre si se quiere, pero se cargará internamente
     docentes: any[];
     estudiantes: any[];
     tipos: string[];
@@ -72,6 +61,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     onCancel,
     lotes = [],
     programas = [],
+    monitoreos: externalMonitoreos,
     docentes = [],
     estudiantes = [],
     tipos = [],
@@ -83,10 +73,13 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     // Estados del wizard
     const [paso, setPaso] = useState(1);
     const [programaSeleccionadoId, setProgramaSeleccionadoId] = useState<number | null>(null);
-    const [tipoMonitoreo, setTipoMonitoreo] = useState<string>('');
+    const [tipoMonitoreoId, setTipoMonitoreoId] = useState<number | null>(null); // 👈 NÚMERO
     const [loteSeleccionadoId, setLoteSeleccionadoId] = useState<number | null>(null);
     const [plantasSeleccionadas, setPlantasSeleccionadas] = useState<PlantaBase[]>([]);
     const [caracterizacion, setCaracterizacion] = useState<Record<string, string>>({});
+    
+    // Estado para monitoreos (cargados desde backend)
+    const [monitoreos, setMonitoreos] = useState<Monitoreo[]>(externalMonitoreos || []);
 
     // Estados originales del formulario
     const [formData, setFormData] = useState({
@@ -108,17 +101,30 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     const esDocente = currentUser?.rol_id === 2 || currentUser?.rol_id === 5;
     const esEstudiante = currentUser?.rol_id === 4;
 
+    // Cargar monitoreos cuando cambia el programa seleccionado
+    useEffect(() => {
+        const cargarMonitoreos = async () => {
+            if (!programaSeleccionadoId) {
+                setMonitoreos([]);
+                return;
+            }
+            try {
+                const data = await monitoreoService.obtenerMonitoreosPorPrograma(programaSeleccionadoId);
+                setMonitoreos(data);
+            } catch (error) {
+                console.error('Error cargando monitoreos:', error);
+                setMonitoreos([]);
+                toast.error('Error al cargar tipos de monitoreo');
+            }
+        };
+        cargarMonitoreos();
+    }, [programaSeleccionadoId]);
+
     // 👇 Filtrar lotes por programa seleccionado
     const lotesFiltrados = useMemo(() => {
         if (!programaSeleccionadoId || !lotes || lotes.length === 0) return [];
         return lotes.filter(lote => lote.programa_id === programaSeleccionadoId);
     }, [lotes, programaSeleccionadoId]);
-
-    // Obtener monitoreos disponibles según el programa seleccionado
-    const monitoreosDisponibles = useMemo(() => {
-        if (!programaSeleccionadoId) return [];
-        return MONITOREOS_POR_PROGRAMA[programaSeleccionadoId] || [];
-    }, [programaSeleccionadoId]);
 
     // Obtener el programa seleccionado
     const programaSeleccionado = useMemo(() => {
@@ -132,6 +138,12 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         return lotesFiltrados.find(l => l.id === loteSeleccionadoId);
     }, [lotesFiltrados, loteSeleccionadoId]);
 
+    // Obtener el monitoreo seleccionado (para mostrar label)
+    const monitoreoSeleccionado = useMemo(() => {
+        if (!tipoMonitoreoId || !monitoreos.length) return null;
+        return monitoreos.find(m => m.id === tipoMonitoreoId);
+    }, [monitoreos, tipoMonitoreoId]);
+
     // Si es edición, cargar datos existentes
     useEffect(() => {
         if (esEdicion && diagnostico) {
@@ -140,24 +152,23 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             // Cargar lote si existe
             if (diagnostico.lote_id) {
                 setLoteSeleccionadoId(diagnostico.lote_id);
-                // Buscar el programa del lote
                 const lote = lotes.find(l => l.id === diagnostico.lote_id);
                 if (lote?.programa_id) {
                     setProgramaSeleccionadoId(lote.programa_id);
                 }
             }
             
-            // Cargar tipo de monitoreo si existe (desde campos adicionales)
-            // Nota: Esto asume que el diagnóstico tiene campos extra
-            if ((diagnostico as any).tipo_monitoreo) {
-                setTipoMonitoreo((diagnostico as any).tipo_monitoreo);
+            // Cargar tipo de monitoreo si existe (como número)
+            if ((diagnostico as any).tipo_monitoreo_id) {
+                setTipoMonitoreoId((diagnostico as any).tipo_monitoreo_id);
+            } else if ((diagnostico as any).tipo_monitoreo && typeof (diagnostico as any).tipo_monitoreo === 'number') {
+                setTipoMonitoreoId((diagnostico as any).tipo_monitoreo);
             }
             
             // Cargar plantas si existen
             if ((diagnostico as any).plantas && (diagnostico as any).plantas.length > 0) {
                 setPlantasSeleccionadas((diagnostico as any).plantas);
             } else if (diagnostico.lote_id) {
-                // Si no hay plantas pero hay lote, generar plantas
                 const nuevas = generarPlantas(5);
                 setPlantasSeleccionadas(nuevas);
             }
@@ -234,7 +245,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         try {
             const programaId = e.target.value ? parseInt(e.target.value) : null;
             setProgramaSeleccionadoId(programaId);
-            setTipoMonitoreo('');
+            setTipoMonitoreoId(null); // Resetear tipo de monitoreo
             setLoteSeleccionadoId(null);
             setFormData(prev => ({ ...prev, lote_id: '' }));
             setPlantasSeleccionadas([]);
@@ -254,7 +265,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             toast.warning('Debe seleccionar un programa');
             return;
         }
-        if (!tipoMonitoreo) {
+        if (!tipoMonitoreoId) {
             toast.warning('Debe seleccionar un tipo de monitoreo');
             return;
         }
@@ -362,13 +373,18 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                 return;
             }
 
+            if (!tipoMonitoreoId) {
+                toast.error('Debe seleccionar un tipo de monitoreo');
+                return;
+            }
+
             // Filtrar evidencias válidas (con archivo)
             const evidenciasValidas = evidencias.filter(ev => ev.file !== null && ev.file !== undefined);
 
             // Construir datos finales según CrearDiagnosticoDTO
             const datosSubmit: CrearDiagnosticoDTO & { 
                 programa_id?: number; 
-                tipo_monitoreo?: string;
+                tipo_monitoreo?: number;  // 👈 AHORA NÚMERO
                 plantas?: PlantaBase[];
                 caracterizacion?: Record<string, string>;
                 condiciones_dia?: string;
@@ -381,7 +397,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                 evidencias: evidenciasValidas.length > 0 ? evidenciasValidas : undefined,
                 // Campos adicionales para el formulario
                 programa_id: programaSeleccionadoId || undefined,
-                tipo_monitoreo: tipoMonitoreo,
+                tipo_monitoreo: tipoMonitoreoId,  // 👈 ENVIAMOS EL ID
                 plantas: plantasSeleccionadas,
                 caracterizacion: caracterizacion,
                 condiciones_dia: formData.condiciones_dia
@@ -407,9 +423,9 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     console.log('🔍 Debug - DiagnosticoForm:', {
         programas: programas.length,
         lotes: lotes.length,
-        programasIds: programas.map(p => p.id),
-        lotesProgramaIds: [...new Set(lotes.map(l => l.programa_id))],
+        monitoreos: monitoreos.length,
         programaSeleccionadoId,
+        tipoMonitoreoId,
         lotesFiltrados: lotesFiltrados.length
     });
 
@@ -460,35 +476,38 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         )}
                     </div>
 
-                    {/* 2. Selección de Tipo de Monitoreo */}
+                    {/* 2. Selección de Tipo de Monitoreo (desde BD) */}
                     {programaSeleccionadoId && (
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Tipo de Monitoreo *
                             </label>
-                            {monitoreosDisponibles.length > 0 ? (
+                            {monitoreos.length > 0 ? (
                                 <div className="grid grid-cols-2 gap-4">
-                                    {monitoreosDisponibles.map(monitoreo => (
+                                    {monitoreos.map(monitoreo => (
                                         <button
-                                            key={monitoreo.value}
+                                            key={monitoreo.id}
                                             type="button"
-                                            onClick={() => setTipoMonitoreo(monitoreo.value)}
+                                            onClick={() => setTipoMonitoreoId(monitoreo.id)}
                                             className={`p-4 border-2 rounded-lg text-center transition ${
-                                                tipoMonitoreo === monitoreo.value
+                                                tipoMonitoreoId === monitoreo.id
                                                     ? 'border-blue-600 bg-blue-50 text-blue-700'
                                                     : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
                                             }`}
                                         >
                                             <i className="fas fa-chart-line mr-2"></i>
-                                            <span className="font-medium">{monitoreo.label}</span>
+                                            <span className="font-medium">{monitoreo.nombre}</span>
                                         </button>
                                     ))}
                                 </div>
                             ) : (
                                 <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
                                     <p className="text-sm text-yellow-700">
-                                        <i className="fas fa-exclamation-triangle mr-2"></i>
+                                        <i className="fas fa-info-circle mr-2"></i>
                                         Este programa no tiene tipos de monitoreo configurados.
+                                    </p>
+                                    <p className="text-xs text-yellow-600 mt-1">
+                                        Contacta al administrador para agregar tipos de monitoreo.
                                     </p>
                                 </div>
                             )}
@@ -496,7 +515,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                     )}
 
                     {/* 3. Selección de Lote */}
-                    {tipoMonitoreo && (
+                    {tipoMonitoreoId && (
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Lote *
@@ -546,7 +565,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         <button
                             type="button"
                             onClick={handleSiguiente}
-                            disabled={!programaSeleccionadoId || !tipoMonitoreo || !loteSeleccionadoId}
+                            disabled={!programaSeleccionadoId || !tipoMonitoreoId || !loteSeleccionadoId}
                             className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition flex items-center gap-2"
                         >
                             <span>Siguiente</span>
@@ -574,9 +593,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                         <div className="flex items-center gap-2">
                                             <i className="fas fa-chart-line text-green-500"></i>
                                             <span className="text-sm text-gray-600">
-                                                <strong>Tipo monitoreo:</strong> {
-                                                    monitoreosDisponibles.find(m => m.value === tipoMonitoreo)?.label || tipoMonitoreo
-                                                }
+                                                <strong>Tipo monitoreo:</strong> {monitoreoSeleccionado?.nombre || tipoMonitoreoId || 'No seleccionado'}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-2">
