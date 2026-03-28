@@ -7,7 +7,7 @@ import programaService from '../../services/programaService'; // 👈 NUEVO
 import type { DiagnosticoItem, DiagnosticoFiltros } from '../../types/diagnosticoTypes';
 import Modal from '../Common/Modal';
 import DiagnosticosTable from './DiagnosticosTable';
-import DiagnosticoForm from './DiagnosticoForm';
+import DiagnosticoForm from './DiagnosticosForm';
 import AsignarDocenteModal from './AsignarDocenteModal';
 import AgregarEvidenciaModal from './AgregarEvidenciaModal';
 import DetallesDiagnosticoModal from './DetallesDiagnosticoModal';
