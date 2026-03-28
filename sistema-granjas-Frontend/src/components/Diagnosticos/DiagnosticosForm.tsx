@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import type { DiagnosticoItem } from '../../types/diagnosticoTypes';
+import type { DiagnosticoItem, CrearDiagnosticoDTO, ArchivoEvidencia } from '../../types/diagnosticoTypes';
 import { CensoSection } from './CensoSection';
 import { FenologicoSection } from './FenologicoSection';
 import { ArthropodSection } from './ArthropodSection';
@@ -9,10 +9,8 @@ import { ControladoresSection } from './ControladoresSection';
 import { PolinizadoresSection } from './PolinizadoresSection';
 import { toast } from 'react-toastify';
 
-// 👇 MAPEO DE MONITOREOS POR PROGRAMA (esto debería venir de BD idealmente)
+// 👇 MAPEO DE MONITOREOS POR PROGRAMA
 const MONITOREOS_POR_PROGRAMA: Record<number, { value: string; label: string }[]> = {
-    // Estos IDs deben coincidir con los programa_id de la BD
-    // Ajusta estos IDs según los programas reales en tu BD
     5: [  // ID del programa Frutales de Clima Cálido (FCC)
         { value: 'citricos', label: 'MONITOREO EN CÍTRICOS' },
         { value: 'aguacate', label: 'MONITOREO EN AGUACATE' }
@@ -50,7 +48,12 @@ interface Lote {
 
 interface DiagnosticoFormProps {
     diagnostico?: DiagnosticoItem;
-    onSubmit: (data: any) => void;
+    onSubmit: (data: CrearDiagnosticoDTO & { 
+        programa_id?: number; 
+        tipo_monitoreo?: string;
+        plantas?: PlantaBase[];
+        caracterizacion?: Record<string, string>;
+    }) => void;
     onCancel: () => void;
     lotes: Lote[];
     programas: Programa[];
@@ -97,10 +100,8 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         docente_id: diagnostico?.docente_id || '',
     });
 
-    // Evidencias
-    const [archivos, setArchivos] = useState<File[]>([]);
-    const [descripcionesEvidencias, setDescripcionesEvidencias] = useState<string[]>([]);
-    const [tiposEvidencia, setTiposEvidencia] = useState<string[]>([]);
+    // Evidencias - Usando ArchivoEvidencia
+    const [evidencias, setEvidencias] = useState<ArchivoEvidencia[]>([]);
 
     // Roles
     const esAdmin = currentUser?.rol_id === 1;
@@ -136,24 +137,25 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         if (esEdicion && diagnostico) {
             setPaso(2);
             
-            // Cargar programa si existe
-            if (diagnostico.programa_id) {
-                setProgramaSeleccionadoId(diagnostico.programa_id);
-            }
-            
-            // Cargar tipo de monitoreo si existe
-            if (diagnostico.tipo_monitoreo) {
-                setTipoMonitoreo(diagnostico.tipo_monitoreo);
-            }
-            
             // Cargar lote si existe
             if (diagnostico.lote_id) {
                 setLoteSeleccionadoId(diagnostico.lote_id);
+                // Buscar el programa del lote
+                const lote = lotes.find(l => l.id === diagnostico.lote_id);
+                if (lote?.programa_id) {
+                    setProgramaSeleccionadoId(lote.programa_id);
+                }
+            }
+            
+            // Cargar tipo de monitoreo si existe (desde campos adicionales)
+            // Nota: Esto asume que el diagnóstico tiene campos extra
+            if ((diagnostico as any).tipo_monitoreo) {
+                setTipoMonitoreo((diagnostico as any).tipo_monitoreo);
             }
             
             // Cargar plantas si existen
-            if (diagnostico.plantas && diagnostico.plantas.length > 0) {
-                setPlantasSeleccionadas(diagnostico.plantas);
+            if ((diagnostico as any).plantas && (diagnostico as any).plantas.length > 0) {
+                setPlantasSeleccionadas((diagnostico as any).plantas);
             } else if (diagnostico.lote_id) {
                 // Si no hay plantas pero hay lote, generar plantas
                 const nuevas = generarPlantas(5);
@@ -161,11 +163,11 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             }
             
             // Cargar caracterización si existe
-            if (diagnostico.caracterizacion) {
-                setCaracterizacion(diagnostico.caracterizacion);
+            if ((diagnostico as any).caracterizacion) {
+                setCaracterizacion((diagnostico as any).caracterizacion);
             }
         }
-    }, [esEdicion, diagnostico]);
+    }, [esEdicion, diagnostico, lotes]);
 
     // Auto-seleccionar lote si solo hay uno disponible después del filtro
     useEffect(() => {
@@ -289,35 +291,35 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         setCaracterizacion(prev => ({ ...prev, [campo]: valor }));
     };
 
-    // Evidencias
+    // Evidencias - usando ArchivoEvidencia
     const agregarEvidencia = () => {
-        setArchivos(prev => [...prev, null as any]);
-        setDescripcionesEvidencias(prev => [...prev, '']);
-        setTiposEvidencia(prev => [...prev, 'imagen']);
+        setEvidencias(prev => [...prev, {
+            file: null as any,
+            descripcion: '',
+            tipo: 'imagen'
+        }]);
     };
 
     const eliminarEvidencia = (index: number) => {
-        setArchivos(prev => prev.filter((_, i) => i !== index));
-        setDescripcionesEvidencias(prev => prev.filter((_, i) => i !== index));
-        setTiposEvidencia(prev => prev.filter((_, i) => i !== index));
+        setEvidencias(prev => prev.filter((_, i) => i !== index));
     };
 
     const handleFileChange = (index: number, file: File | null) => {
-        const copia = [...archivos];
-        copia[index] = file as any;
-        setArchivos(copia);
+        const copia = [...evidencias];
+        copia[index] = { ...copia[index], file: file as File };
+        setEvidencias(copia);
     };
 
     const handleDescripcionChange = (index: number, value: string) => {
-        const copia = [...descripcionesEvidencias];
-        copia[index] = value;
-        setDescripcionesEvidencias(copia);
+        const copia = [...evidencias];
+        copia[index] = { ...copia[index], descripcion: value };
+        setEvidencias(copia);
     };
 
     const handleTipoEvidenciaChange = (index: number, value: string) => {
-        const copia = [...tiposEvidencia];
-        copia[index] = value;
-        setTiposEvidencia(copia);
+        const copia = [...evidencias];
+        copia[index] = { ...copia[index], tipo: value };
+        setEvidencias(copia);
     };
 
     // Colores e iconos para estado
@@ -339,7 +341,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         return iconos[estado] || 'fas fa-question-circle';
     };
 
-    // Manejar envío final
+    // Manejar envío final - usando CrearDiagnosticoDTO
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -350,8 +352,8 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                 return;
             }
             
-            if (!formData.condiciones_dia) {
-                toast.error('Debe seleccionar las condiciones del día');
+            if (!formData.descripcion) {
+                toast.error('Debe ingresar una descripción');
                 return;
             }
             
@@ -360,31 +362,39 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                 return;
             }
 
-            const estadoFinal = esEdicion ? formData.estado : 'abierto';
+            // Filtrar evidencias válidas (con archivo)
+            const evidenciasValidas = evidencias.filter(ev => ev.file !== null && ev.file !== undefined);
 
-            const evidencias = archivos
-                .map((file, index) => ({
-                    file,
-                    descripcion: descripcionesEvidencias[index],
-                    tipo: tiposEvidencia[index]
-                }))
-                .filter(ev => ev.file);
-
-            // Construir datos finales
-            const datosSubmit = {
-                ...formData,
-                estado: estadoFinal,
+            // Construir datos finales según CrearDiagnosticoDTO
+            const datosSubmit: CrearDiagnosticoDTO & { 
+                programa_id?: number; 
+                tipo_monitoreo?: string;
+                plantas?: PlantaBase[];
+                caracterizacion?: Record<string, string>;
+                condiciones_dia?: string;
+            } = {
+                tipo: formData.tipo,
+                descripcion: `${formData.descripcion}\n\nCondiciones del día: ${formData.condiciones_dia}\n\nCaracterización: ${JSON.stringify(caracterizacion)}`,
                 lote_id: loteSeleccionadoId,
                 estudiante_id: formData.estudiante_id ? parseInt(formData.estudiante_id as string) : undefined,
                 docente_id: formData.docente_id ? parseInt(formData.docente_id as string) : undefined,
-                programa_id: programaSeleccionadoId,
+                evidencias: evidenciasValidas.length > 0 ? evidenciasValidas : undefined,
+                // Campos adicionales para el formulario
+                programa_id: programaSeleccionadoId || undefined,
                 tipo_monitoreo: tipoMonitoreo,
                 plantas: plantasSeleccionadas,
                 caracterizacion: caracterizacion,
-                evidencias: evidencias.length > 0 ? evidencias : undefined
+                condiciones_dia: formData.condiciones_dia
             };
 
-            console.log("📤 Enviando datos:", datosSubmit);
+            // Si es edición, añadir campos específicos
+            if (esEdicion && diagnostico) {
+                (datosSubmit as any).id = diagnostico.id;
+                (datosSubmit as any).estado = formData.estado;
+                (datosSubmit as any).observaciones = formData.observaciones;
+            }
+
+            console.log("📤 Enviando datos (CrearDiagnosticoDTO):", datosSubmit);
             onSubmit(datosSubmit);
             toast.success(esEdicion ? 'Diagnóstico actualizado' : 'Diagnóstico creado');
         } catch (err) {
@@ -446,11 +456,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         {programaSeleccionado && (
                             <p className="text-sm text-green-600 mt-2">
                                 ✓ Programa seleccionado: {programaSeleccionado.nombre}
-                            </p>
-                        )}
-                        {programas.length === 0 && (
-                            <p className="text-sm text-yellow-600 mt-2">
-                                ⚠️ No hay programas disponibles. Contacta al administrador.
                             </p>
                         )}
                     </div>
@@ -530,9 +535,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                     <p className="text-sm text-yellow-700">
                                         <i className="fas fa-exclamation-triangle mr-2"></i>
                                         No hay lotes disponibles para el programa {programaSeleccionado?.nombre}.
-                                    </p>
-                                    <p className="text-xs text-yellow-600 mt-1">
-                                        Por favor, contacta al administrador para registrar lotes en este programa.
                                     </p>
                                 </div>
                             )}
@@ -638,8 +640,9 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                             </div>
                         )}
 
-                        {/* Tipo y Condiciones del día */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Campos del formulario */}
+                        <div className="grid grid-cols-1 gap-4">
+                            {/* Tipo de Diagnóstico */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Tipo de Diagnóstico *
@@ -660,6 +663,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                 </select>
                             </div>
 
+                            {/* Condiciones del día */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Condiciones del día *
@@ -679,6 +683,39 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                     ))}
                                 </select>
                             </div>
+
+                            {/* Descripción */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Descripción *
+                                </label>
+                                <textarea
+                                    name="descripcion"
+                                    value={formData.descripcion}
+                                    onChange={handleChange}
+                                    rows={4}
+                                    className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    placeholder="Describa el diagnóstico realizado..."
+                                    required
+                                />
+                            </div>
+
+                            {/* Observaciones (solo edición) */}
+                            {esEdicion && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Observaciones
+                                    </label>
+                                    <textarea
+                                        name="observaciones"
+                                        value={formData.observaciones}
+                                        onChange={handleChange}
+                                        rows={3}
+                                        className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        placeholder="Observaciones adicionales..."
+                                    />
+                                </div>
+                            )}
                         </div>
 
                         {/* Secciones específicas según el tipo de diagnóstico */}
@@ -737,15 +774,94 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                             </div>
                         )}
 
-                        {(!formData.tipo || !formData.condiciones_dia) && (
+                        {/* Sección de evidencias */}
+                        <div className="mt-6">
+                            <div className="flex justify-between items-center mb-3">
+                                <label className="block text-sm font-medium text-gray-700">
+                                    Evidencias
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={agregarEvidencia}
+                                    className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
+                                >
+                                    <i className="fas fa-plus"></i>
+                                    Agregar evidencia
+                                </button>
+                            </div>
+                            
+                            {evidencias.map((evidencia, index) => (
+                                <div key={index} className="border rounded-lg p-4 mb-3 bg-gray-50">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <h4 className="text-sm font-medium">Evidencia #{index + 1}</h4>
+                                        <button
+                                            type="button"
+                                            onClick={() => eliminarEvidencia(index)}
+                                            className="text-red-600 hover:text-red-800"
+                                        >
+                                            <i className="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                Tipo
+                                            </label>
+                                            <select
+                                                value={evidencia.tipo}
+                                                onChange={(e) => handleTipoEvidenciaChange(index, e.target.value)}
+                                                className="w-full border rounded-lg p-2 text-sm"
+                                            >
+                                                <option value="imagen">Imagen</option>
+                                                <option value="video">Video</option>
+                                                <option value="documento">Documento</option>
+                                                <option value="audio">Audio</option>
+                                                <option value="otro">Otro</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                Archivo *
+                                            </label>
+                                            <input
+                                                type="file"
+                                                onChange={(e) => handleFileChange(index, e.target.files?.[0] || null)}
+                                                className="w-full border rounded-lg p-2 text-sm"
+                                                accept={evidencia.tipo === 'imagen' ? 'image/*' : 
+                                                         evidencia.tipo === 'video' ? 'video/*' :
+                                                         evidencia.tipo === 'audio' ? 'audio/*' : 
+                                                         '*/*'}
+                                            />
+                                        </div>
+                                        
+                                        <div className="md:col-span-2">
+                                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                Descripción
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={evidencia.descripcion}
+                                                onChange={(e) => handleDescripcionChange(index, e.target.value)}
+                                                className="w-full border rounded-lg p-2 text-sm"
+                                                placeholder="Describa la evidencia..."
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {(!formData.tipo || !formData.descripcion) && (
                             <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mt-4">
                                 <p className="text-sm text-yellow-700">
                                     <i className="fas fa-info-circle mr-2"></i>
-                                    {!formData.tipo && !formData.condiciones_dia
-                                        ? "Selecciona un tipo de diagnóstico y las condiciones del día"
+                                    {!formData.tipo && !formData.descripcion
+                                        ? "Selecciona un tipo de diagnóstico y completa la descripción"
                                         : !formData.tipo
                                             ? "Selecciona un tipo de diagnóstico"
-                                            : "Selecciona las condiciones del día"}
+                                            : "Completa la descripción del diagnóstico"}
                                 </p>
                             </div>
                         )}
@@ -772,7 +888,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         </button>
                         <button
                             type="submit"
-                            disabled={!formData.tipo || !formData.condiciones_dia || plantasSeleccionadas.length === 0}
+                            disabled={!formData.tipo || !formData.descripcion || plantasSeleccionadas.length === 0}
                             className="bg-green-600 text-white px-5 py-2.5 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition flex items-center gap-2"
                         >
                             <i className="fas fa-save"></i>
