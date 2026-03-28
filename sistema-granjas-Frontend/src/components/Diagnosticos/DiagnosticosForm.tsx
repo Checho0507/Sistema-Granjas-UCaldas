@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { DiagnosticoItem, CrearDiagnosticoDTO, ArchivoEvidencia } from '../../types/diagnosticoTypes';
-import { monitoreoService, Monitoreo } from '../../services/monitoreoService'; // 👈 NUEVO
+import { monitoreoService, type Monitoreo } from '../../services/monitoreoService';
 import { CensoSection } from './CensoSection';
 import { FenologicoSection } from './FenologicoSection';
 import { ArthropodSection } from './ArthropodSection';
@@ -38,14 +38,14 @@ interface DiagnosticoFormProps {
     diagnostico?: DiagnosticoItem;
     onSubmit: (data: CrearDiagnosticoDTO & { 
         programa_id?: number; 
-        tipo_monitoreo?: number;  // 👈 AHORA ES NÚMERO (ID)
+        tipo_monitoreo?: number;  // ID del monitoreo
         plantas?: PlantaBase[];
         caracterizacion?: Record<string, string>;
     }) => void;
     onCancel: () => void;
     lotes: Lote[];
     programas: Programa[];
-    monitoreos?: Monitoreo[];  // 👈 OPCIONAL, para recibir desde padre si se quiere, pero se cargará internamente
+    monitoreos?: Monitoreo[];  // opcional, se cargarán internamente si no se proveen
     docentes: any[];
     estudiantes: any[];
     tipos: string[];
@@ -73,7 +73,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     // Estados del wizard
     const [paso, setPaso] = useState(1);
     const [programaSeleccionadoId, setProgramaSeleccionadoId] = useState<number | null>(null);
-    const [tipoMonitoreoId, setTipoMonitoreoId] = useState<number | null>(null); // 👈 NÚMERO
+    const [tipoMonitoreoId, setTipoMonitoreoId] = useState<number | null>(null);
     const [loteSeleccionadoId, setLoteSeleccionadoId] = useState<number | null>(null);
     const [plantasSeleccionadas, setPlantasSeleccionadas] = useState<PlantaBase[]>([]);
     const [caracterizacion, setCaracterizacion] = useState<Record<string, string>>({});
@@ -93,7 +93,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         docente_id: diagnostico?.docente_id || '',
     });
 
-    // Evidencias - Usando ArchivoEvidencia
+    // Evidencias
     const [evidencias, setEvidencias] = useState<ArchivoEvidencia[]>([]);
 
     // Roles
@@ -120,67 +120,54 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         cargarMonitoreos();
     }, [programaSeleccionadoId]);
 
-    // 👇 Filtrar lotes por programa seleccionado
+    // Filtrar lotes por programa seleccionado
     const lotesFiltrados = useMemo(() => {
         if (!programaSeleccionadoId || !lotes || lotes.length === 0) return [];
         return lotes.filter(lote => lote.programa_id === programaSeleccionadoId);
     }, [lotes, programaSeleccionadoId]);
 
-    // Obtener el programa seleccionado
     const programaSeleccionado = useMemo(() => {
         if (!programaSeleccionadoId || !programas || programas.length === 0) return null;
         return programas.find(p => p.id === programaSeleccionadoId);
     }, [programas, programaSeleccionadoId]);
 
-    // Obtener el lote seleccionado
     const loteSeleccionado = useMemo(() => {
         if (!loteSeleccionadoId || !lotesFiltrados.length) return null;
         return lotesFiltrados.find(l => l.id === loteSeleccionadoId);
     }, [lotesFiltrados, loteSeleccionadoId]);
 
-    // Obtener el monitoreo seleccionado (para mostrar label)
     const monitoreoSeleccionado = useMemo(() => {
         if (!tipoMonitoreoId || !monitoreos.length) return null;
         return monitoreos.find(m => m.id === tipoMonitoreoId);
     }, [monitoreos, tipoMonitoreoId]);
 
-    // Si es edición, cargar datos existentes
+    // Cargar datos en modo edición
     useEffect(() => {
         if (esEdicion && diagnostico) {
             setPaso(2);
-            
-            // Cargar lote si existe
             if (diagnostico.lote_id) {
                 setLoteSeleccionadoId(diagnostico.lote_id);
                 const lote = lotes.find(l => l.id === diagnostico.lote_id);
-                if (lote?.programa_id) {
-                    setProgramaSeleccionadoId(lote.programa_id);
-                }
+                if (lote?.programa_id) setProgramaSeleccionadoId(lote.programa_id);
             }
-            
-            // Cargar tipo de monitoreo si existe (como número)
             if ((diagnostico as any).tipo_monitoreo_id) {
                 setTipoMonitoreoId((diagnostico as any).tipo_monitoreo_id);
             } else if ((diagnostico as any).tipo_monitoreo && typeof (diagnostico as any).tipo_monitoreo === 'number') {
                 setTipoMonitoreoId((diagnostico as any).tipo_monitoreo);
             }
-            
-            // Cargar plantas si existen
-            if ((diagnostico as any).plantas && (diagnostico as any).plantas.length > 0) {
+            if ((diagnostico as any).plantas?.length > 0) {
                 setPlantasSeleccionadas((diagnostico as any).plantas);
             } else if (diagnostico.lote_id) {
                 const nuevas = generarPlantas(5);
                 setPlantasSeleccionadas(nuevas);
             }
-            
-            // Cargar caracterización si existe
             if ((diagnostico as any).caracterizacion) {
                 setCaracterizacion((diagnostico as any).caracterizacion);
             }
         }
     }, [esEdicion, diagnostico, lotes]);
 
-    // Auto-seleccionar lote si solo hay uno disponible después del filtro
+    // Auto‑selección de lote si solo hay uno
     useEffect(() => {
         if (!esEdicion && lotesFiltrados.length === 1 && !loteSeleccionadoId && !formData.lote_id) {
             const loteUnico = lotesFiltrados[0];
@@ -199,7 +186,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         }
     }, [currentUser, esEstudiante, esEdicion]);
 
-    // Generar plantas aleatorias
     const generarPlantas = useCallback((cantidad: number): PlantaBase[] => {
         try {
             const pares = new Set<string>();
@@ -221,13 +207,11 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         }
     }, []);
 
-    // Manejar cambio de lote
     const handleLoteChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         try {
             const loteId = e.target.value ? parseInt(e.target.value) : null;
             setLoteSeleccionadoId(loteId);
             setFormData(prev => ({ ...prev, lote_id: loteId?.toString() || '' }));
-            
             if (loteId) {
                 const nuevas = generarPlantas(5);
                 setPlantasSeleccionadas(nuevas);
@@ -240,16 +224,14 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         }
     };
 
-    // Manejar cambio de programa
     const handleProgramaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         try {
             const programaId = e.target.value ? parseInt(e.target.value) : null;
             setProgramaSeleccionadoId(programaId);
-            setTipoMonitoreoId(null); // Resetear tipo de monitoreo
+            setTipoMonitoreoId(null);
             setLoteSeleccionadoId(null);
             setFormData(prev => ({ ...prev, lote_id: '' }));
             setPlantasSeleccionadas([]);
-            
             if (programaId) {
                 toast.info(`Programa seleccionado: ${programas.find(p => p.id === programaId)?.nombre}`);
             }
@@ -259,7 +241,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         }
     };
 
-    // Ir al paso 2
     const handleSiguiente = () => {
         if (!programaSeleccionadoId) {
             toast.warning('Debe seleccionar un programa');
@@ -273,23 +254,16 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             toast.warning('Debe seleccionar un lote');
             return;
         }
-        
-        // Validar que el lote seleccionado pertenezca al programa
         const loteValido = lotesFiltrados.find(l => l.id === loteSeleccionadoId);
         if (!loteValido) {
             toast.error('El lote seleccionado no pertenece al programa elegido');
             return;
         }
-        
         setPaso(2);
     };
 
-    // Volver al paso 1
-    const handleAtras = () => {
-        setPaso(1);
-    };
+    const handleAtras = () => setPaso(1);
 
-    // Manejar cambios en campos básicos
     const handleChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
     ) => {
@@ -297,18 +271,13 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    // Manejar cambios en caracterización
     const handleCaracterizacionChange = (campo: string, valor: string) => {
         setCaracterizacion(prev => ({ ...prev, [campo]: valor }));
     };
 
-    // Evidencias - usando ArchivoEvidencia
+    // Evidencias
     const agregarEvidencia = () => {
-        setEvidencias(prev => [...prev, {
-            file: null as any,
-            descripcion: '',
-            tipo: 'imagen'
-        }]);
+        setEvidencias(prev => [...prev, { file: null as any, descripcion: '', tipo: 'imagen' }]);
     };
 
     const eliminarEvidencia = (index: number) => {
@@ -333,7 +302,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         setEvidencias(copia);
     };
 
-    // Colores e iconos para estado
     const getEstadoColor = (estado: string) => {
         const colores: Record<string, string> = {
             abierto: 'bg-green-100 text-green-800 border-green-200',
@@ -352,39 +320,32 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         return iconos[estado] || 'fas fa-question-circle';
     };
 
-    // Manejar envío final - usando CrearDiagnosticoDTO
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
         try {
-            // Validaciones finales
             if (!formData.tipo) {
                 toast.error('Debe seleccionar un tipo de diagnóstico');
                 return;
             }
-            
             if (!formData.descripcion) {
                 toast.error('Debe ingresar una descripción');
                 return;
             }
-            
             if (!loteSeleccionadoId) {
                 toast.error('Debe seleccionar un lote');
                 return;
             }
-
             if (!tipoMonitoreoId) {
                 toast.error('Debe seleccionar un tipo de monitoreo');
                 return;
             }
 
-            // Filtrar evidencias válidas (con archivo)
             const evidenciasValidas = evidencias.filter(ev => ev.file !== null && ev.file !== undefined);
 
-            // Construir datos finales según CrearDiagnosticoDTO
-            const datosSubmit: CrearDiagnosticoDTO & { 
-                programa_id?: number; 
-                tipo_monitoreo?: number;  // 👈 AHORA NÚMERO
+            const datosSubmit: CrearDiagnosticoDTO & {
+                programa_id?: number;
+                tipo_monitoreo?: number;
                 plantas?: PlantaBase[];
                 caracterizacion?: Record<string, string>;
                 condiciones_dia?: string;
@@ -395,22 +356,20 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                 estudiante_id: formData.estudiante_id ? parseInt(formData.estudiante_id as string) : undefined,
                 docente_id: formData.docente_id ? parseInt(formData.docente_id as string) : undefined,
                 evidencias: evidenciasValidas.length > 0 ? evidenciasValidas : undefined,
-                // Campos adicionales para el formulario
                 programa_id: programaSeleccionadoId || undefined,
-                tipo_monitoreo: tipoMonitoreoId,  // 👈 ENVIAMOS EL ID
+                tipo_monitoreo: tipoMonitoreoId,
                 plantas: plantasSeleccionadas,
                 caracterizacion: caracterizacion,
                 condiciones_dia: formData.condiciones_dia
             };
 
-            // Si es edición, añadir campos específicos
             if (esEdicion && diagnostico) {
                 (datosSubmit as any).id = diagnostico.id;
                 (datosSubmit as any).estado = formData.estado;
                 (datosSubmit as any).observaciones = formData.observaciones;
             }
 
-            console.log("📤 Enviando datos (CrearDiagnosticoDTO):", datosSubmit);
+            console.log("📤 Enviando datos:", datosSubmit);
             onSubmit(datosSubmit);
             toast.success(esEdicion ? 'Diagnóstico actualizado' : 'Diagnóstico creado');
         } catch (err) {
@@ -419,7 +378,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         }
     };
 
-    // Debug logs
     console.log('🔍 Debug - DiagnosticoForm:', {
         programas: programas.length,
         lotes: lotes.length,
@@ -435,7 +393,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                 {esEdicion ? 'Editar Diagnóstico' : 'Nuevo Diagnóstico'}
             </h2>
 
-            {/* Indicador de pasos */}
             <div className="flex mb-6">
                 <div className={`flex-1 text-center py-2 rounded-l-lg ${paso === 1 ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>
                     Paso 1: Seleccionar programa, monitoreo y lote
@@ -447,11 +404,9 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
 
             {paso === 1 && (
                 <div className="space-y-6">
-                    {/* 1. Selección de Programa */}
+                    {/* Programa */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Programa *
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Programa *</label>
                         <select
                             value={programaSeleccionadoId?.toString() || ''}
                             onChange={handleProgramaChange}
@@ -459,29 +414,21 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                             required
                         >
                             <option value="">Seleccionar programa</option>
-                            {programas && programas.length > 0 ? (
-                                programas.map(programa => (
-                                    <option key={programa.id} value={programa.id}>
-                                        {programa.nombre}
-                                    </option>
-                                ))
-                            ) : (
-                                <option disabled>Cargando programas...</option>
-                            )}
+                            {programas.map(programa => (
+                                <option key={programa.id} value={programa.id}>
+                                    {programa.nombre}
+                                </option>
+                            ))}
                         </select>
                         {programaSeleccionado && (
-                            <p className="text-sm text-green-600 mt-2">
-                                ✓ Programa seleccionado: {programaSeleccionado.nombre}
-                            </p>
+                            <p className="text-sm text-green-600 mt-2">✓ Programa seleccionado: {programaSeleccionado.nombre}</p>
                         )}
                     </div>
 
-                    {/* 2. Selección de Tipo de Monitoreo (desde BD) */}
+                    {/* Monitoreos */}
                     {programaSeleccionadoId && (
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Tipo de Monitoreo *
-                            </label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Monitoreo *</label>
                             {monitoreos.length > 0 ? (
                                 <div className="grid grid-cols-2 gap-4">
                                     {monitoreos.map(monitoreo => (
@@ -506,20 +453,15 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                         <i className="fas fa-info-circle mr-2"></i>
                                         Este programa no tiene tipos de monitoreo configurados.
                                     </p>
-                                    <p className="text-xs text-yellow-600 mt-1">
-                                        Contacta al administrador para agregar tipos de monitoreo.
-                                    </p>
                                 </div>
                             )}
                         </div>
                     )}
 
-                    {/* 3. Selección de Lote */}
+                    {/* Lote */}
                     {tipoMonitoreoId && (
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Lote *
-                            </label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Lote *</label>
                             {lotesFiltrados.length > 0 ? (
                                 <>
                                     <select
@@ -537,9 +479,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                     </select>
                                     {loteSeleccionado && (
                                         <div className="mt-2 space-y-1">
-                                            <p className="text-sm text-green-600">
-                                                ✓ Lote seleccionado: {loteSeleccionado.nombre}
-                                            </p>
+                                            <p className="text-sm text-green-600">✓ Lote seleccionado: {loteSeleccionado.nombre}</p>
                                             {plantasSeleccionadas.length > 0 && (
                                                 <p className="text-sm text-blue-600">
                                                     <i className="fas fa-seedling mr-1"></i>
@@ -560,7 +500,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         </div>
                     )}
 
-                    {/* Botones */}
                     <div className="flex justify-end pt-4">
                         <button
                             type="button"
@@ -578,7 +517,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             {paso === 2 && (
                 <form onSubmit={handleSubmit}>
                     <div className="space-y-6">
-                        {/* Resumen de selección */}
+                        {/* Resumen */}
                         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
                             <div className="flex justify-between items-start">
                                 <div className="space-y-2">
@@ -609,19 +548,16 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                     onClick={handleAtras}
                                     className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1"
                                 >
-                                    <i className="fas fa-edit"></i>
-                                    Cambiar selección
+                                    <i className="fas fa-edit"></i> Cambiar selección
                                 </button>
                             </div>
                         </div>
 
-                        {/* Sección de estado (solo edición) */}
+                        {/* Estado (solo edición) */}
                         {esEdicion && (esAdmin || esDocente) && (
                             <div className="mb-4 p-4 border rounded-lg bg-gray-50">
                                 <div className="flex justify-between items-center mb-3">
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        Estado del Diagnóstico
-                                    </label>
+                                    <label className="block text-sm font-medium text-gray-700">Estado del Diagnóstico</label>
                                     {diagnostico && (
                                         <div className={`px-3 py-1 rounded-full text-sm font-medium ${getEstadoColor(diagnostico.estado)}`}>
                                             <i className={`${getEstadoIcon(diagnostico.estado)} mr-2`}></i>
@@ -629,7 +565,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                         </div>
                                     )}
                                 </div>
-
                                 <div className="grid grid-cols-3 gap-2">
                                     {estados.map(estado => (
                                         <div key={estado} className="flex items-center">
@@ -642,10 +577,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                                 onChange={handleChange}
                                                 className="mr-2"
                                             />
-                                            <label
-                                                htmlFor={`estado_${estado}`}
-                                                className="flex items-center text-sm cursor-pointer"
-                                            >
+                                            <label htmlFor={`estado_${estado}`} className="flex items-center text-sm cursor-pointer">
                                                 <span className={`w-3 h-3 rounded-full mr-2 ${getEstadoColor(estado)}`}></span>
                                                 {estado === 'abierto' && 'Abierto'}
                                                 {estado === 'en_revision' && 'En Revisión'}
@@ -657,18 +589,15 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                             </div>
                         )}
 
-                        {/* Campos del formulario */}
+                        {/* Campos principales */}
                         <div className="grid grid-cols-1 gap-4">
-                            {/* Tipo de Diagnóstico */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Tipo de Diagnóstico *
-                                </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Diagnóstico *</label>
                                 <select
                                     name="tipo"
                                     value={formData.tipo}
                                     onChange={handleChange}
-                                    className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    className="w-full border rounded-lg p-3"
                                     required
                                 >
                                     <option value="">Seleccionar tipo</option>
@@ -680,156 +609,97 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                 </select>
                             </div>
 
-                            {/* Condiciones del día */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Condiciones del día *
-                                </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Condiciones del día *</label>
                                 <select
                                     name="condiciones_dia"
                                     value={formData.condiciones_dia}
                                     onChange={handleChange}
-                                    className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    className="w-full border rounded-lg p-3"
                                     required
                                 >
                                     <option value="">Seleccionar condiciones</option>
                                     {condiciones_dia.map(cond => (
-                                        <option key={cond} value={cond}>
-                                            {cond}
-                                        </option>
+                                        <option key={cond} value={cond}>{cond}</option>
                                     ))}
                                 </select>
                             </div>
 
-                            {/* Descripción */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Descripción *
-                                </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Descripción *</label>
                                 <textarea
                                     name="descripcion"
                                     value={formData.descripcion}
                                     onChange={handleChange}
                                     rows={4}
-                                    className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    className="w-full border rounded-lg p-3"
                                     placeholder="Describa el diagnóstico realizado..."
                                     required
                                 />
                             </div>
 
-                            {/* Observaciones (solo edición) */}
                             {esEdicion && (
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Observaciones
-                                    </label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Observaciones</label>
                                     <textarea
                                         name="observaciones"
                                         value={formData.observaciones}
                                         onChange={handleChange}
                                         rows={3}
-                                        className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        className="w-full border rounded-lg p-3"
                                         placeholder="Observaciones adicionales..."
                                     />
                                 </div>
                             )}
                         </div>
 
-                        {/* Secciones específicas según el tipo de diagnóstico */}
+                        {/* Secciones específicas por tipo */}
                         {formData.tipo && plantasSeleccionadas.length > 0 && (
                             <div className="mt-4">
                                 {formData.tipo === 'censo_poblacional' && (
-                                    <CensoSection
-                                        plantas={plantasSeleccionadas}
-                                        caracterizacion={caracterizacion}
-                                        onCampoChange={handleCaracterizacionChange}
-                                    />
+                                    <CensoSection plantas={plantasSeleccionadas} caracterizacion={caracterizacion} onCampoChange={handleCaracterizacionChange} />
                                 )}
                                 {formData.tipo === 'monitoreo_fenologico' && (
-                                    <FenologicoSection
-                                        plantas={plantasSeleccionadas.map(p => ({ ...p, fase: '' }))}
-                                        caracterizacion={caracterizacion}
-                                        onCampoChange={handleCaracterizacionChange}
-                                        onFaseChange={(idx, fase) => {}}
-                                    />
+                                    <FenologicoSection plantas={plantasSeleccionadas.map(p => ({ ...p, fase: '' }))} caracterizacion={caracterizacion} onCampoChange={handleCaracterizacionChange} onFaseChange={() => {}} />
                                 )}
                                 {formData.tipo === 'artropodos' && (
-                                    <ArthropodSection
-                                        plantas={plantasSeleccionadas}
-                                        caracterizacion={caracterizacion}
-                                        onCampoChange={handleCaracterizacionChange}
-                                    />
+                                    <ArthropodSection plantas={plantasSeleccionadas} caracterizacion={caracterizacion} onCampoChange={handleCaracterizacionChange} />
                                 )}
                                 {formData.tipo === 'enfermedades' && (
-                                    <EnfermedadesSection
-                                        plantas={plantasSeleccionadas}
-                                        caracterizacion={caracterizacion}
-                                        onCampoChange={handleCaracterizacionChange}
-                                    />
+                                    <EnfermedadesSection plantas={plantasSeleccionadas} caracterizacion={caracterizacion} onCampoChange={handleCaracterizacionChange} />
                                 )}
                                 {formData.tipo === 'arvenses' && (
-                                    <ArvensesSection
-                                        plantas={plantasSeleccionadas}
-                                        caracterizacion={caracterizacion}
-                                        onCampoChange={handleCaracterizacionChange}
-                                    />
+                                    <ArvensesSection plantas={plantasSeleccionadas} caracterizacion={caracterizacion} onCampoChange={handleCaracterizacionChange} />
                                 )}
                                 {formData.tipo === 'controladores_biologicos' && (
-                                    <ControladoresSection
-                                        plantas={plantasSeleccionadas}
-                                        caracterizacion={caracterizacion}
-                                        onCampoChange={handleCaracterizacionChange}
-                                    />
+                                    <ControladoresSection plantas={plantasSeleccionadas} caracterizacion={caracterizacion} onCampoChange={handleCaracterizacionChange} />
                                 )}
                                 {formData.tipo === 'polinizadores' && (
-                                    <PolinizadoresSection
-                                        plantas={plantasSeleccionadas}
-                                        caracterizacion={caracterizacion}
-                                        onCampoChange={handleCaracterizacionChange}
-                                    />
+                                    <PolinizadoresSection plantas={plantasSeleccionadas} caracterizacion={caracterizacion} onCampoChange={handleCaracterizacionChange} />
                                 )}
                             </div>
                         )}
 
-                        {/* Sección de evidencias */}
+                        {/* Evidencias */}
                         <div className="mt-6">
                             <div className="flex justify-between items-center mb-3">
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Evidencias
-                                </label>
-                                <button
-                                    type="button"
-                                    onClick={agregarEvidencia}
-                                    className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
-                                >
-                                    <i className="fas fa-plus"></i>
-                                    Agregar evidencia
+                                <label className="block text-sm font-medium text-gray-700">Evidencias</label>
+                                <button type="button" onClick={agregarEvidencia} className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1">
+                                    <i className="fas fa-plus"></i> Agregar evidencia
                                 </button>
                             </div>
-                            
                             {evidencias.map((evidencia, index) => (
                                 <div key={index} className="border rounded-lg p-4 mb-3 bg-gray-50">
                                     <div className="flex justify-between items-start mb-3">
                                         <h4 className="text-sm font-medium">Evidencia #{index + 1}</h4>
-                                        <button
-                                            type="button"
-                                            onClick={() => eliminarEvidencia(index)}
-                                            className="text-red-600 hover:text-red-800"
-                                        >
+                                        <button type="button" onClick={() => eliminarEvidencia(index)} className="text-red-600 hover:text-red-800">
                                             <i className="fas fa-trash"></i>
                                         </button>
                                     </div>
-                                    
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                                                Tipo
-                                            </label>
-                                            <select
-                                                value={evidencia.tipo}
-                                                onChange={(e) => handleTipoEvidenciaChange(index, e.target.value)}
-                                                className="w-full border rounded-lg p-2 text-sm"
-                                            >
+                                            <label className="block text-xs font-medium text-gray-700 mb-1">Tipo</label>
+                                            <select value={evidencia.tipo} onChange={(e) => handleTipoEvidenciaChange(index, e.target.value)} className="w-full border rounded-lg p-2 text-sm">
                                                 <option value="imagen">Imagen</option>
                                                 <option value="video">Video</option>
                                                 <option value="documento">Documento</option>
@@ -837,26 +707,17 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                                 <option value="otro">Otro</option>
                                             </select>
                                         </div>
-                                        
                                         <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                                                Archivo *
-                                            </label>
+                                            <label className="block text-xs font-medium text-gray-700 mb-1">Archivo *</label>
                                             <input
                                                 type="file"
                                                 onChange={(e) => handleFileChange(index, e.target.files?.[0] || null)}
                                                 className="w-full border rounded-lg p-2 text-sm"
-                                                accept={evidencia.tipo === 'imagen' ? 'image/*' : 
-                                                         evidencia.tipo === 'video' ? 'video/*' :
-                                                         evidencia.tipo === 'audio' ? 'audio/*' : 
-                                                         '*/*'}
+                                                accept={evidencia.tipo === 'imagen' ? 'image/*' : evidencia.tipo === 'video' ? 'video/*' : evidencia.tipo === 'audio' ? 'audio/*' : '*/*'}
                                             />
                                         </div>
-                                        
                                         <div className="md:col-span-2">
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                                                Descripción
-                                            </label>
+                                            <label className="block text-xs font-medium text-gray-700 mb-1">Descripción</label>
                                             <input
                                                 type="text"
                                                 value={evidencia.descripcion}
@@ -870,6 +731,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                             ))}
                         </div>
 
+                        {/* Mensajes de advertencia */}
                         {(!formData.tipo || !formData.descripcion) && (
                             <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mt-4">
                                 <p className="text-sm text-yellow-700">
@@ -882,7 +744,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                 </p>
                             </div>
                         )}
-
                         {formData.tipo && plantasSeleccionadas.length === 0 && (
                             <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mt-4">
                                 <p className="text-sm text-yellow-700">
@@ -893,23 +754,16 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         )}
                     </div>
 
-                    {/* Botones de acción */}
                     <div className="flex justify-end gap-3 mt-8 pt-5 border-t">
-                        <button
-                            type="button"
-                            onClick={onCancel}
-                            className="px-5 py-2.5 border rounded-lg hover:bg-gray-100 transition flex items-center gap-2"
-                        >
-                            <i className="fas fa-times"></i>
-                            Cancelar
+                        <button type="button" onClick={onCancel} className="px-5 py-2.5 border rounded-lg hover:bg-gray-100 transition flex items-center gap-2">
+                            <i className="fas fa-times"></i> Cancelar
                         </button>
                         <button
                             type="submit"
                             disabled={!formData.tipo || !formData.descripcion || plantasSeleccionadas.length === 0}
                             className="bg-green-600 text-white px-5 py-2.5 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition flex items-center gap-2"
                         >
-                            <i className="fas fa-save"></i>
-                            {esEdicion ? 'Actualizar' : 'Crear'} Diagnóstico
+                            <i className="fas fa-save"></i> {esEdicion ? 'Actualizar' : 'Crear'} Diagnóstico
                         </button>
                     </div>
                 </form>
