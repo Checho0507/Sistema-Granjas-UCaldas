@@ -546,7 +546,7 @@ const CuadranteArthropod: React.FC<{
   ];
 
   const acaroTiposDisponibles = [
-    { value: 'polyphagotarsonemus', label: <><em>Polyphagotarsonemus sp.</em> - Ácaro blanco</>, image: 'polyphagotarsonemussp.png' },
+    { value: 'polyphagotarsonemus', label: <><em>Polyphago tarsonemus sp.</em> - Ácaro blanco</>, image: 'polyphagotarsonemussp.png' },
     { value: 'phyllocoptruta', label: <><em>Phyllocoptruta sp.</em> - Ácaro tostador</>, image: 'phyllocoptrutasp.png' },
   ];
 
