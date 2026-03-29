@@ -719,15 +719,14 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         </div>
 
                         {/* Mensajes de advertencia */}
-                        {(!formData.tipo || !formData.descripcion) && (
+                        {(!formData.tipo || !formData.condiciones_dia) && (
                             <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mt-4">
                                 <p className="text-sm text-yellow-700">
                                     <i className="fas fa-info-circle mr-2"></i>
                                     {!formData.tipo && !formData.descripcion
-                                        ? "Selecciona un tipo de diagnóstico y completa la descripción"
+                                        ? "Selecciona un tipo de diagnóstico y las condiciones del día"
                                         : !formData.tipo
-                                            ? "Selecciona un tipo de diagnóstico"
-                                            : "Completa la descripción del diagnóstico"}
+                                            ? "Selecciona un tipo de diagnóstico": "Selecciona las condiciones del día"}
                                 </p>
                             </div>
                         )}
