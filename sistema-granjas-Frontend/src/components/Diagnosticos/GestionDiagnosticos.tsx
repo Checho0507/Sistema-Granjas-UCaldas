@@ -207,19 +207,6 @@ const GestionDiagnosticos: React.FC = () => {
                 <div className="flex justify-between items-center mb-4">
                     <h1 className="text-2xl font-bold text-gray-800">Gestión de Diagnósticos</h1>
                     <div className="flex gap-2">
-                        {user?.rol_id === 1 && (
-                            <button
-                                onClick={handleExportDiagnosticos}
-                                disabled={exporting}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50"
-                            >
-                                <i className={`fas ${exporting ? 'fa-spinner fa-spin' : 'fa-file-excel'}`}></i>
-                                <span>{exporting ? 'Exportando...' : 'Exportar a Excel'}</span>
-                            </button>
-                        )}
-                        {exportMessage && (
-                            <span className="text-sm text-gray-600 self-center">{exportMessage}</span>
-                        )}
                         <button
                             onClick={() => setShowCrearModal(true)}
                             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
