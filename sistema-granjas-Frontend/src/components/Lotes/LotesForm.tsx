@@ -32,6 +32,17 @@ const LoteForm: React.FC<LoteFormProps> = ({
     const [cultivos, setCultivos] = useState<any[]>([]);
     const [cargandoCultivos, setCargandoCultivos] = useState(false);
     const [enviando, setEnviando] = useState(false);
+    const [totalPlantas, setTotalPlantas] = useState<number | null>(null);
+
+    // Calcular total de plantas cuando cambian surcos o plantas_por_surco
+    useEffect(() => {
+        if (datosFormulario.surcos && datosFormulario.plantas_por_surco) {
+            const total = datosFormulario.surcos * datosFormulario.plantas_por_surco;
+            setTotalPlantas(total);
+        } else {
+            setTotalPlantas(null);
+        }
+    }, [datosFormulario.surcos, datosFormulario.plantas_por_surco]);
 
     // Efecto para cargar cultivos cuando cambia la granja seleccionada
     useEffect(() => {
@@ -109,10 +120,25 @@ const LoteForm: React.FC<LoteFormProps> = ({
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
+        
+        let parsedValue: any = value;
+        
+        // Manejar campos numéricos
+        if (type === 'number') {
+            parsedValue = value === '' ? null : parseInt(value);
+            // Validar que no sean números negativos
+            if (parsedValue !== null && parsedValue < 0) {
+                toast.error(`El campo ${name} no puede ser negativo`, {
+                    duration: 3000,
+                    position: 'top-right'
+                });
+                return;
+            }
+        }
 
         setDatosFormulario((prev: any) => ({
             ...prev,
-            [name]: type === 'number' ? parseInt(value) || 0 : value
+            [name]: parsedValue
         }));
 
         // Si cambia la granja, resetear los cultivos seleccionados
@@ -191,6 +217,27 @@ const LoteForm: React.FC<LoteFormProps> = ({
         return true;
     };
 
+    // Validar campos numéricos
+    const validarCamposNumericos = (): boolean => {
+        if (datosFormulario.surcos !== null && datosFormulario.surcos !== undefined && datosFormulario.surcos <= 0) {
+            toast.error('El número de surcos debe ser mayor a 0', {
+                duration: 4000,
+                position: 'top-right'
+            });
+            return false;
+        }
+        
+        if (datosFormulario.plantas_por_surco !== null && datosFormulario.plantas_por_surco !== undefined && datosFormulario.plantas_por_surco <= 0) {
+            toast.error('El número de plantas por surco debe ser mayor a 0', {
+                duration: 4000,
+                position: 'top-right'
+            });
+            return false;
+        }
+        
+        return true;
+    };
+
     // Manejar envío del formulario
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -214,6 +261,10 @@ const LoteForm: React.FC<LoteFormProps> = ({
         }
 
         if (!validarNombreLote(datosFormulario.nombre.trim())) {
+            return;
+        }
+
+        if (!validarCamposNumericos()) {
             return;
         }
 
@@ -406,6 +457,66 @@ const LoteForm: React.FC<LoteFormProps> = ({
                                     Programa fijo para este lote
                                 </p>
                             )}
+                        </div>
+
+                        {/* Surcos */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Número de Surcos
+                            </label>
+                            <input
+                                type="number"
+                                name="surcos"
+                                value={datosFormulario.surcos === null || datosFormulario.surcos === undefined ? '' : datosFormulario.surcos}
+                                onChange={handleChange}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                placeholder="Ej: 50"
+                                min="0"
+                                step="1"
+                                disabled={enviando}
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                                Cantidad total de surcos en el lote
+                            </p>
+                        </div>
+
+                        {/* Plantas por Surco */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Plantas por Surco
+                            </label>
+                            <input
+                                type="number"
+                                name="plantas_por_surco"
+                                value={datosFormulario.plantas_por_surco === null || datosFormulario.plantas_por_surco === undefined ? '' : datosFormulario.plantas_por_surco}
+                                onChange={handleChange}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                placeholder="Ej: 100"
+                                min="0"
+                                step="1"
+                                disabled={enviando}
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                                Cantidad de plantas por cada surco
+                            </p>
+                        </div>
+
+                        {/* Total de Plantas (solo lectura) */}
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Total de Plantas (calculado)
+                            </label>
+                            <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-700">
+                                {totalPlantas !== null ? (
+                                    <span className="font-semibold text-green-600">
+                                        {totalPlantas.toLocaleString('es-ES')} plantas
+                                    </span>
+                                ) : (
+                                    <span className="text-gray-400 italic">
+                                        Ingrese surcos y plantas por surco para calcular el total
+                                    </span>
+                                )}
+                            </div>
                         </div>
 
                         {/* Cultivos Múltiples */}
