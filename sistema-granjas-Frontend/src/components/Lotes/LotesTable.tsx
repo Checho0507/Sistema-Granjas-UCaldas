@@ -188,6 +188,7 @@ const LotesTable: React.FC<LotesTableProps> = ({
             </div>
         );
     };
+    
 
     // Logs para depuración
     console.log('📋 Lotes recibidos (original):', lotes);
