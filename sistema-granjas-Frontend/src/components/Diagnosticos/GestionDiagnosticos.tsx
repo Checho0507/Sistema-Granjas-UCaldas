@@ -7,7 +7,7 @@ import monitoreoService from '../../services/monitoreoService';
 import type { DiagnosticoItem, DiagnosticoFiltros } from '../../types/diagnosticoTypes';
 import Modal from '../Common/Modal';
 import DiagnosticosTable from './DiagnosticosTable';
-import DiagnosticoForm from './DiagnosticoForm';        // ✅ Cambiado: sin "s"
+import DiagnosticoForm from './DiagnosticosForm';        // ✅ Cambiado: sin "s"
 import AgregarEvidenciaModal from './AgregarEvidenciaModal';
 import DetallesDiagnosticoModal from './DetallesDiagnosticoModal';
 import { useAuth } from '../../hooks/useAuth';
