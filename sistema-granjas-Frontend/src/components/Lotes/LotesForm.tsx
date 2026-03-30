@@ -14,7 +14,7 @@ interface LoteFormProps {
     tiposLote: any[];
     granjas: any[];
     programas: any[];
-    programaIdFijo?: number; // Para cuando el lote está en contexto de un programa
+    programaIdFijo?: number;
 }
 
 const LoteForm: React.FC<LoteFormProps> = ({
@@ -33,134 +33,129 @@ const LoteForm: React.FC<LoteFormProps> = ({
     const [cargandoCultivos, setCargandoCultivos] = useState(false);
     const [enviando, setEnviando] = useState(false);
 
-    // Efecto para cargar cultivos cuando cambia la granja seleccionada
+    // 🔥 Formatear fecha para input type="date"
+    const formatDate = (date: any) => {
+        if (!date) return '';
+        const d = new Date(date);
+        return d.toISOString().split('T')[0];
+    };
+
+    // 🔥 Cargar cultivos por granja
     useEffect(() => {
-        const cargarCultivosDeGranja = async () => {
-            if (datosFormulario.granja_id) {
-                setCargandoCultivos(true);
-
-                const loadingTimeout = setTimeout(() => {
-                    toast.loading('Cargando cultivos de la granja...', {
-                        id: 'cargando-cultivos'
-                    });
-                }, 500);
-
-                try {
-                    const cultivosData = await cultivoService.obtenerCultivosPorGranja(datosFormulario.granja_id);
-                    setCultivos(cultivosData);
-
-                    clearTimeout(loadingTimeout);
-                    toast.dismiss('cargando-cultivos');
-
-                    if (cultivosData.length > 0) {
-                        toast.success(`${cultivosData.length} cultivo(s) cargado(s)`, {
-                            duration: 2000,
-                            position: 'top-right'
-                        });
-                    }
-
-                    // Si estamos editando, validar que los cultivos seleccionados sigan existiendo
-                    if (editando && datosFormulario.cultivos_ids?.length > 0) {
-                        const idsValidos = datosFormulario.cultivos_ids.filter((id: number) =>
-                            cultivosData.some(c => c.id === id)
-                        );
-                        
-                        if (idsValidos.length !== datosFormulario.cultivos_ids.length) {
-                            setDatosFormulario((prev: any) => ({
-                                ...prev,
-                                cultivos_ids: idsValidos
-                            }));
-                            
-                            toast('Algunos cultivos ya no están disponibles', {
-                                duration: 3000,
-                                icon: '⚠️',
-                                position: 'top-right'
-                            });
-                        }
-                    }
-                } catch (error: any) {
-                    console.error('Error cargando cultivos:', error);
-                    setCultivos([]);
-
-                    clearTimeout(loadingTimeout);
-                    toast.dismiss('cargando-cultivos');
-
-                    toast.error('Error al cargar los cultivos de la granja', {
-                        duration: 4000,
-                        position: 'top-right'
-                    });
-                } finally {
-                    setCargandoCultivos(false);
-                }
-            } else {
+        const cargarCultivos = async () => {
+            if (!datosFormulario.granja_id) {
                 setCultivos([]);
-                // Resetear cultivos si no hay granja seleccionada
                 setDatosFormulario((prev: any) => ({
                     ...prev,
                     cultivos_ids: []
                 }));
+                return;
+            }
+
+            setCargandoCultivos(true);
+
+            try {
+                const data = await cultivoService.obtenerCultivosPorGranja(datosFormulario.granja_id);
+                setCultivos(data);
+
+                // Validar cultivos existentes en edición
+                if (editando && datosFormulario.cultivos_ids?.length) {
+                    const validos = datosFormulario.cultivos_ids.filter((id: number) =>
+                        data.some((c: any) => c.id === id)
+                    );
+
+                    if (validos.length !== datosFormulario.cultivos_ids.length) {
+                        setDatosFormulario((prev: any) => ({
+                            ...prev,
+                            cultivos_ids: validos
+                        }));
+                    }
+                }
+
+            } catch (error) {
+                console.error(error);
+                setCultivos([]);
+                toast.error('Error cargando cultivos');
+            } finally {
+                setCargandoCultivos(false);
             }
         };
 
-        if (isOpen) {
-            cargarCultivosDeGranja();
-        }
-    }, [datosFormulario.granja_id, isOpen, editando]);
+        if (isOpen) cargarCultivos();
+    }, [datosFormulario.granja_id, isOpen, editando, setDatosFormulario]);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-        const { name, value, type } = e.target;
+    // 🔥 Manejo correcto de cambios
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+
+        let parsedValue: any = value;
+
+        // Convertir a número si aplica
+        if (['tipo_lote_id', 'granja_id', 'programa_id'].includes(name)) {
+            parsedValue = value ? parseInt(value) : null;
+        }
 
         setDatosFormulario((prev: any) => ({
             ...prev,
-            [name]: type === 'number' ? parseInt(value) || 0 : value
+            [name]: parsedValue
         }));
 
-        // Si cambia la granja, resetear los cultivos seleccionados
+        // 🔥 Reset cultivos si cambia granja
         if (name === 'granja_id') {
             setDatosFormulario((prev: any) => ({
                 ...prev,
                 cultivos_ids: []
             }));
-
-            const granjaSeleccionada = granjas.find(g => g.id === parseInt(value));
-            if (granjaSeleccionada) {
-                toast.success(`Granja "${granjaSeleccionada.nombre}" seleccionada`, {
-                    duration: 2000,
-                    position: 'top-right'
-                });
-            }
-        }
-
-        if (name === 'tipo_lote_id') {
-            const tipoLoteSeleccionado = tiposLote.find(t => t.id === parseInt(value));
-            if (tipoLoteSeleccionado) {
-                toast(`Tipo de lote: ${tipoLoteSeleccionado.nombre}`, {
-                    duration: 2000,
-                    position: 'top-right'
-                });
-            }
-        }
-
-        if (name === 'programa_id') {
-            const programaSeleccionado = programas.find(p => p.id === parseInt(value));
-            if (programaSeleccionado) {
-                toast.success(`Programa: ${programaSeleccionado.nombre}`, {
-                    duration: 2000,
-                    position: 'top-right'
-                });
-            }
         }
     };
 
-    // Manejar cambio de cultivos seleccionados
-    const handleCultivosChange = (selectedIds: number[]) => {
+    const handleCultivosChange = (ids: number[]) => {
         setDatosFormulario((prev: any) => ({
             ...prev,
-            cultivos_ids: selectedIds
+            cultivos_ids: ids
         }));
     };
 
-    // Opciones de estado
+    const validarNombre = (nombre: string) => {
+        if (!nombre) return false;
+
+        const regex = /^[\p{L}0-9\s\-.,()]+$/u;
+        return regex.test(nombre);
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (enviando) return;
+
+        if (!datosFormulario.nombre?.trim()) {
+            toast.error('Nombre requerido');
+            return;
+        }
+
+        if (!validarNombre(datosFormulario.nombre)) {
+            toast.error('Nombre inválido');
+            return;
+        }
+
+        if (!datosFormulario.cultivos_ids?.length) {
+            toast.error('Selecciona al menos un cultivo');
+            return;
+        }
+
+        setEnviando(true);
+
+        try {
+            await onSubmit(e);
+            toast.success(editando ? 'Lote actualizado' : 'Lote creado');
+            onClose();
+        } catch (error: any) {
+            console.error(error);
+            toast.error(error?.message || 'Error al guardar');
+        } finally {
+            setEnviando(false);
+        }
+    };
+
     const estados = [
         { value: 'activo', label: 'Activo' },
         { value: 'inactivo', label: 'Inactivo' },
@@ -168,355 +163,94 @@ const LoteForm: React.FC<LoteFormProps> = ({
         { value: 'completado', label: 'Completado' }
     ];
 
-    // Validar nombre del lote
-    const validarNombreLote = (nombre: string): boolean => {
-        const regexValido = /^[\p{L}0-9\s\-.,()]+$/u;
-        
-        if (!regexValido.test(nombre)) {
-            toast.error('El nombre contiene caracteres no permitidos. Solo letras, números y espacios', {
-                duration: 5000,
-                position: 'top-right'
-            });
-            return false;
-        }
-
-        if (/^[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/.test(nombre) || /[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]$/.test(nombre)) {
-            toast.error('El nombre no puede empezar o terminar con caracteres especiales', {
-                duration: 5000,
-                position: 'top-right'
-            });
-            return false;
-        }
-
-        return true;
-    };
-
-    // Manejar envío del formulario
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (enviando) return;
-
-        // Validaciones
-        if (!datosFormulario.cultivos_ids || datosFormulario.cultivos_ids.length === 0) {
-            toast.error('Por favor selecciona al menos un cultivo', {
-                duration: 4000,
-                position: 'top-right'
-            });
-            return;
-        }
-
-        if (!datosFormulario.nombre.trim()) {
-            toast.error('Por favor ingresa un nombre para el lote', {
-                duration: 4000,
-                position: 'top-right'
-            });
-            return;
-        }
-
-        if (!validarNombreLote(datosFormulario.nombre.trim())) {
-            return;
-        }
-
-        setEnviando(true);
-
-        try {
-            const loadingToast = toast.loading(
-                editando ? 'Actualizando lote...' : 'Creando lote...',
-                { id: 'enviando-lote' }
-            );
-
-            await onSubmit(e);
-
-            toast.dismiss(loadingToast);
-            toast.success(
-                editando ? '¡Lote actualizado exitosamente!' : '¡Lote creado exitosamente!',
-                { duration: 3000, position: 'top-right' }
-            );
-
-            setTimeout(() => {
-                onClose();
-            }, 500);
-
-        } catch (error: any) {
-            console.error('Error en handleSubmit del formulario:', error);
-            toast.dismiss('enviando-lote');
-
-            if (error.response?.data?.detail) {
-                const errores = error.response.data.detail;
-                if (Array.isArray(errores)) {
-                    errores.forEach((err: any) => {
-                        toast.error(`Error: ${err.msg || 'Error desconocido'}`, {
-                            duration: 5000,
-                            position: 'top-right'
-                        });
-                    });
-                } else {
-                    toast.error(`Error: ${errores}`, {
-                        duration: 5000,
-                        position: 'top-right'
-                    });
-                }
-            } else if (error.message) {
-                toast.error(`Error: ${error.message}`, {
-                    duration: 5000,
-                    position: 'top-right'
-                });
-            }
-        } finally {
-            setEnviando(false);
-        }
-    };
-
-    // Determinar si el campo programa debe estar deshabilitado
-    const programaDeshabilitado = !!programaIdFijo || enviando;
-
     return (
         <Modal
             isOpen={isOpen}
-            onClose={() => {
-                if (enviando) {
-                    toast.error('Por favor espera a que termine la operación actual');
-                    return;
-                }
-
-                if (datosFormulario.nombre || datosFormulario.granja_id) {
-                    const confirmar = window.confirm('¿Estás seguro de cancelar? Los cambios no guardados se perderán.');
-                    if (!confirmar) return;
-                }
-
-                toast('Formulario cancelado', {
-                    duration: 2000,
-                    position: 'top-right'
-                });
-                onClose();
-            }}
+            onClose={onClose}
             title={editando ? 'Editar Lote' : 'Nuevo Lote'}
             size="lg"
         >
-            <form onSubmit={handleSubmit} className="space-y-4 px-1 md:px-2">
-                <div className="space-y-4 px-1">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Nombre */}
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Nombre del Lote *
-                            </label>
-                            <input
-                                type="text"
-                                name="nombre"
-                                value={datosFormulario.nombre}
-                                onChange={handleChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                                required
-                                placeholder="Ej: Lote Norte, Parcela 1"
-                                disabled={enviando}
-                            />
-                            <p className="text-xs text-gray-500 mt-1">
-                                Solo letras, números y espacios. No se permiten caracteres especiales como #, @, !, etc.
-                            </p>
-                        </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
 
-                        {/* Tipo de Lote */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Tipo de Lote *
-                            </label>
-                            <select
-                                name="tipo_lote_id"
-                                value={datosFormulario.tipo_lote_id || ''}
-                                onChange={handleChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                                required
-                                disabled={enviando}
-                            >
-                                <option value="">Seleccionar tipo</option>
-                                {tiposLote.map(tipo => (
-                                    <option key={tipo.id} value={tipo.id}>
-                                        {tipo.nombre}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                {/* Nombre */}
+                <input
+                    type="text"
+                    name="nombre"
+                    value={datosFormulario.nombre || ''}
+                    onChange={handleChange}
+                    placeholder="Nombre del lote"
+                />
 
-                        {/* Estado */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Estado *
-                            </label>
-                            <select
-                                name="estado"
-                                value={datosFormulario.estado}
-                                onChange={handleChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                                required
-                                disabled={enviando}
-                            >
-                                {estados.map(estado => (
-                                    <option key={estado.value} value={estado.value}>
-                                        {estado.label}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                {/* Tipo lote */}
+                <select
+                    name="tipo_lote_id"
+                    value={datosFormulario.tipo_lote_id || ''}
+                    onChange={handleChange}
+                >
+                    <option value="">Tipo</option>
+                    {tiposLote.map(t => (
+                        <option key={t.id} value={t.id}>{t.nombre}</option>
+                    ))}
+                </select>
 
-                        {/* Granja */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Granja *
-                            </label>
-                            <select
-                                name="granja_id"
-                                value={datosFormulario.granja_id || ''}
-                                onChange={handleChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                                required
-                                disabled={enviando}
-                            >
-                                <option value="">Seleccionar granja</option>
-                                {granjas.map(granja => (
-                                    <option key={granja.id} value={granja.id}>
-                                        {granja.nombre}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                {/* Granja */}
+                <select
+                    name="granja_id"
+                    value={datosFormulario.granja_id || ''}
+                    onChange={handleChange}
+                >
+                    <option value="">Granja</option>
+                    {granjas.map(g => (
+                        <option key={g.id} value={g.id}>{g.nombre}</option>
+                    ))}
+                </select>
 
-                        {/* Programa */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Programa *
-                            </label>
-                            <select
-                                name="programa_id"
-                                value={programaIdFijo || datosFormulario.programa_id || ''}
-                                onChange={handleChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                                required
-                                disabled={programaDeshabilitado}
-                            >
-                                <option value="">Seleccionar programa</option>
-                                {programas.map(programa => (
-                                    <option key={programa.id} value={programa.id}>
-                                        {programa.nombre}
-                                    </option>
-                                ))}
-                            </select>
-                            {programaIdFijo && (
-                                <p className="text-xs text-gray-500 mt-1">
-                                    Programa fijo para este lote
-                                </p>
-                            )}
-                        </div>
+                {/* Programa */}
+                <select
+                    name="programa_id"
+                    value={programaIdFijo || datosFormulario.programa_id || ''}
+                    onChange={handleChange}
+                    disabled={!!programaIdFijo}
+                >
+                    <option value="">Programa</option>
+                    {programas.map(p => (
+                        <option key={p.id} value={p.id}>{p.nombre}</option>
+                    ))}
+                </select>
 
-                        {/* Cultivos Múltiples */}
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Cultivos * (puede seleccionar varios)
-                            </label>
-                            <CultivosMultiSelect
-                                cultivos={cultivos}
-                                selectedIds={datosFormulario.cultivos_ids || []}
-                                onChange={handleCultivosChange}
-                                disabled={enviando || !datosFormulario.granja_id}
-                                cargando={cargandoCultivos}
-                            />
-                        </div>
+                {/* Cultivos */}
+                <CultivosMultiSelect
+                    cultivos={cultivos}
+                    selectedIds={datosFormulario.cultivos_ids || []}
+                    onChange={handleCultivosChange}
+                    disabled={!datosFormulario.granja_id}
+                    cargando={cargandoCultivos}
+                />
 
-                        {/* Fecha Inicio */}
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Fecha de Inicio *
-                            </label>
-                            <input
-                                type="date"
-                                name="fecha_inicio"
-                                value={datosFormulario.fecha_inicio}
-                                onChange={handleChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                                required
-                                disabled={enviando}
-                            />
-                        </div>
-                    </div>
+                {/* Fecha */}
+                <input
+                    type="date"
+                    name="fecha_inicio"
+                    value={formatDate(datosFormulario.fecha_inicio)}
+                    onChange={handleChange}
+                />
 
-                    {/* Nota informativa - Sin cultivos */}
-                    {datosFormulario.granja_id && cultivos.length === 0 && !cargandoCultivos && (
-                        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
-                            <div className="flex">
-                                <div className="flex-shrink-0">
-                                    <i className="fas fa-exclamation-triangle text-yellow-400"></i>
-                                </div>
-                                <div className="ml-3">
-                                    <p className="text-sm text-yellow-700">
-                                        Esta granja no tiene cultivos registrados.
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                toast('Redirigiendo a gestión de cultivos...', {
-                                                    duration: 2000,
-                                                    position: 'top-right'
-                                                });
-                                                window.open('/gestion-cultivos', '_blank');
-                                            }}
-                                            className="ml-1 text-yellow-700 underline hover:text-yellow-600 font-medium"
-                                        >
-                                            Crear un cultivo primero.
-                                        </button>
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
+                {/* Estado */}
+                <select
+                    name="estado"
+                    value={datosFormulario.estado || 'activo'}
+                    onChange={handleChange}
+                >
+                    {estados.map(e => (
+                        <option key={e.value} value={e.value}>{e.label}</option>
+                    ))}
+                </select>
 
-                {/* Botones */}
-                <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 px-1">
-                    <button
-                        type="button"
-                        onClick={() => {
-                            if (enviando) {
-                                toast.error('Por favor espera a que termine la operación actual');
-                                return;
-                            }
+                {/* Botón */}
+                <button disabled={enviando}>
+                    {enviando ? 'Guardando...' : editando ? 'Actualizar' : 'Crear'}
+                </button>
 
-                            if (datosFormulario.nombre || datosFormulario.granja_id) {
-                                const confirmar = window.confirm('¿Estás seguro de cancelar? Los cambios no guardados se perderán.');
-                                if (!confirmar) return;
-                            }
-
-                            toast('Formulario cancelado', {
-                                duration: 2000,
-                                position: 'top-right'
-                            });
-                            onClose();
-                        }}
-                        className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={enviando}
-                    >
-                        Cancelar
-                    </button>
-                    <button
-                        type="submit"
-                        className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center min-w-[120px] justify-center"
-                        disabled={
-                            !datosFormulario.cultivos_ids?.length ||
-                            !datosFormulario.nombre.trim() ||
-                            !datosFormulario.tipo_lote_id ||
-                            !datosFormulario.granja_id ||
-                            (!datosFormulario.programa_id && !programaIdFijo) ||
-                            enviando
-                        }
-                    >
-                        {enviando ? (
-                            <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                {editando ? 'Actualizando...' : 'Creando...'}
-                            </>
-                        ) : (
-                            editando ? 'Actualizar Lote' : 'Crear Lote'
-                        )}
-                    </button>
-                </div>
             </form>
         </Modal>
     );
