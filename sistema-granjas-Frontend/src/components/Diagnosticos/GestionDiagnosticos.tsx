@@ -7,7 +7,7 @@ import monitoreoService from '../../services/monitoreoService';
 import type { DiagnosticoItem, DiagnosticoFiltros } from '../../types/diagnosticoTypes';
 import Modal from '../Common/Modal';
 import DiagnosticosTable from './DiagnosticosTable';
-import DiagnosticoForm from './DiagnosticosForm';
+import DiagnosticoForm from './DiagnosticoForm';        // ✅ Cambiado: sin "s"
 import AgregarEvidenciaModal from './AgregarEvidenciaModal';
 import DetallesDiagnosticoModal from './DetallesDiagnosticoModal';
 import { useAuth } from '../../hooks/useAuth';
@@ -34,7 +34,7 @@ const GestionDiagnosticos: React.FC = () => {
     const [programas, setProgramas] = useState<any[]>([]);
     const [monitoreos,setMonitoreos]= useState<any[]>([]);
 
-    // Filtros — ahora usan los campos nuevos del backend
+    // Filtros
     const [filtros, setFiltros] = useState<DiagnosticoFiltros>({});
     const [estadisticas, setEstadisticas] = useState<any>(null);
 
@@ -127,9 +127,9 @@ const GestionDiagnosticos: React.FC = () => {
 
     // ── Handlers CRUD ─────────────────────────────────────────────────────────
 
+    // ✅ Se crea un solo diagnóstico, pero el formulario llamará a esta función varias veces
     const handleCrearDiagnostico = async (data: any) => {
         try {
-            // Aseguramos que usuario_id viene del usuario autenticado
             const payload = {
                 ...data,
                 usuario_id: user?.id,
@@ -137,16 +137,17 @@ const GestionDiagnosticos: React.FC = () => {
             const nuevo = await diagnosticoService.crearDiagnostico(payload);
             setDiagnosticos(prev => [nuevo, ...prev]);
             toast.success('Diagnóstico creado exitosamente');
-            setShowCrearModal(false);
+            // ❌ No cerramos el modal aquí para permitir múltiples diagnósticos
             cargarEstadisticas();
+            return nuevo;
         } catch (err: any) {
             toast.error(`Error al crear diagnóstico: ${err.message}`);
+            throw err; // Para que el formulario sepa que falló
         }
     };
 
     const handleActualizarDiagnostico = async (id: number, data: any) => {
         try {
-            // Solo se pueden actualizar tipo_diagnostico, condiciones_dia y formulario
             const payload = {
                 tipo_diagnostico: data.tipo_diagnostico,
                 condiciones_dia:  data.condiciones_dia,
@@ -194,9 +195,9 @@ const GestionDiagnosticos: React.FC = () => {
     // ── Filtro local por rol ──────────────────────────────────────────────────
     const diagnosticosFiltrados = diagnosticos.filter(d => {
         if (!user) return false;
-        if (user.rol_id === 1) return true;                          // admin: todos
-        if (user.rol_id === 2 || user.rol_id === 5) return true;     // docente/asesor: todos
-        if (user.rol_id === 4) return (d as any).usuario_id === user.id; // estudiante: solo los suyos
+        if (user.rol_id === 1) return true;                          // admin
+        if (user.rol_id === 2 || user.rol_id === 5) return true;     // docente/asesor
+        if (user.rol_id === 4) return (d as any).usuario_id === user.id; // estudiante
         return false;
     });
 
@@ -216,11 +217,10 @@ const GestionDiagnosticos: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Filtros — alineados a los nuevos campos del backend */}
+                {/* Filtros */}
                 <div className="bg-white p-4 rounded-lg shadow mb-6">
                     <h3 className="font-semibold mb-3">Filtros</h3>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-
                         <select
                             className="border rounded p-2"
                             value={(filtros as any).tipo_diagnostico || ''}
@@ -293,8 +293,9 @@ const GestionDiagnosticos: React.FC = () => {
             )}
 
             {/* MODAL CREAR */}
-            <Modal isOpen={showCrearModal} onClose={() => setShowCrearModal(false)} width="max-w-2xl">
+            <Modal isOpen={showCrearModal} onClose={() => setShowCrearModal(false)} width="max-w-4xl">
                 <DiagnosticoForm
+                    isOpen={showCrearModal}
                     onSubmit={handleCrearDiagnostico}
                     onCancel={() => setShowCrearModal(false)}
                     lotes={lotes}
@@ -302,6 +303,7 @@ const GestionDiagnosticos: React.FC = () => {
                     monitoreos={monitoreos}
                     condiciones_dia={['Soleado', 'Nublado', 'Lluvia']}
                     currentUser={user}
+                    porcentajeMuestreo={10}
                 />
             </Modal>
 
@@ -309,6 +311,7 @@ const GestionDiagnosticos: React.FC = () => {
             <Modal isOpen={showEditarModal} onClose={() => setShowEditarModal(false)} width="max-w-2xl">
                 {selectedDiagnostico && (
                     <DiagnosticoForm
+                        isOpen={showEditarModal}
                         diagnostico={selectedDiagnostico}
                         onSubmit={(data) => handleActualizarDiagnostico(selectedDiagnostico.id, data)}
                         onCancel={() => setShowEditarModal(false)}
