@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import type { DiagnosticoItem, CrearDiagnosticoDTO } from '../../types/diagnosticoTypes';
+import React, { useState, useEffect, useMemo } from 'react';
+import type { DiagnosticoItem } from '../../types/diagnosticoTypes';
 import { monitoreoService, type Monitoreo } from '../../services/monitoreoService';
 import { loteService, type EstructuraLote } from '../../services/loteService';
 import { CensoSection } from './CensoSection';
@@ -39,7 +39,7 @@ interface Lote {
     plantas_por_surco?: number | null;
 }
 
-// DTO que se envía al backend con la nueva estructura
+// DTO que se envía al backend
 interface DiagnosticoPayload {
     programa_id: number;
     tipo_monitoreo_id: number;
@@ -51,8 +51,9 @@ interface DiagnosticoPayload {
 }
 
 interface DiagnosticoFormProps {
+    isOpen: boolean;
     diagnostico?: DiagnosticoItem;
-    onSubmit: (data: DiagnosticoPayload) => void;
+    onSubmit: (data: DiagnosticoPayload) => Promise<void>;
     onCancel: () => void;
     lotes: Lote[];
     programas: Programa[];
@@ -60,6 +61,7 @@ interface DiagnosticoFormProps {
     condiciones_dia: string[];
     currentUser: any;
     esEdicion?: boolean;
+    porcentajeMuestreo?: number; // Porcentaje de plantas a muestrear (default: 10)
 }
 
 // ── Tipos de diagnóstico disponibles ─────────────────────────────────────────
@@ -77,6 +79,7 @@ const TIPOS_DIAGNOSTICO = [
 // ── Componente ────────────────────────────────────────────────────────────────
 
 const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
+    isOpen,
     diagnostico,
     onSubmit,
     onCancel,
@@ -86,24 +89,64 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     condiciones_dia = ['Soleado', 'Nublado', 'Lluvia'],
     currentUser,
     esEdicion = false,
+    porcentajeMuestreo = 10, // 10% por defecto
 }) => {
     // ── Wizard ────────────────────────────────────────────────────────────────
     const [paso, setPaso] = useState(1);
 
-    // ── Paso 1 ────────────────────────────────────────────────────────────────
+    // ── Paso 1 (persistente) ──────────────────────────────────────────────────
     const [programaId, setProgramaId] = useState<number | null>(null);
     const [tipoMonitoreoId, setTipoMonitoreoId] = useState<number | null>(null);
     const [loteId, setLoteId] = useState<number | null>(null);
     const [monitoreos, setMonitoreos] = useState<Monitoreo[]>(externalMonitoreos || []);
     const [estructuraLote, setEstructuraLote] = useState<EstructuraLote | null>(null);
     const [cargandoEstructura, setCargandoEstructura] = useState(false);
+    
+    // ── Plantas seleccionadas para muestreo (persistentes mientras no cambie el lote) ──
+    const [plantasSeleccionadas, setPlantasSeleccionadas] = useState<PlantaBase[]>([]);
+    const [plantasOriginales, setPlantasOriginales] = useState<PlantaBase[]>([]);
 
-    // ── Paso 2 ────────────────────────────────────────────────────────────────
+    // ── Paso 2 (se limpia después de cada diagnóstico) ────────────────────────
     const [tipoDiagnostico, setTipoDiagnostico] = useState('');
     const [condicionesDia, setCondicionesDia] = useState('');
-    const [plantas, setPlantas] = useState<PlantaBase[]>([]);
     const [caracterizacion, setCaracterizacion] = useState<Record<string, string>>({});
-    const [plantasMuestreadas, setPlantasMuestreadas] = useState<Set<string>>(new Set());
+    const [enviando, setEnviando] = useState(false);
+
+    // ── Función para seleccionar plantas al azar (porcentaje) ──────────────────
+    const seleccionarPlantasAleatorias = useCallback((todasLasPlantas: PlantaBase[], porcentaje: number): PlantaBase[] => {
+        if (!todasLasPlantas.length) return [];
+        
+        // Calcular cuántas plantas seleccionar (mínimo 1 si hay plantas)
+        const cantidad = Math.max(1, Math.floor(todasLasPlantas.length * (porcentaje / 100)));
+        
+        // Crear una copia del array para no modificar el original
+        const plantasCopia = [...todasLasPlantas];
+        
+        // Algoritmo de Fisher-Yates para mezclar
+        for (let i = plantasCopia.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [plantasCopia[i], plantasCopia[j]] = [plantasCopia[j], plantasCopia[i]];
+        }
+        
+        // Tomar las primeras 'cantidad' plantas
+        return plantasCopia.slice(0, cantidad);
+    }, []);
+
+    // ── Función para regenerar la selección de plantas (mismo porcentaje) ──────
+    const regenerarSeleccionPlantas = useCallback(() => {
+        if (plantasOriginales.length > 0) {
+            const nuevasSeleccionadas = seleccionarPlantasAleatorias(plantasOriginales, porcentajeMuestreo);
+            setPlantasSeleccionadas(nuevasSeleccionadas);
+            
+            // Limpiar caracterización anterior
+            setCaracterizacion({});
+            
+            toast.info(
+                `Se han seleccionado ${nuevasSeleccionadas.length} plantas al azar (${porcentajeMuestreo}% de ${plantasOriginales.length} totales)`,
+                { duration: 3000, position: 'top-right' }
+            );
+        }
+    }, [plantasOriginales, porcentajeMuestreo, seleccionarPlantasAleatorias]);
 
     // ── Cargar monitoreos al cambiar programa ─────────────────────────────────
     useEffect(() => {
@@ -125,8 +168,8 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         const cargarEstructuraLote = async () => {
             if (!loteId) {
                 setEstructuraLote(null);
-                setPlantas([]);
-                setPlantasMuestreadas(new Set());
+                setPlantasOriginales([]);
+                setPlantasSeleccionadas([]);
                 return;
             }
 
@@ -135,32 +178,25 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                 const estructura = await loteService.obtenerEstructuraLote(loteId);
                 setEstructuraLote(estructura);
 
-                // Generar plantas basadas en la estructura real del lote
                 if (estructura.plantas && estructura.plantas.length > 0) {
-                    setPlantas(estructura.plantas);
+                    setPlantasOriginales(estructura.plantas);
                     
-                    // Inicializar caracterización para cada planta si no existe
-                    const nuevaCaracterizacion = { ...caracterizacion };
-                    estructura.plantas.forEach(planta => {
-                        if (!nuevaCaracterizacion[planta.codigo]) {
-                            nuevaCaracterizacion[planta.codigo] = '';
-                        }
-                    });
-                    setCaracterizacion(nuevaCaracterizacion);
+                    // Seleccionar plantas al azar según el porcentaje
+                    const seleccionadas = seleccionarPlantasAleatorias(estructura.plantas, porcentajeMuestreo);
+                    setPlantasSeleccionadas(seleccionadas);
                     
                     toast.success(
-                        `Lote cargado: ${estructura.total_plantas.toLocaleString('es-ES')} plantas disponibles${!estructura.muestra_completa ? ' (mostrando muestra representativa)' : ''}`,
-                        {
-                            duration: 4000,
-                            position: 'top-right'
-                        }
+                        `Lote cargado: ${estructura.total_plantas.toLocaleString('es-ES')} plantas totales. ` +
+                        `Se han seleccionado ${seleccionadas.length} plantas para muestreo (${porcentajeMuestreo}%)`,
+                        { duration: 4000, position: 'top-right' }
                     );
                 } else {
                     toast.warning('Este lote no tiene surcos o plantas configurados', {
                         duration: 4000,
                         position: 'top-right'
                     });
-                    setPlantas([]);
+                    setPlantasOriginales([]);
+                    setPlantasSeleccionadas([]);
                 }
             } catch (error) {
                 console.error('Error cargando estructura del lote:', error);
@@ -168,14 +204,23 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                     duration: 4000,
                     position: 'top-right'
                 });
-                setPlantas([]);
+                setPlantasOriginales([]);
+                setPlantasSeleccionadas([]);
             } finally {
                 setCargandoEstructura(false);
             }
         };
 
         cargarEstructuraLote();
-    }, [loteId]);
+    }, [loteId, porcentajeMuestreo, seleccionarPlantasAleatorias]);
+
+    // ── Resetear paso 2 (limpiar formulario de diagnóstico) ───────────────────
+    const resetearPaso2 = () => {
+        setTipoDiagnostico('');
+        setCondicionesDia('');
+        setCaracterizacion({});
+        setEnviando(false);
+    };
 
     // ── Derivados ─────────────────────────────────────────────────────────────
     const lotesFiltrados = useMemo(
@@ -199,24 +244,21 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         if (d.tipo_diagnostico) setTipoDiagnostico(d.tipo_diagnostico);
         if (d.condiciones_dia) setCondicionesDia(d.condiciones_dia);
         if (d.formulario?.plantas) {
-            setPlantas(d.formulario.plantas);
+            setPlantasSeleccionadas(d.formulario.plantas);
         }
         if (d.formulario?.caracterizacion) {
             setCaracterizacion(d.formulario.caracterizacion);
-        }
-        if (d.formulario?.plantas_muestreadas) {
-            setPlantasMuestreadas(new Set(d.formulario.plantas_muestreadas));
         }
     }, [esEdicion, diagnostico]);
 
     // ── Auto-selección de lote único ──────────────────────────────────────────
     useEffect(() => {
-        if (!esEdicion && lotesFiltrados.length === 1 && !loteId) {
+        if (!esEdicion && lotesFiltrados.length === 1 && !loteId && isOpen) {
             const l = lotesFiltrados[0];
             setLoteId(l.id);
             toast.info(`Lote seleccionado automáticamente: ${l.nombre}`);
         }
-    }, [lotesFiltrados, esEdicion, loteId]);
+    }, [lotesFiltrados, esEdicion, loteId, isOpen]);
 
     const handleProgramaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const id = e.target.value ? parseInt(e.target.value) : null;
@@ -224,34 +266,19 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         setTipoMonitoreoId(null);
         setLoteId(null);
         setEstructuraLote(null);
-        setPlantas([]);
-        setCaracterizacion({});
-        setPlantasMuestreadas(new Set());
+        setPlantasOriginales([]);
+        setPlantasSeleccionadas([]);
+        resetearPaso2();
     };
 
     const handleLoteChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const id = e.target.value ? parseInt(e.target.value) : null;
         setLoteId(id);
-        // Resetear caracterización al cambiar de lote
-        setCaracterizacion({});
-        setPlantasMuestreadas(new Set());
+        resetearPaso2();
     };
 
     const handleCaracterizacionChange = (campo: string, valor: string) => {
         setCaracterizacion(prev => ({ ...prev, [campo]: valor }));
-    };
-
-    // Función para registrar plantas muestreadas (útil para algunos diagnósticos)
-    const handlePlantaMuestreada = (codigo: string, muestreada: boolean) => {
-        setPlantasMuestreadas(prev => {
-            const nuevo = new Set(prev);
-            if (muestreada) {
-                nuevo.add(codigo);
-            } else {
-                nuevo.delete(codigo);
-            }
-            return nuevo;
-        });
     };
 
     // ── Validación y avance ───────────────────────────────────────────────────
@@ -273,10 +300,17 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             return;
         }
 
-        // Verificar que el lote tenga estructura válida
         if (!estructuraLote || estructuraLote.total_plantas === 0) {
             toast.error('Este lote no tiene surcos o plantas configurados. Por favor, configura el lote primero.', {
                 duration: 5000,
+                position: 'top-right'
+            });
+            return;
+        }
+
+        if (plantasSeleccionadas.length === 0) {
+            toast.error('No hay plantas seleccionadas para el muestreo', {
+                duration: 4000,
                 position: 'top-right'
             });
             return;
@@ -286,7 +320,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     };
 
     // ── Submit ────────────────────────────────────────────────────────────────
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         if (!tipoDiagnostico) {
@@ -297,33 +331,20 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             toast.error('Selecciona las condiciones del día');
             return;
         }
-        if (!loteId) {
-            toast.error('Selecciona un lote');
-            return;
-        }
-        if (!tipoMonitoreoId) {
-            toast.error('Selecciona un tipo de monitoreo');
-            return;
-        }
-        if (!programaId) {
-            toast.error('Selecciona un programa');
-            return;
-        }
-        if (plantas.length === 0) {
-            toast.error('No hay plantas disponibles para este lote');
+        if (plantasSeleccionadas.length === 0) {
+            toast.error('No hay plantas seleccionadas para el muestreo');
             return;
         }
 
-        // El campo `formulario` agrupa plantas + toda la caracterización
+        setEnviando(true);
+
         const formulario: Record<string, any> = {
-            plantas,
+            plantas: plantasSeleccionadas,
             caracterizacion,
+            porcentaje_muestreo: porcentajeMuestreo,
+            total_plantas_lote: estructuraLote?.total_plantas || 0,
+            plantas_totales_lote: plantasOriginales.length,
         };
-
-        // Si hay plantas muestreadas, agregarlas al formulario
-        if (plantasMuestreadas.size > 0) {
-            formulario.plantas_muestreadas = Array.from(plantasMuestreadas);
-        }
 
         const payload: DiagnosticoPayload = {
             programa_id: programaId!,
@@ -335,14 +356,30 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             formulario,
         };
 
-        console.log('📤 Enviando diagnóstico:', {
-            ...payload,
-            total_plantas: plantas.length,
-            plantas_muestreadas: plantasMuestreadas.size
-        });
-        
-        onSubmit(payload);
-        toast.success(esEdicion ? 'Diagnóstico actualizado' : 'Diagnóstico creado');
+        try {
+            await onSubmit(payload);
+            
+            toast.success(
+                `¡Diagnóstico de ${TIPOS_DIAGNOSTICO.find(t => t.value === tipoDiagnostico)?.label} creado exitosamente!`,
+                { duration: 3000, position: 'top-right' }
+            );
+            
+            // ✅ Limpiar solo el paso 2, mantener paso 1 y las plantas seleccionadas
+            resetearPaso2();
+            
+            // Opcional: Regenerar la selección de plantas para el próximo diagnóstico
+            // (descomentar si quieres que cambien las plantas cada vez)
+            // regenerarSeleccionPlantas();
+            
+        } catch (error: any) {
+            console.error('Error al crear diagnóstico:', error);
+            toast.error(error.message || 'Error al crear el diagnóstico', {
+                duration: 5000,
+                position: 'top-right'
+            });
+        } finally {
+            setEnviando(false);
+        }
     };
 
     // ── Render ────────────────────────────────────────────────────────────────
@@ -461,25 +498,43 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                                     <span className="text-sm">Cargando estructura del lote...</span>
                                                 </div>
                                             ) : estructuraLote ? (
-                                                <div className="space-y-1">
-                                                    <p className="text-sm text-gray-700">
-                                                        <strong>Configuración:</strong>{' '}
-                                                        {estructuraLote.surcos} surcos × {estructuraLote.plantas_por_surco} plantas/surco
-                                                    </p>
-                                                    <p className="text-sm text-green-600">
-                                                        <i className="fas fa-seedling mr-1"></i>
-                                                        <strong>Total de plantas:</strong>{' '}
-                                                        {estructuraLote.total_plantas.toLocaleString('es-ES')}
-                                                    </p>
+                                                <div className="space-y-2">
+                                                    <div className="flex justify-between items-start">
+                                                        <div>
+                                                            <p className="text-sm text-gray-700">
+                                                                <strong>Configuración:</strong>{' '}
+                                                                {estructuraLote.surcos} surcos × {estructuraLote.plantas_por_surco} plantas/surco
+                                                            </p>
+                                                            <p className="text-sm text-green-600">
+                                                                <i className="fas fa-seedling mr-1"></i>
+                                                                <strong>Total de plantas:</strong>{' '}
+                                                                {estructuraLote.total_plantas.toLocaleString('es-ES')}
+                                                            </p>
+                                                            <p className="text-sm text-blue-600">
+                                                                <i className="fas fa-chart-simple mr-1"></i>
+                                                                <strong>Plantas a muestrear:</strong>{' '}
+                                                                {plantasSeleccionadas.length} plantas ({porcentajeMuestreo}%)
+                                                            </p>
+                                                        </div>
+                                                        {plantasOriginales.length > 0 && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={regenerarSeleccionPlantas}
+                                                                className="text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded-lg transition flex items-center gap-1"
+                                                            >
+                                                                <i className="fas fa-random"></i>
+                                                                Regenerar muestra
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                     {!estructuraLote.muestra_completa && (
                                                         <p className="text-xs text-amber-600">
                                                             <i className="fas fa-info-circle mr-1"></i>
-                                                            Se muestran {estructuraLote.total_plantas_muestreadas.toLocaleString('es-ES')} plantas 
-                                                            (muestra representativa de {estructuraLote.total_plantas.toLocaleString('es-ES')} totales)
+                                                            El lote tiene muchas plantas, se está utilizando una muestra representativa
                                                         </p>
                                                     )}
                                                     {estructuraLote.cultivos.length > 0 && (
-                                                        <p className="text-xs text-gray-500 mt-2">
+                                                        <p className="text-xs text-gray-500">
                                                             <strong>Cultivos:</strong>{' '}
                                                             {estructuraLote.cultivos.map(c => c.nombre).join(', ')}
                                                         </p>
@@ -513,7 +568,8 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                 !tipoMonitoreoId ||
                                 !loteId ||
                                 !estructuraLote ||
-                                estructuraLote.total_plantas === 0
+                                estructuraLote.total_plantas === 0 ||
+                                plantasSeleccionadas.length === 0
                             }
                             className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition flex items-center gap-2"
                         >
@@ -548,18 +604,29 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                         <div className="mt-2 text-xs text-gray-500">
                                             {estructuraLote.surcos} surcos × {estructuraLote.plantas_por_surco} plantas/surco ={' '}
                                             {estructuraLote.total_plantas.toLocaleString('es-ES')} plantas totales
-                                            {!estructuraLote.muestra_completa && 
-                                                ` (mostrando ${estructuraLote.total_plantas_muestreadas.toLocaleString('es-ES')} plantas)`}
+                                            <span className="ml-2 text-blue-600">
+                                                | Muestreando: {plantasSeleccionadas.length} plantas ({porcentajeMuestreo}%)
+                                            </span>
                                         </div>
                                     )}
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setPaso(1)}
-                                    className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1"
-                                >
-                                    <i className="fas fa-edit"></i> Cambiar
-                                </button>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={regenerarSeleccionPlantas}
+                                        className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1 px-2 py-1 bg-blue-50 rounded"
+                                        title="Regenerar selección aleatoria de plantas"
+                                    >
+                                        <i className="fas fa-random"></i> Nueva muestra
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPaso(1)}
+                                        className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1"
+                                    >
+                                        <i className="fas fa-edit"></i> Cambiar
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -573,6 +640,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                 onChange={e => setTipoDiagnostico(e.target.value)}
                                 className="w-full border rounded-lg p-3"
                                 required
+                                disabled={enviando}
                             >
                                 <option value="">Seleccionar tipo</option>
                                 {TIPOS_DIAGNOSTICO.map(t => (
@@ -593,6 +661,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                 onChange={e => setCondicionesDia(e.target.value)}
                                 className="w-full border rounded-lg p-3"
                                 required
+                                disabled={enviando}
                             >
                                 <option value="">Seleccionar condiciones</option>
                                 {condiciones_dia.map(c => (
@@ -604,18 +673,22 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         </div>
 
                         {/* Sección específica por tipo */}
-                        {tipoDiagnostico && plantas.length > 0 && (
+                        {tipoDiagnostico && plantasSeleccionadas.length > 0 && (
                             <div className="mt-2">
+                                <div className="mb-3 text-sm text-gray-600">
+                                    <i className="fas fa-info-circle mr-1"></i>
+                                    Evaluando {plantasSeleccionadas.length} plantas seleccionadas al azar
+                                </div>
                                 {tipoDiagnostico === 'censo_poblacional' && (
                                     <CensoSection
-                                        plantas={plantas}
+                                        plantas={plantasSeleccionadas}
                                         caracterizacion={caracterizacion}
                                         onCampoChange={handleCaracterizacionChange}
                                     />
                                 )}
                                 {tipoDiagnostico === 'monitoreo_fenologico' && (
                                     <FenologicoSection
-                                        plantas={plantas}
+                                        plantas={plantasSeleccionadas}
                                         caracterizacion={caracterizacion}
                                         onCampoChange={handleCaracterizacionChange}
                                         onFaseChange={handleCaracterizacionChange}
@@ -623,35 +696,35 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                 )}
                                 {tipoDiagnostico === 'artropodos' && (
                                     <ArthropodSection
-                                        plantas={plantas}
+                                        plantas={plantasSeleccionadas}
                                         caracterizacion={caracterizacion}
                                         onCampoChange={handleCaracterizacionChange}
                                     />
                                 )}
                                 {tipoDiagnostico === 'enfermedades' && (
                                     <EnfermedadesSection
-                                        plantas={plantas}
+                                        plantas={plantasSeleccionadas}
                                         caracterizacion={caracterizacion}
                                         onCampoChange={handleCaracterizacionChange}
                                     />
                                 )}
                                 {tipoDiagnostico === 'arvenses' && (
                                     <ArvensesSection
-                                        plantas={plantas}
+                                        plantas={plantasSeleccionadas}
                                         caracterizacion={caracterizacion}
                                         onCampoChange={handleCaracterizacionChange}
                                     />
                                 )}
                                 {tipoDiagnostico === 'controladores_biologicos' && (
                                     <ControladoresSection
-                                        plantas={plantas}
+                                        plantas={plantasSeleccionadas}
                                         caracterizacion={caracterizacion}
                                         onCampoChange={handleCaracterizacionChange}
                                     />
                                 )}
                                 {tipoDiagnostico === 'polinizadores' && (
                                     <PolinizadoresSection
-                                        plantas={plantas}
+                                        plantas={plantasSeleccionadas}
                                         caracterizacion={caracterizacion}
                                         onCampoChange={handleCaracterizacionChange}
                                     />
@@ -670,11 +743,11 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                 </p>
                             </div>
                         )}
-                        {tipoDiagnostico && plantas.length === 0 && (
+                        {tipoDiagnostico && plantasSeleccionadas.length === 0 && (
                             <div className="bg-red-50 border-l-4 border-red-400 p-4">
                                 <p className="text-sm text-red-700">
                                     <i className="fas fa-exclamation-triangle mr-2"></i>
-                                    No hay plantas disponibles para este lote. Verifica que el lote tenga surcos y plantas por surco configurados.
+                                    No hay plantas seleccionadas para el muestreo. Regresa al paso 1 y regenera la muestra.
                                 </p>
                             </div>
                         )}
@@ -684,18 +757,32 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                     <div className="flex justify-end gap-3 mt-8 pt-5 border-t">
                         <button
                             type="button"
-                            onClick={onCancel}
-                            className="px-5 py-2.5 border rounded-lg hover:bg-gray-100 transition flex items-center gap-2"
+                            onClick={() => {
+                                if (enviando) return;
+                                const confirmar = window.confirm('¿Estás seguro de cancelar? Los datos no guardados se perderán.');
+                                if (confirmar) onCancel();
+                            }}
+                            className="px-5 py-2.5 border rounded-lg hover:bg-gray-100 transition flex items-center gap-2 disabled:opacity-50"
+                            disabled={enviando}
                         >
                             <i className="fas fa-times"></i> Cancelar
                         </button>
                         <button
                             type="submit"
-                            disabled={!tipoDiagnostico || !condicionesDia || plantas.length === 0}
+                            disabled={!tipoDiagnostico || !condicionesDia || plantasSeleccionadas.length === 0 || enviando}
                             className="bg-green-600 text-white px-5 py-2.5 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition flex items-center gap-2"
                         >
-                            <i className="fas fa-save"></i>
-                            {esEdicion ? 'Actualizar' : 'Crear'} Diagnóstico
+                            {enviando ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                    Guardando...
+                                </>
+                            ) : (
+                                <>
+                                    <i className="fas fa-save"></i>
+                                    Guardar Diagnóstico
+                                </>
+                            )}
                         </button>
                     </div>
                 </form>
