@@ -9,133 +9,91 @@ interface LotesTableProps {
     onEliminar: (id: number) => void;
 }
 
-const LotesTable: React.FC<LotesTableProps> = ({
-    lotes,
-    onEditar,
-    onEliminar
-}) => {
-    // Mapas
+const LotesTable: React.FC<LotesTableProps> = ({ lotes, onEditar, onEliminar }) => {
+
     const [programasMap, setProgramasMap] = useState<Record<number, string>>({});
+    const [granjasMap, setGranjasMap] = useState<Record<number, string>>({});
     const [cultivosMap, setCultivosMap] = useState<Record<number, any>>({});
-    const [granjasMap, setGranjasMap] = useState<Record<number, any>>({});
     const [cultivosPorLote, setCultivosPorLote] = useState<Record<number, any[]>>({});
-    
     const [cargando, setCargando] = useState(false);
 
-    // 👇 ORDENAR LOTES POR ID (de menor a mayor)
+    // 🔥 Ordenar solo cuando cambian los lotes
     const lotesOrdenados = useMemo(() => {
         return [...lotes].sort((a, b) => a.id - b.id);
     }, [lotes]);
 
     useEffect(() => {
-        const cargarDatosRelacionados = async () => {
-            if (lotes.length === 0) return;
-            
+        if (!lotes.length) return;
+
+        let mounted = true;
+
+        const cargar = async () => {
             setCargando(true);
-            
+
             try {
-                // IDs únicos
-                const programasIds = Array.from(new Set(lotes.map(l => l.programa_id).filter(Boolean)));
-                const cultivosIdsSet = new Set<number>();
-                
-                // Recolectar todos los cultivos de todos los lotes
-                lotes.forEach(lote => {
-                    if (lote.cultivos_ids && Array.isArray(lote.cultivos_ids)) {
-                        lote.cultivos_ids.forEach((id: number) => {
-                            cultivosIdsSet.add(id);
-                        });
-                    }
-                });
-                
-                const granjasIds = Array.from(new Set(lotes.map(l => l.granja_id).filter(Boolean)));
-                const cultivosIds = Array.from(cultivosIdsSet);
+                const programasIds = [...new Set(lotes.map(l => l.programa_id).filter(Boolean))];
+                const granjasIds = [...new Set(lotes.map(l => l.granja_id).filter(Boolean))];
 
-                // Promesas para programas
-                const programasPromises = programasIds.map(async (id) => {
-                    try {
-                        const res = await programaService.obtenerProgramaPorId(id);
-                        return { id, nombre: res.nombre };
-                    } catch {
-                        return { id, nombre: 'No encontrado' };
-                    }
-                });
+                const cultivosIds = [
+                    ...new Set(
+                        lotes.flatMap(l => l.cultivos_ids || [])
+                    )
+                ];
 
-                // Promesas para cultivos
-                const cultivosPromises = cultivosIds.map(async (id) => {
-                    try {
-                        const res = await cultivoService.obtenerCultivoPorId(id);
-                        return { 
-                            id, 
-                            nombre: res.nombre,
-                            tipo: res.tipo 
-                        };
-                    } catch {
-                        return { 
-                            id, 
-                            nombre: 'No encontrado',
-                            tipo: 'desconocido'
-                        };
-                    }
-                });
-
-                // Promesas para granjas
-                const granjasPromises = granjasIds.map(async (id) => {
-                    try {
-                        const res = await granjaService.obtenerGranjaPorId(id);
-                        return { id, nombre: res.nombre };
-                    } catch {
-                        return { id, nombre: 'No encontrada' };
-                    }
-                });
-
-                // Esperar todas
-                const [programasResp, cultivosResp, granjasResp] = await Promise.all([
-                    Promise.all(programasPromises),
-                    Promise.all(cultivosPromises),
-                    Promise.all(granjasPromises)
+                // 🚀 PARA PRODUCCIÓN: idealmente backend debe tener endpoint masivo
+                const [programasResp, granjasResp, cultivosResp] = await Promise.all([
+                    Promise.all(programasIds.map(id => programaService.obtenerProgramaPorId(id))),
+                    Promise.all(granjasIds.map(id => granjaService.obtenerGranjaPorId(id))),
+                    Promise.all(cultivosIds.map(id => cultivoService.obtenerCultivoPorId(id)))
                 ]);
 
-                // Construir mapas
+                if (!mounted) return;
+
                 const progMap: Record<number, string> = {};
-                programasResp.forEach(p => progMap[p.id] = p.nombre);
+                programasResp.forEach((p, i) => {
+                    progMap[programasIds[i]] = p?.nombre || 'No encontrado';
+                });
+
+                const granMap: Record<number, string> = {};
+                granjasResp.forEach((g, i) => {
+                    granMap[granjasIds[i]] = g?.nombre || 'No encontrada';
+                });
 
                 const cultMap: Record<number, any> = {};
-                cultivosResp.forEach(c => cultMap[c.id] = c);
-
-                const granMap: Record<number, any> = {};
-                granjasResp.forEach(g => granMap[g.id] = g);
-
-                // Construir mapa de cultivos por lote
-                const nuevosCultivosPorLote: Record<number, any[]> = {};
-                
-                lotes.forEach(lote => {
-                    if (lote.cultivos_ids && Array.isArray(lote.cultivos_ids)) {
-                        nuevosCultivosPorLote[lote.id] = lote.cultivos_ids
-                            .map((id: number) => cultMap[id])
-                            .filter(Boolean);
-                    } else {
-                        nuevosCultivosPorLote[lote.id] = [];
+                cultivosResp.forEach((c, i) => {
+                    if (c) {
+                        cultMap[cultivosIds[i]] = c;
                     }
+                });
+
+                const cultivosLote: Record<number, any[]> = {};
+
+                lotes.forEach(l => {
+                    cultivosLote[l.id] = (l.cultivos_ids || [])
+                        .map((id: number) => cultMap[id])
+                        .filter(Boolean);
                 });
 
                 setProgramasMap(progMap);
-                setCultivosMap(cultMap);
                 setGranjasMap(granMap);
-                setCultivosPorLote(nuevosCultivosPorLote);
-                
-                console.log('📊 Cultivos por lote:', nuevosCultivosPorLote);
-                
+                setCultivosMap(cultMap);
+                setCultivosPorLote(cultivosLote);
+
             } catch (error) {
-                console.error('Error cargando datos relacionados:', error);
+                console.error(error);
             } finally {
-                setCargando(false);
+                if (mounted) setCargando(false);
             }
         };
 
-        cargarDatosRelacionados();
+        cargar();
+
+        return () => {
+            mounted = false;
+        };
     }, [lotes]);
 
-    // Funciones auxiliares
+    // 🎨 helpers
     const getEstadoColor = (estado: string) => {
         switch (estado?.toLowerCase()) {
             case 'activo': return 'bg-green-100 text-green-800';
@@ -146,148 +104,96 @@ const LotesTable: React.FC<LotesTableProps> = ({
         }
     };
 
-    const formatearFecha = (fechaString: string | null | undefined) => {
-        if (!fechaString) return '-';
-        try {
-            return new Date(fechaString).toLocaleDateString('es-ES');
-        } catch {
-            return '-';
-        }
+    const formatearFecha = (fecha?: string) => {
+        if (!fecha) return '-';
+        return new Date(fecha).toLocaleDateString();
     };
 
     const getTipoColor = (tipo: string) => {
-        switch (tipo?.toLowerCase()) {
-            case 'agricola': return 'bg-green-100 text-green-800';
-            case 'pecuario': return 'bg-amber-100 text-amber-800';
-            default: return 'bg-gray-100 text-gray-800';
-        }
+        return tipo === 'agricola'
+            ? 'bg-green-100 text-green-800'
+            : 'bg-amber-100 text-amber-800';
     };
 
+    // 🔥 render optimizado
     const renderCultivos = (loteId: number) => {
-        const cultivosLote = cultivosPorLote[loteId] || [];
-        
-        if (cultivosLote.length === 0) {
-            return <span className="text-gray-400 text-sm italic">—</span>;
+        const lista = cultivosPorLote[loteId] || [];
+
+        if (!lista.length) {
+            return <span className="text-gray-400 italic">—</span>;
         }
 
-        const cultivosVisibles = cultivosLote.slice(0, 100); // Mostrar solo los primeros 100 cultivos
+        const visibles = lista.slice(0, 3); // 🔥 SOLO 3
 
         return (
             <div className="flex flex-wrap gap-1">
-                {cultivosVisibles.map((cultivo) => (
-                    <span
-                        key={cultivo.id}
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getTipoColor(cultivo.tipo)}`}
-                    >
-                        <i className={`fas ${
-                            cultivo.tipo === 'agricola' ? 'fa-seedling' : 'fa-paw'
-                        } mr-1 text-xs`}></i>
-                        {cultivo.nombre}
+                {visibles.map(c => (
+                    <span key={c.id} className={`px-2 py-0.5 text-xs rounded ${getTipoColor(c.tipo)}`}>
+                        {c.nombre}
                     </span>
                 ))}
+
+                {lista.length > 3 && (
+                    <span className="text-xs text-gray-500">
+                        +{lista.length - 3} más
+                    </span>
+                )}
             </div>
         );
     };
 
-    // Logs para depuración
-    console.log('📋 Lotes recibidos (original):', lotes);
-    console.log('📋 Lotes ordenados:', lotesOrdenados);
-    console.log('🎯 Cultivos por lote en render:', cultivosPorLote);
-
     return (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">Lista de Lotes</h3>
-                <p className="text-sm text-gray-500">
-                    Mostrando {lotes.length} {lotes.length === 1 ? 'lote registrado' : 'lotes registrados'}
-                    {cargando && <span className="ml-2 text-blue-500">(Cargando datos...)</span>}
-                </p>
+        <div className="bg-white rounded-lg shadow">
+            <div className="p-4 border-b">
+                <h3 className="font-semibold">
+                    Lotes ({lotes.length})
+                    {cargando && <span className="ml-2 text-blue-500">Cargando...</span>}
+                </h3>
             </div>
 
-            <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Granja</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cultivos</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Programa</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Siembra</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+            <table className="w-full text-sm">
+                <thead>
+                    <tr className="bg-gray-50 text-left">
+                        <th>Nombre</th>
+                        <th>Granja</th>
+                        <th>Cultivos</th>
+                        <th>Programa</th>
+                        <th>Estado</th>
+                        <th>Fecha</th>
+                        <th></th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {lotesOrdenados.map(l => (
+                        <tr key={l.id} className="border-t hover:bg-gray-50">
+                            <td>{l.nombre}</td>
+                            <td>{granjasMap[l.granja_id] || '-'}</td>
+                            <td>{renderCultivos(l.id)}</td>
+                            <td>{programasMap[l.programa_id] || '-'}</td>
+
+                            <td>
+                                <span className={`px-2 py-1 rounded text-xs ${getEstadoColor(l.estado)}`}>
+                                    {l.estado}
+                                </span>
+                            </td>
+
+                            <td>{formatearFecha(l.fecha_inicio)}</td>
+
+                            <td>
+                                <button onClick={() => onEditar(l)}>✏️</button>
+                                <button onClick={() => onEliminar(l.id)}>🗑️</button>
+                            </td>
                         </tr>
-                    </thead>
+                    ))}
+                </tbody>
+            </table>
 
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {lotesOrdenados.map((lote) => {
-                            const granja = granjasMap[lote.granja_id];
-                            
-                            return (
-                                <tr key={lote.id} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm font-medium text-gray-900">{lote.nombre}</div>
-                                    </td>
-
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm text-gray-900">
-                                            {granja?.nombre || lote.nombre_granja || `Granja ID: ${lote.granja_id}`}
-                                        </div>
-                                    </td>
-
-                                    <td className="px-6 py-4">
-                                        {renderCultivos(lote.id)}
-                                    </td>
-
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm text-gray-900">
-                                            {programasMap[lote.programa_id] || `Programa ID: ${lote.programa_id}`}
-                                        </div>
-                                    </td>
-
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getEstadoColor(lote.estado)}`}>
-                                            {lote.estado ? lote.estado.charAt(0).toUpperCase() + lote.estado.slice(1) : 'N/A'}
-                                        </span>
-                                    </td>
-
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        Inicio: {formatearFecha(lote.fecha_inicio)}
-                                    </td>
-
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                        <div className="flex space-x-3">
-                                            <button
-                                                onClick={() => onEditar(lote)}
-                                                className="text-yellow-600 hover:text-yellow-900 transition-colors p-2 hover:bg-yellow-50 rounded"
-                                                title="Editar lote"
-                                            >
-                                                <i className="fas fa-edit"></i>
-                                            </button>
-                                            <button
-                                                onClick={() => onEliminar(lote.id)}
-                                                className="text-red-600 hover:text-red-900 transition-colors p-2 hover:bg-red-50 rounded"
-                                                title="Eliminar lote"
-                                            >
-                                                <i className="fas fa-trash"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-
-                {lotes.length === 0 && (
-                    <div className="text-center py-12">
-                        <i className="fas fa-archive text-gray-400 text-5xl mb-4"></i>
-                        <p className="text-lg text-gray-500">No hay lotes registrados</p>
-                        <p className="text-sm text-gray-400 mt-2">
-                            Comienza creando un nuevo lote desde el botón "Nuevo Lote"
-                        </p>
-                    </div>
-                )}
-            </div>
+            {!lotes.length && (
+                <div className="p-6 text-center text-gray-500">
+                    No hay lotes
+                </div>
+            )}
         </div>
     );
 };
