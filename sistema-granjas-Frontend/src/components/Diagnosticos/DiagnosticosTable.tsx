@@ -51,7 +51,6 @@ const DiagnosticosTable: React.FC<DiagnosticosTableProps> = ({
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">ID</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Tipo</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Programa</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Monitoreo</th>
@@ -72,12 +71,6 @@ const DiagnosticosTable: React.FC<DiagnosticosTableProps> = ({
                         ) : (
                             diagnosticos.map((d) => (
                                 <tr key={d.id} className="hover:bg-gray-50">
-
-                                    {/* ID */}
-                                    <td className="px-4 py-3 text-sm font-medium">
-                                        #{d.id}
-                                    </td>
-
                                     {/* Tipo */}
                                     <td className="px-4 py-3 text-sm">
                                         {d.tipo_diagnostico?.replace(/_/g, ' ')}
