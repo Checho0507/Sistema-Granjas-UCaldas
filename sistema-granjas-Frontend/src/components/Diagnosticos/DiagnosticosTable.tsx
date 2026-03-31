@@ -116,13 +116,6 @@ const DiagnosticosTable: React.FC<DiagnosticosTableProps> = ({
                                                 ✏️
                                             </button>
                                             <button
-                                                onClick={() => onAgregarEvidencia(d)}
-                                                className="text-green-600 hover:text-green-800"
-                                                title="Agregar evidencia"
-                                            >
-                                                📷
-                                            </button>
-                                            <button
                                                 onClick={() => onEliminar(d.id)}
                                                 className="text-red-600 hover:text-red-800"
                                                 title="Eliminar"
