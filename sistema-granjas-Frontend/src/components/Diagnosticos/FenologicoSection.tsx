@@ -85,7 +85,7 @@ export const FenologicoSection: React.FC<Props> = ({
         Plantas seleccionadas para monitoreo fenológico
       </h3>
       <p className="text-sm text-gray-600 mb-6">
-        Las siguientes {plantas.length} plantas han sido generadas. Para cada una, evalúe las 4 ramas (una por cuadrante).
+        La siguiente planta ha sido generada automáticamente. Evalúe las 4 ramas (una por cuadrante).
       </p>
 
       {plantas.map((planta, idxPlanta) => {
