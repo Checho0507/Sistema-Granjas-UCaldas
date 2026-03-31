@@ -17,7 +17,6 @@ const RealFotosSection: React.FC<{
   const MAX_FILES = 5;
   const MAX_SIZE_MB = 10;
 
-  // Guardamos las URLs de previsualización en estado local
   const [previews, setPreviews] = useState<{ name: string; url: string }[]>([]);
   const [error, setError] = useState<string>("");
 
@@ -36,7 +35,6 @@ const RealFotosSection: React.FC<{
       return;
     }
 
-    // Revocar URLs anteriores para liberar memoria
     previews.forEach((p) => URL.revokeObjectURL(p.url));
 
     const newPreviews = files.map((f) => ({
@@ -45,7 +43,6 @@ const RealFotosSection: React.FC<{
     }));
 
     setPreviews(newPreviews);
-    // Guardamos los nombres como referencia en caracterizacion
     onCampoChange(prefix, files.map((f) => f.name).join(","));
   };
 
@@ -54,12 +51,44 @@ const RealFotosSection: React.FC<{
     const updated = previews.filter((_, i) => i !== index);
     setPreviews(updated);
     onCampoChange(prefix, updated.map((p) => p.name).join(","));
-    // Resetear el input para permitir volver a seleccionar los mismos archivos
     if (inputRef.current) inputRef.current.value = "";
   };
+
+  return (
+    <div className="mt-3">
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Fotos (máx. {MAX_FILES}, máx. {MAX_SIZE_MB} MB por archivo)
+      </label>
+      <input
+        type="file"
+        ref={inputRef}
+        multiple
+        accept="image/*"
+        onChange={handleFileChange}
+        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+      />
+      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+      {previews.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {previews.map((p, idx) => (
+            <div key={idx} className="relative">
+              <img src={p.url} alt={p.name} className="h-16 w-16 object-cover rounded" />
+              <button
+                type="button"
+                onClick={() => removePhoto(idx)}
+                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 };
 
-// ── Subsecciones para cada tipo de insecto ──────────────────────────────────
+// ── Subsecciones para cada tipo de insecto (sin fotos) ──────────────────────────────────
 
 const CompsusSection: React.FC<{
   basePrefix: string; cuadrante: number; rama: number;
@@ -90,7 +119,6 @@ const CompsusSection: React.FC<{
           placeholder="Ej: 30 (0 si no hay daño)" required />
         <p className="text-xs text-gray-500 mt-1">De no encontrarse daño del insecto, colocar 0</p>
       </div>
-      <FotosSection prefix={`${prefix}_fotos`} caracterizacion={caracterizacion} onCampoChange={onCampoChange} />
     </div>
   );
 };
@@ -137,7 +165,6 @@ const DiaphorinaSection: React.FC<{
           ))}
         </div>
       </div>
-      <FotosSection prefix={`${prefix}_fotos`} caracterizacion={caracterizacion} onCampoChange={onCampoChange} />
     </div>
   );
 };
@@ -171,7 +198,6 @@ const PhyllocnistisSection: React.FC<{
           placeholder="Ej: 30 (0 si no hay daño)" required />
         <p className="text-xs text-gray-500 mt-1">De no encontrarse daño del insecto, colocar 0</p>
       </div>
-      <FotosSection prefix={`${prefix}_fotos`} caracterizacion={caracterizacion} onCampoChange={onCampoChange} />
     </div>
   );
 };
@@ -217,12 +243,11 @@ const ToxopteraSection: React.FC<{
           placeholder="Ej: 30 (0 si no hay)" required />
         <p className="text-xs text-gray-500 mt-1">De no encontrarse daño, colocar 0</p>
       </div>
-      <FotosSection prefix={`${prefix}_fotos`} caracterizacion={caracterizacion} onCampoChange={onCampoChange} />
     </div>
   );
 };
 
-// ── Subsecciones para ácaros ─────────────────────────────────────────────────
+// ── Subsecciones para ácaros (sin fotos) ─────────────────────────────────────────────────
 
 const PolyphagotarsonemusSection: React.FC<{
   basePrefix: string; cuadrante: number; rama: number;
@@ -251,7 +276,6 @@ const PolyphagotarsonemusSection: React.FC<{
           placeholder="Ej: 30 (0 si no hay daño)" required />
         <p className="text-xs text-gray-500 mt-1">De no encontrarse daño, colocar 0</p>
       </div>
-      <FotosSection prefix={`${prefix}_fotos`} caracterizacion={caracterizacion} onCampoChange={onCampoChange} />
     </div>
   );
 };
@@ -283,7 +307,6 @@ const PhyllocoptrutaSection: React.FC<{
           placeholder="Ej: 30 (0 si no hay daño)" required />
         <p className="text-xs text-gray-500 mt-1">De no encontrarse daño, colocar 0</p>
       </div>
-      <FotosSection prefix={`${prefix}_fotos`} caracterizacion={caracterizacion} onCampoChange={onCampoChange} />
     </div>
   );
 };
@@ -336,7 +359,7 @@ const OtroArthropodSection: React.FC<{
           placeholder="Ej: Atta sp." />
       </div>
 
-      {/* Subida REAL de fotos */}
+      {/* Subida REAL de fotos solo para "Otro" */}
       <RealFotosSection
         prefix={`${prefix}_fotos`}
         caracterizacion={caracterizacion}
@@ -581,6 +604,19 @@ export const ArthropodSection: React.FC<Props> = ({ plantas, caracterizacion, on
       </div>
 
       <ImageModal imageUrl={modalImage} onClose={() => setModalImage(null)} />
+    </div>
+  );
+};
+
+// Asegúrate de tener el componente ImageModal definido en el mismo archivo o importado
+const ImageModal: React.FC<{ imageUrl: string | null; onClose: () => void }> = ({ imageUrl, onClose }) => {
+  if (!imageUrl) return null;
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white p-4 rounded-lg max-w-4xl max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
+        <img src={imageUrl} alt="Referencia" className="max-w-full h-auto" />
+        <button onClick={onClose} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Cerrar</button>
+      </div>
     </div>
   );
 };
