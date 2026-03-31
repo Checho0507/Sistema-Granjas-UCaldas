@@ -617,7 +617,6 @@ const CuadranteArthropod: React.FC<{
           <OtroArthropodSection basePrefix={basePrefix} cuadrante={cuadrante} rama={rama} caracterizacion={caracterizacion} onCampoChange={onCampoChange} />
         )}
       </div>
-      
     </div>
   );
 };
