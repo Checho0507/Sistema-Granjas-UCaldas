@@ -25,6 +25,39 @@ const getHeaders = (): HeadersInit => {
     return headers;
 };
 
+// Tipos para la estructura del lote
+export interface EstructuraLote {
+    id: number;
+    nombre: string;
+    surcos: number | null;
+    plantas_por_surco: number | null;
+    total_plantas: number;
+    plantas: Array<{
+        codigo: string;
+        label: string;
+        surco: number;
+        planta: number;
+    }>;
+    cultivos: Array<{
+        id: number;
+        nombre: string;
+        tipo: string;
+        descripcion?: string;
+    }>;
+    granja: {
+        id: number;
+        nombre: string;
+    } | null;
+    programa: {
+        id: number;
+        nombre: string;
+    } | null;
+    estado: string;
+    fecha_inicio: string;
+    muestra_completa: boolean;
+    total_plantas_muestreadas: number;
+}
+
 export const loteService = {
     // ===================== CRUD Lotes =====================
 
@@ -75,6 +108,19 @@ export const loteService = {
             headers: getHeaders(),
         });
         return handleResponse(response);
+    },
+
+    // Obtener estructura completa del lote (para diagnósticos)
+    async obtenerEstructuraLote(id: number): Promise<EstructuraLote> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/lotes/${id}/estructura`, {
+                headers: getHeaders(),
+            });
+            return handleResponse(response);
+        } catch (error) {
+            console.error('Error al obtener estructura del lote:', error);
+            throw error;
+        }
     },
 
     // Obtener lote con información del programa
@@ -191,6 +237,54 @@ export const loteService = {
         }
     },
 
+    // ===================== Gestión de Cultivos en Lotes =====================
+
+    // Obtener cultivos asignados a un lote
+    async obtenerCultivosDelLote(loteId: number): Promise<any[]> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/lotes/${loteId}/cultivos`, {
+                headers: getHeaders(),
+            });
+            return handleResponse(response);
+        } catch (error) {
+            console.error('Error al obtener cultivos del lote:', error);
+            throw error;
+        }
+    },
+
+    // Agregar cultivos a un lote
+    async agregarCultivosALote(loteId: number, cultivosIds: number[]): Promise<any[]> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/lotes/${loteId}/cultivos`, {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify(cultivosIds),
+            });
+            return handleResponse(response);
+        } catch (error) {
+            console.error('Error al agregar cultivos al lote:', error);
+            throw error;
+        }
+    },
+
+    // Eliminar cultivo de un lote
+    async eliminarCultivoDeLote(loteId: number, cultivoId: number): Promise<void> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/lotes/${loteId}/cultivos/${cultivoId}`, {
+                method: 'DELETE',
+                headers: getHeaders(),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || `Error ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error al eliminar cultivo del lote:', error);
+            throw error;
+        }
+    },
+
     // ===================== Consultas Específicas =====================
 
     // Obtener lotes por granja
@@ -201,7 +295,7 @@ export const loteService = {
         return handleResponse(response);
     },
 
-    // ✅ CORREGIDO: Usar el endpoint con filtro
+    // Obtener lotes por programa
     async obtenerLotesPorPrograma(programaId: number): Promise<any[]> {
         const response = await fetch(`${API_BASE_URL}/lotes/?programa_id=${programaId}`, {
             headers: getHeaders(),
@@ -209,7 +303,7 @@ export const loteService = {
         return handleResponse(response);
     },
 
-    // ✅ CORREGIDO: Usar el endpoint con filtro
+    // Obtener lotes por cultivo
     async obtenerLotesPorCultivo(cultivoId: number): Promise<any[]> {
         try {
             const response = await fetch(`${API_BASE_URL}/lotes/?cultivo_id=${cultivoId}`, {
@@ -222,12 +316,25 @@ export const loteService = {
         }
     },
 
+    // Obtener lotes activos
+    async obtenerLotesActivos(): Promise<any[]> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/lotes/estado/activos`, {
+                headers: getHeaders(),
+            });
+            return handleResponse(response);
+        } catch (error) {
+            console.error('Error al obtener lotes activos:', error);
+            throw error;
+        }
+    },
+
     // ===================== Funciones Adicionales =====================
 
     // Obtener estadísticas de lotes
     async obtenerEstadisticasLotes(): Promise<any> {
         try {
-            const response = await fetch(`${API_BASE_URL}/lotes/estadisticas/`, {
+            const response = await fetch(`${API_BASE_URL}/lotes/estadisticas/resumen`, {
                 headers: getHeaders(),
             });
 
@@ -241,7 +348,7 @@ export const loteService = {
     // Buscar lotes por nombre
     async buscarLotesPorNombre(nombre: string): Promise<any[]> {
         try {
-            const response = await fetch(`${API_BASE_URL}/lotes/buscar?nombre=${encodeURIComponent(nombre)}`, {
+            const response = await fetch(`${API_BASE_URL}/lotes/buscar/${encodeURIComponent(nombre)}`, {
                 headers: getHeaders(),
             });
 
@@ -288,7 +395,7 @@ export const loteService = {
     // Obtener granjas disponibles
     async obtenerGranjasDisponibles(): Promise<any[]> {
         try {
-            const response = await fetch(`${API_BASE_URL}/granjas`, {
+            const response = await fetch(`${API_BASE_URL}/granjas/`, {
                 headers: getHeaders(),
             });
 
@@ -316,6 +423,44 @@ export const loteService = {
             return handleResponse(response);
         } catch (error) {
             console.error('Error al cambiar estado de lote:', error);
+            throw error;
+        }
+    },
+
+    // ===================== Funciones de Utilidad =====================
+
+    // Validar si un lote tiene estructura configurada
+    async tieneEstructuraConfigurada(id: number): Promise<boolean> {
+        try {
+            const estructura = await this.obtenerEstructuraLote(id);
+            return estructura.surcos !== null && 
+                   estructura.plantas_por_surco !== null && 
+                   estructura.total_plantas > 0;
+        } catch (error) {
+            console.error('Error al validar estructura del lote:', error);
+            return false;
+        }
+    },
+
+    // Obtener resumen de lote para diagnóstico
+    async obtenerResumenParaDiagnostico(id: number): Promise<{
+        id: number;
+        nombre: string;
+        total_plantas: number;
+        cultivos: Array<{ id: number; nombre: string; tipo: string }>;
+        tieneEstructura: boolean;
+    }> {
+        try {
+            const estructura = await this.obtenerEstructuraLote(id);
+            return {
+                id: estructura.id,
+                nombre: estructura.nombre,
+                total_plantas: estructura.total_plantas,
+                cultivos: estructura.cultivos,
+                tieneEstructura: estructura.surcos !== null && estructura.plantas_por_surco !== null
+            };
+        } catch (error) {
+            console.error('Error al obtener resumen para diagnóstico:', error);
             throw error;
         }
     }

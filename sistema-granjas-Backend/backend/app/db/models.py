@@ -104,6 +104,11 @@ class Lote(Base):
     programa_id = Column(Integer, ForeignKey("programas.id"))
     fecha_inicio = Column(DateTime)
     estado = Column(String(50), default="activo")
+
+    # 👇 NUEVOS CAMPOS
+    surcos = Column(Integer, nullable=False, default=0)
+    plantas_por_surco = Column(Integer, nullable=False, default=0)
+
     cultivos_asignados = relationship("LoteCultivo", back_populates="lote", cascade="all, delete-orphan")
     tipo_lote = relationship("TipoLote")
     granja = relationship("Granja", back_populates="lotes")
@@ -111,7 +116,6 @@ class Lote(Base):
     labores = relationship("Labor", back_populates="lote")
     diagnosticos = relationship("Diagnostico", back_populates="lote")
     recomendaciones = relationship("Recomendacion", back_populates="lote")
-
 
 class CategoriaInventario(Base):
     __tablename__ = "categorias_inventario"

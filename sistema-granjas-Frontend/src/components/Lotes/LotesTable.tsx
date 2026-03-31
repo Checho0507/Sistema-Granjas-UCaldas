@@ -189,6 +189,12 @@ const LotesTable: React.FC<LotesTableProps> = ({
         );
     };
 
+    // Función para formatear números con separadores de miles
+    const formatearNumero = (numero: number | null | undefined) => {
+        if (numero === null || numero === undefined) return '-';
+        return numero.toLocaleString('es-ES');
+    };
+
     // Logs para depuración
     console.log('📋 Lotes recibidos (original):', lotes);
     console.log('📋 Lotes ordenados:', lotesOrdenados);
@@ -212,6 +218,9 @@ const LotesTable: React.FC<LotesTableProps> = ({
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Granja</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cultivos</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Programa</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Surcos</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Plantas/Surco</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Plantas</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Siembra</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
@@ -221,6 +230,9 @@ const LotesTable: React.FC<LotesTableProps> = ({
                     <tbody className="bg-white divide-y divide-gray-200">
                         {lotesOrdenados.map((lote) => {
                             const granja = granjasMap[lote.granja_id];
+                            const totalPlantas = lote.surcos && lote.plantas_por_surco 
+                                ? lote.surcos * lote.plantas_por_surco 
+                                : null;
                             
                             return (
                                 <tr key={lote.id} className="hover:bg-gray-50 transition-colors">
@@ -241,6 +253,24 @@ const LotesTable: React.FC<LotesTableProps> = ({
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="text-sm text-gray-900">
                                             {programasMap[lote.programa_id] || `Programa ID: ${lote.programa_id}`}
+                                        </div>
+                                    </td>
+
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className="text-sm text-gray-900 text-center">
+                                            {formatearNumero(lote.surcos)}
+                                        </div>
+                                    </td>
+
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className="text-sm text-gray-900 text-center">
+                                            {formatearNumero(lote.plantas_por_surco)}
+                                        </div>
+                                    </td>
+
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className="text-sm font-semibold text-green-600 text-center">
+                                            {totalPlantas ? formatearNumero(totalPlantas) : '-'}
                                         </div>
                                     </td>
 
