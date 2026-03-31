@@ -7,29 +7,6 @@ interface Props {
   onCampoChange: (campo: string, valor: string) => void;
 }
 
-// Componente para subir fotos (simulado con input de texto) — usado en insectos/ácaros listados
-const FotosSection: React.FC<{
-  prefix: string;
-  caracterizacion: Record<string, string>;
-  onCampoChange: (campo: string, valor: string) => void;
-}> = ({ prefix, caracterizacion, onCampoChange }) => (
-  <div className="mb-4">
-    <label className="block text-sm font-medium text-gray-700 mb-1">
-      Fotos tomadas en campo de síntomas o del artrópodo
-    </label>
-    <p className="text-xs text-gray-500 mb-2">
-      Sube hasta 5 archivos compatibles. Tamaño máximo por archivo: 10 MB.
-    </p>
-    <input
-      type="text"
-      value={caracterizacion[prefix] || ""}
-      onChange={(e) => onCampoChange(prefix, e.target.value)}
-      className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
-      placeholder="Ruta de la foto (simulado)"
-    />
-  </div>
-);
-
 // Componente de subida REAL de fotos — usado en "Otro artrópodo"
 const RealFotosSection: React.FC<{
   prefix: string;
@@ -80,85 +57,6 @@ const RealFotosSection: React.FC<{
     // Resetear el input para permitir volver a seleccionar los mismos archivos
     if (inputRef.current) inputRef.current.value = "";
   };
-
-  return (
-    <div className="mb-4">
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        Fotos tomadas en campo de síntomas o del artrópodo
-      </label>
-      <p className="text-xs text-gray-500 mb-2">
-        Sube hasta {MAX_FILES} fotos desde tu galería. Tamaño máximo por archivo: {MAX_SIZE_MB} MB.
-      </p>
-
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded shadow-sm transition-colors"
-      >
-        Seleccionar fotos
-      </button>
-
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="hidden"
-        onChange={handleFileChange}
-      />
-
-      {error && (
-        <p className="text-xs text-red-600 mt-2">{error}</p>
-      )}
-
-      {previews.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-3">
-          {previews.map((preview, idx) => (
-            <div key={idx} className="relative group w-24 h-24">
-              <img
-                src={preview.url}
-                alt={preview.name}
-                className="w-full h-full object-cover rounded border border-gray-300"
-              />
-              <button
-                type="button"
-                onClick={() => removePhoto(idx)}
-                className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow"
-                title="Eliminar foto"
-              >
-                ×
-              </button>
-              <p className="text-xs text-gray-500 truncate mt-1 max-w-[6rem]">{preview.name}</p>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Modal para mostrar imágenes
-const ImageModal: React.FC<{ imageUrl: string | null; onClose: () => void }> = ({ imageUrl, onClose }) => {
-  if (!imageUrl) return null;
-  return (
-    <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white p-4 rounded-lg max-w-lg max-h-full overflow-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          className="float-right text-gray-600 hover:text-gray-900 text-xl font-bold"
-          onClick={onClose}
-        >
-          ×
-        </button>
-        <img src={imageUrl} alt="Vista previa" className="max-w-full h-auto" />
-      </div>
-    </div>
-  );
 };
 
 // ── Subsecciones para cada tipo de insecto ──────────────────────────────────
