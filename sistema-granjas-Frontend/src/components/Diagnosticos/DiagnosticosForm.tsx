@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { DiagnosticoItem } from '../../types/diagnosticoTypes';
 import { monitoreoService, type Monitoreo } from '../../services/monitoreoService';
 import { loteService, type EstructuraLote } from '../../services/loteService';
@@ -51,9 +51,9 @@ interface DiagnosticoPayload {
 }
 
 interface DiagnosticoFormProps {
-    isOpen: boolean;
+    isOpen?: boolean;
     diagnostico?: DiagnosticoItem;
-    onSubmit: (data: DiagnosticoPayload) => Promise<void>;
+    onSubmit: (data: DiagnosticoPayload) => void;
     onCancel: () => void;
     lotes: Lote[];
     programas: Programa[];
@@ -89,60 +89,53 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     condiciones_dia = ['Soleado', 'Nublado', 'Lluvia'],
     currentUser,
     esEdicion = false,
-    porcentajeMuestreo = 10, // 10% por defecto
+    porcentajeMuestreo = 10,
 }) => {
     // ── Wizard ────────────────────────────────────────────────────────────────
     const [paso, setPaso] = useState(1);
 
-    // ── Paso 1 (persistente) ──────────────────────────────────────────────────
+    // ── Paso 1 ────────────────────────────────────────────────────────────────
     const [programaId, setProgramaId] = useState<number | null>(null);
     const [tipoMonitoreoId, setTipoMonitoreoId] = useState<number | null>(null);
     const [loteId, setLoteId] = useState<number | null>(null);
     const [monitoreos, setMonitoreos] = useState<Monitoreo[]>(externalMonitoreos || []);
     const [estructuraLote, setEstructuraLote] = useState<EstructuraLote | null>(null);
     const [cargandoEstructura, setCargandoEstructura] = useState(false);
-    
-    // ── Plantas seleccionadas para muestreo (persistentes mientras no cambie el lote) ──
-    const [plantasSeleccionadas, setPlantasSeleccionadas] = useState<PlantaBase[]>([]);
+
+    // ── Plantas seleccionadas para muestreo ──────────────────────────────────
+    const [plantas, setPlantas] = useState<PlantaBase[]>([]);
     const [plantasOriginales, setPlantasOriginales] = useState<PlantaBase[]>([]);
 
-    // ── Paso 2 (se limpia después de cada diagnóstico) ────────────────────────
+    // ── Paso 2 ────────────────────────────────────────────────────────────────
     const [tipoDiagnostico, setTipoDiagnostico] = useState('');
     const [condicionesDia, setCondicionesDia] = useState('');
     const [caracterizacion, setCaracterizacion] = useState<Record<string, string>>({});
-    const [enviando, setEnviando] = useState(false);
 
-    // ── Función para seleccionar plantas al azar (porcentaje) ──────────────────
+    // ── Función para seleccionar plantas al azar (porcentaje) y ordenar ──────
     const seleccionarPlantasAleatorias = useCallback((todasLasPlantas: PlantaBase[], porcentaje: number): PlantaBase[] => {
         if (!todasLasPlantas.length) return [];
-        
-        // Calcular cuántas plantas seleccionar (mínimo 1 si hay plantas)
         const cantidad = Math.max(1, Math.floor(todasLasPlantas.length * (porcentaje / 100)));
-        
-        // Crear una copia del array para no modificar el original
         const plantasCopia = [...todasLasPlantas];
-        
-        // Algoritmo de Fisher-Yates para mezclar
+        // Mezclar (Fisher-Yates)
         for (let i = plantasCopia.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [plantasCopia[i], plantasCopia[j]] = [plantasCopia[j], plantasCopia[i]];
         }
-        
-        // Tomar las primeras 'cantidad' plantas
-        return plantasCopia.slice(0, cantidad);
+        const seleccionadas = plantasCopia.slice(0, cantidad);
+        // Ordenar por surco y luego por planta
+        return seleccionadas.sort((a, b) => {
+            if (a.surco !== b.surco) return a.surco - b.surco;
+            return a.planta - b.planta;
+        });
     }, []);
 
-    // ── Función para regenerar la selección de plantas (mismo porcentaje) ──────
+    // ── Regenerar selección (mismo porcentaje) ───────────────────────────────
     const regenerarSeleccionPlantas = useCallback(() => {
         if (plantasOriginales.length > 0) {
-            const nuevasSeleccionadas = seleccionarPlantasAleatorias(plantasOriginales, porcentajeMuestreo);
-            setPlantasSeleccionadas(nuevasSeleccionadas);
-            
-            // Limpiar caracterización anterior
-            setCaracterizacion({});
-            
+            const nuevas = seleccionarPlantasAleatorias(plantasOriginales, porcentajeMuestreo);
+            setPlantas(nuevas);
             toast.info(
-                `Se han seleccionado ${nuevasSeleccionadas.length} plantas al azar (${porcentajeMuestreo}% de ${plantasOriginales.length} totales)`,
+                `Se han seleccionado ${nuevas.length} plantas al azar (${porcentajeMuestreo}% de ${plantasOriginales.length} totales)`,
                 { duration: 3000, position: 'top-right' }
             );
         }
@@ -165,26 +158,21 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
 
     // ── Cargar estructura del lote cuando cambia el lote ──────────────────────
     useEffect(() => {
-        const cargarEstructuraLote = async () => {
+        const cargarEstructura = async () => {
             if (!loteId) {
                 setEstructuraLote(null);
                 setPlantasOriginales([]);
-                setPlantasSeleccionadas([]);
+                setPlantas([]);
                 return;
             }
-
             setCargandoEstructura(true);
             try {
                 const estructura = await loteService.obtenerEstructuraLote(loteId);
                 setEstructuraLote(estructura);
-
                 if (estructura.plantas && estructura.plantas.length > 0) {
                     setPlantasOriginales(estructura.plantas);
-                    
-                    // Seleccionar plantas al azar según el porcentaje
                     const seleccionadas = seleccionarPlantasAleatorias(estructura.plantas, porcentajeMuestreo);
-                    setPlantasSeleccionadas(seleccionadas);
-                    
+                    setPlantas(seleccionadas);
                     toast.success(
                         `Lote cargado: ${estructura.total_plantas.toLocaleString('es-ES')} plantas totales. ` +
                         `Se han seleccionado ${seleccionadas.length} plantas para muestreo (${porcentajeMuestreo}%)`,
@@ -196,7 +184,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         position: 'top-right'
                     });
                     setPlantasOriginales([]);
-                    setPlantasSeleccionadas([]);
+                    setPlantas([]);
                 }
             } catch (error) {
                 console.error('Error cargando estructura del lote:', error);
@@ -205,21 +193,19 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                     position: 'top-right'
                 });
                 setPlantasOriginales([]);
-                setPlantasSeleccionadas([]);
+                setPlantas([]);
             } finally {
                 setCargandoEstructura(false);
             }
         };
-
-        cargarEstructuraLote();
+        cargarEstructura();
     }, [loteId, porcentajeMuestreo, seleccionarPlantasAleatorias]);
 
-    // ── Resetear paso 2 (limpiar formulario de diagnóstico) ───────────────────
+    // ── Resetear paso 2 (limpiar formulario) ─────────────────────────────────
     const resetearPaso2 = () => {
         setTipoDiagnostico('');
         setCondicionesDia('');
         setCaracterizacion({});
-        setEnviando(false);
     };
 
     // ── Derivados ─────────────────────────────────────────────────────────────
@@ -236,7 +222,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     useEffect(() => {
         if (!esEdicion || !diagnostico) return;
         setPaso(2);
-
         const d = diagnostico as any;
         if (d.programa_id) setProgramaId(d.programa_id);
         if (d.tipo_monitoreo_id) setTipoMonitoreoId(d.tipo_monitoreo_id);
@@ -244,7 +229,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         if (d.tipo_diagnostico) setTipoDiagnostico(d.tipo_diagnostico);
         if (d.condiciones_dia) setCondicionesDia(d.condiciones_dia);
         if (d.formulario?.plantas) {
-            setPlantasSeleccionadas(d.formulario.plantas);
+            setPlantas(d.formulario.plantas);
         }
         if (d.formulario?.caracterizacion) {
             setCaracterizacion(d.formulario.caracterizacion);
@@ -267,7 +252,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         setLoteId(null);
         setEstructuraLote(null);
         setPlantasOriginales([]);
-        setPlantasSeleccionadas([]);
+        setPlantas([]);
         resetearPaso2();
     };
 
@@ -299,7 +284,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             toast.error('El lote no pertenece al programa elegido');
             return;
         }
-
         if (!estructuraLote || estructuraLote.total_plantas === 0) {
             toast.error('Este lote no tiene surcos o plantas configurados. Por favor, configura el lote primero.', {
                 duration: 5000,
@@ -307,22 +291,19 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             });
             return;
         }
-
-        if (plantasSeleccionadas.length === 0) {
+        if (plantas.length === 0) {
             toast.error('No hay plantas seleccionadas para el muestreo', {
                 duration: 4000,
                 position: 'top-right'
             });
             return;
         }
-
         setPaso(2);
     };
 
     // ── Submit ────────────────────────────────────────────────────────────────
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-
         if (!tipoDiagnostico) {
             toast.error('Selecciona un tipo de diagnóstico');
             return;
@@ -331,15 +312,13 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             toast.error('Selecciona las condiciones del día');
             return;
         }
-        if (plantasSeleccionadas.length === 0) {
+        if (plantas.length === 0) {
             toast.error('No hay plantas seleccionadas para el muestreo');
             return;
         }
 
-        setEnviando(true);
-
-        const formulario: Record<string, any> = {
-            plantas: plantasSeleccionadas,
+        const formulario = {
+            plantas,
             caracterizacion,
             porcentaje_muestreo: porcentajeMuestreo,
             total_plantas_lote: estructuraLote?.total_plantas || 0,
@@ -356,29 +335,15 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             formulario,
         };
 
-        try {
-            await onSubmit(payload);
-            
-            toast.success(
-                `¡Diagnóstico de ${TIPOS_DIAGNOSTICO.find(t => t.value === tipoDiagnostico)?.label} creado exitosamente!`,
-                { duration: 3000, position: 'top-right' }
-            );
-            
-            // ✅ Limpiar solo el paso 2, mantener paso 1 y las plantas seleccionadas
+        console.log('📤 Enviando diagnóstico:', payload);
+        onSubmit(payload);
+        toast.success(esEdicion ? 'Diagnóstico actualizado' : 'Diagnóstico creado');
+
+        // Limpiar paso 2 si no es edición, para permitir nuevos diagnósticos
+        if (!esEdicion) {
             resetearPaso2();
-            
-            // Opcional: Regenerar la selección de plantas para el próximo diagnóstico
-            // (descomentar si quieres que cambien las plantas cada vez)
-            // regenerarSeleccionPlantas();
-            
-        } catch (error: any) {
-            console.error('Error al crear diagnóstico:', error);
-            toast.error(error.message || 'Error al crear el diagnóstico', {
-                duration: 5000,
-                position: 'top-right'
-            });
-        } finally {
-            setEnviando(false);
+        } else {
+            onCancel(); // en edición cerramos el modal
         }
     };
 
@@ -404,9 +369,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                 <div className="space-y-6">
                     {/* Programa */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Programa *
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Programa *</label>
                         <select
                             value={programaId?.toString() || ''}
                             onChange={handleProgramaChange}
@@ -415,24 +378,18 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         >
                             <option value="">Seleccionar programa</option>
                             {programas.map(p => (
-                                <option key={p.id} value={p.id}>
-                                    {p.nombre}
-                                </option>
+                                <option key={p.id} value={p.id}>{p.nombre}</option>
                             ))}
                         </select>
                         {programaSeleccionado && (
-                            <p className="text-sm text-green-600 mt-1">
-                                ✓ {programaSeleccionado.nombre}
-                            </p>
+                            <p className="text-sm text-green-600 mt-1">✓ {programaSeleccionado.nombre}</p>
                         )}
                     </div>
 
                     {/* Tipo de monitoreo */}
                     {programaId && (
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Tipo de Monitoreo *
-                            </label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Monitoreo *</label>
                             {monitoreos.length > 0 ? (
                                 <div className="grid grid-cols-2 gap-3">
                                     {monitoreos.map(m => (
@@ -466,9 +423,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                     {/* Lote */}
                     {tipoMonitoreoId && (
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Lote *
-                            </label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Lote *</label>
                             {lotesFiltrados.length > 0 ? (
                                 <>
                                     <select
@@ -513,7 +468,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                                             <p className="text-sm text-blue-600">
                                                                 <i className="fas fa-chart-simple mr-1"></i>
                                                                 <strong>Plantas a muestrear:</strong>{' '}
-                                                                {plantasSeleccionadas.length} plantas ({porcentajeMuestreo}%)
+                                                                {plantas.length} plantas ({porcentajeMuestreo}%)
                                                             </p>
                                                         </div>
                                                         {plantasOriginales.length > 0 && (
@@ -569,7 +524,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                 !loteId ||
                                 !estructuraLote ||
                                 estructuraLote.total_plantas === 0 ||
-                                plantasSeleccionadas.length === 0
+                                plantas.length === 0
                             }
                             className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition flex items-center gap-2"
                         >
@@ -605,7 +560,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                             {estructuraLote.surcos} surcos × {estructuraLote.plantas_por_surco} plantas/surco ={' '}
                                             {estructuraLote.total_plantas.toLocaleString('es-ES')} plantas totales
                                             <span className="ml-2 text-blue-600">
-                                                | Muestreando: {plantasSeleccionadas.length} plantas ({porcentajeMuestreo}%)
+                                                | Muestreando: {plantas.length} plantas ({porcentajeMuestreo}%)
                                             </span>
                                         </div>
                                     )}
@@ -640,13 +595,10 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                 onChange={e => setTipoDiagnostico(e.target.value)}
                                 className="w-full border rounded-lg p-3"
                                 required
-                                disabled={enviando}
                             >
                                 <option value="">Seleccionar tipo</option>
                                 {TIPOS_DIAGNOSTICO.map(t => (
-                                    <option key={t.value} value={t.value}>
-                                        {t.label}
-                                    </option>
+                                    <option key={t.value} value={t.value}>{t.label}</option>
                                 ))}
                             </select>
                         </div>
@@ -661,34 +613,31 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                 onChange={e => setCondicionesDia(e.target.value)}
                                 className="w-full border rounded-lg p-3"
                                 required
-                                disabled={enviando}
                             >
                                 <option value="">Seleccionar condiciones</option>
                                 {condiciones_dia.map(c => (
-                                    <option key={c} value={c}>
-                                        {c}
-                                    </option>
+                                    <option key={c} value={c}>{c}</option>
                                 ))}
                             </select>
                         </div>
 
                         {/* Sección específica por tipo */}
-                        {tipoDiagnostico && plantasSeleccionadas.length > 0 && (
+                        {tipoDiagnostico && plantas.length > 0 && (
                             <div className="mt-2">
                                 <div className="mb-3 text-sm text-gray-600">
                                     <i className="fas fa-info-circle mr-1"></i>
-                                    Evaluando {plantasSeleccionadas.length} plantas seleccionadas al azar
+                                    Evaluando {plantas.length} plantas seleccionadas al azar
                                 </div>
                                 {tipoDiagnostico === 'censo_poblacional' && (
                                     <CensoSection
-                                        plantas={plantasSeleccionadas}
+                                        plantas={plantas}
                                         caracterizacion={caracterizacion}
                                         onCampoChange={handleCaracterizacionChange}
                                     />
                                 )}
                                 {tipoDiagnostico === 'monitoreo_fenologico' && (
                                     <FenologicoSection
-                                        plantas={plantasSeleccionadas}
+                                        plantas={plantas}
                                         caracterizacion={caracterizacion}
                                         onCampoChange={handleCaracterizacionChange}
                                         onFaseChange={handleCaracterizacionChange}
@@ -696,35 +645,35 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                 )}
                                 {tipoDiagnostico === 'artropodos' && (
                                     <ArthropodSection
-                                        plantas={plantasSeleccionadas}
+                                        plantas={plantas}
                                         caracterizacion={caracterizacion}
                                         onCampoChange={handleCaracterizacionChange}
                                     />
                                 )}
                                 {tipoDiagnostico === 'enfermedades' && (
                                     <EnfermedadesSection
-                                        plantas={plantasSeleccionadas}
+                                        plantas={plantas}
                                         caracterizacion={caracterizacion}
                                         onCampoChange={handleCaracterizacionChange}
                                     />
                                 )}
                                 {tipoDiagnostico === 'arvenses' && (
                                     <ArvensesSection
-                                        plantas={plantasSeleccionadas}
+                                        plantas={plantas}
                                         caracterizacion={caracterizacion}
                                         onCampoChange={handleCaracterizacionChange}
                                     />
                                 )}
                                 {tipoDiagnostico === 'controladores_biologicos' && (
                                     <ControladoresSection
-                                        plantas={plantasSeleccionadas}
+                                        plantas={plantas}
                                         caracterizacion={caracterizacion}
                                         onCampoChange={handleCaracterizacionChange}
                                     />
                                 )}
                                 {tipoDiagnostico === 'polinizadores' && (
                                     <PolinizadoresSection
-                                        plantas={plantasSeleccionadas}
+                                        plantas={plantas}
                                         caracterizacion={caracterizacion}
                                         onCampoChange={handleCaracterizacionChange}
                                     />
@@ -743,7 +692,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                 </p>
                             </div>
                         )}
-                        {tipoDiagnostico && plantasSeleccionadas.length === 0 && (
+                        {tipoDiagnostico && plantas.length === 0 && (
                             <div className="bg-red-50 border-l-4 border-red-400 p-4">
                                 <p className="text-sm text-red-700">
                                     <i className="fas fa-exclamation-triangle mr-2"></i>
@@ -757,32 +706,18 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                     <div className="flex justify-end gap-3 mt-8 pt-5 border-t">
                         <button
                             type="button"
-                            onClick={() => {
-                                if (enviando) return;
-                                const confirmar = window.confirm('¿Estás seguro de cancelar? Los datos no guardados se perderán.');
-                                if (confirmar) onCancel();
-                            }}
-                            className="px-5 py-2.5 border rounded-lg hover:bg-gray-100 transition flex items-center gap-2 disabled:opacity-50"
-                            disabled={enviando}
+                            onClick={onCancel}
+                            className="px-5 py-2.5 border rounded-lg hover:bg-gray-100 transition flex items-center gap-2"
                         >
                             <i className="fas fa-times"></i> Cancelar
                         </button>
                         <button
                             type="submit"
-                            disabled={!tipoDiagnostico || !condicionesDia || plantasSeleccionadas.length === 0 || enviando}
+                            disabled={!tipoDiagnostico || !condicionesDia || plantas.length === 0}
                             className="bg-green-600 text-white px-5 py-2.5 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition flex items-center gap-2"
                         >
-                            {enviando ? (
-                                <>
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                    Guardando...
-                                </>
-                            ) : (
-                                <>
-                                    <i className="fas fa-save"></i>
-                                    Guardar Diagnóstico
-                                </>
-                            )}
+                            <i className="fas fa-save"></i>
+                            {esEdicion ? 'Actualizar' : 'Crear'} Diagnóstico
                         </button>
                     </div>
                 </form>
