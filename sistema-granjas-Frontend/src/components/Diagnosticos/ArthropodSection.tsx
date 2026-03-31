@@ -621,6 +621,7 @@ const CuadranteArthropod: React.FC<{
   );
 };
 
+
 // ── Planta ───────────────────────────────────────────────────────────────────
 
 const PlantaArthropod: React.FC<{
