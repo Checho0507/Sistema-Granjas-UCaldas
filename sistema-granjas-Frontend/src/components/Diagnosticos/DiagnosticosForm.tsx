@@ -220,7 +220,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
 }) => {
     // ===================== MODO EDICIÓN (simple) ===============================
     if (esEdicion && diagnostico) {
-        // Estado para el formulario de edición
         const [tipoDiagnostico, setTipoDiagnostico] = useState(diagnostico.tipo_diagnostico || '');
         const [condicionesDia, setCondicionesDia] = useState(diagnostico.condiciones_dia || '');
         const [caracterizacion, setCaracterizacion] = useState<Record<string, any>>(
@@ -350,6 +349,27 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     const [tareaActual, setTareaActual] = useState<Tarea | null>(null);
     const [respuestaTemporal, setRespuestaTemporal] = useState<Record<string, any>>({});
 
+    // Limpiar progreso (al cancelar)
+    const limpiarProgreso = () => {
+        localStorage.removeItem(STORAGE_KEY);
+        setProgreso(null);
+    };
+
+    const resetearTodo = () => {
+        setPaso(1);
+        setProgramaId(null);
+        setTipoMonitoreoId(null);
+        setLoteId(null);
+        setEstructuraLote(null);
+        setPlantasSeleccionadas([]);
+        setPlantasOriginales([]);
+        setTiposSeleccionados([]);
+        setCondicionesDia('');
+        setTareaActual(null);
+        setRespuestaTemporal({});
+        limpiarProgreso();
+    };
+
     // Cargar o inicializar progreso desde localStorage al abrir modal
     useEffect(() => {
         if (isOpen && !esEdicion) {
@@ -383,7 +403,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         }
     }, [isOpen, esEdicion]);
 
-    // Guardar progreso en localStorage cada vez que cambia
+    // Guardar progreso en localStorage cada vez que cambia (automático)
     useEffect(() => {
         if (!progreso && (paso === 1 || paso === 2)) return;
         if (paso === 1) return;
@@ -401,26 +421,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(nuevoProgreso));
     }, [paso, programaId, tipoMonitoreoId, loteId, plantasSeleccionadas, tiposSeleccionados, condicionesDia, progreso]);
-
-    const limpiarProgreso = () => {
-        localStorage.removeItem(STORAGE_KEY);
-        setProgreso(null);
-    };
-
-    const resetearTodo = () => {
-        setPaso(1);
-        setProgramaId(null);
-        setTipoMonitoreoId(null);
-        setLoteId(null);
-        setEstructuraLote(null);
-        setPlantasSeleccionadas([]);
-        setPlantasOriginales([]);
-        setTiposSeleccionados([]);
-        setCondicionesDia('');
-        setTareaActual(null);
-        setRespuestaTemporal({});
-        limpiarProgreso();
-    };
 
     // Cargar monitoreos
     useEffect(() => {
@@ -526,10 +526,22 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             [`${tareaActual.planta.codigo}_${tareaActual.tipoDiagnostico}`]: respuestaTemporal,
         };
         setProgreso(nuevoProgreso);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(nuevoProgreso)); // guardado explícito
+    };
+
+    // Validar que al menos un campo esté lleno antes de avanzar
+    const validarRespuesta = (): boolean => {
+        if (!respuestaTemporal || Object.keys(respuestaTemporal).length === 0) {
+            toast.warning('Debes llenar al menos un campo del diagnóstico antes de continuar');
+            return false;
+        }
+        // Aquí podrías agregar validaciones específicas por tipo de diagnóstico
+        return true;
     };
 
     const handleSiguienteTarea = () => {
         if (!progreso) return;
+        if (!validarRespuesta()) return;
         guardarRespuestaActual();
         const siguienteIndice = progreso.indiceActual + 1;
         if (siguienteIndice < progreso.tareas.length) {
@@ -556,6 +568,14 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             setRespuestaTemporal(nuevaTarea.respuesta || {});
             setProgreso({ ...progreso, indiceActual: anteriorIndice });
         }
+    };
+
+    // Guardar progreso y cerrar modal
+    const handleGuardarProgresoYCerrar = () => {
+        if (progreso && tareaActual) {
+            guardarRespuestaActual(); // guarda la respuesta actual
+        }
+        onCancel(); // cierra el modal (el progreso ya está en localStorage)
     };
 
     const [enviando, setEnviando] = useState(false);
@@ -595,7 +615,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             if (errores.length === 0) {
                 toast.success(`${payloads.length} diagnósticos enviados correctamente`);
                 limpiarProgreso();
-                onCancel();
+                onCancel(); // cerrar modal
             } else {
                 toast.error(`${errores.length} de ${payloads.length} diagnósticos fallaron`);
             }
@@ -631,6 +651,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
 
             {paso === 1 && (
                 <div className="space-y-6">
+                    {/* Programa */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Programa *</label>
                         <select
@@ -801,17 +822,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         <span>
                             <strong>Progreso:</strong> {progreso.indiceActual + 1} de {progreso.tareas.length} tareas
                         </span>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                if (window.confirm('¿Cancelar y guardar progreso?')) {
-                                    onCancel();
-                                }
-                            }}
-                            className="text-red-600 hover:text-red-800 text-sm"
-                        >
-                            Cancelar y guardar
-                        </button>
+                        {/* El botón rojo "Cancelar y guardar" fue eliminado */}
                     </div>
 
                     <TareaForm
@@ -833,7 +844,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         <div className="flex gap-2">
                             <button
                                 type="button"
-                                onClick={guardarRespuestaActual}
+                                onClick={handleGuardarProgresoYCerrar}
                                 className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600"
                             >
                                 <i className="fas fa-save mr-2"></i> Guardar progreso
