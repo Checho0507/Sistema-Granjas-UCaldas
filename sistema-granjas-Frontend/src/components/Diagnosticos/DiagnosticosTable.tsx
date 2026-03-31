@@ -5,10 +5,8 @@ interface DiagnosticosTableProps {
     diagnosticos: DiagnosticoItem[];
     onEditar: (diagnostico: DiagnosticoItem) => void;
     onEliminar: (id: number) => void;
-    onAsignarDocente: (diagnostico: DiagnosticoItem) => void;
     onAgregarEvidencia: (diagnostico: DiagnosticoItem) => void;
     onVerDetalles: (diagnostico: DiagnosticoItem) => void;
-    onCerrar: (diagnostico: DiagnosticoItem) => void;
     currentUser: any;
 }
 
@@ -16,13 +14,10 @@ const DiagnosticosTable: React.FC<DiagnosticosTableProps> = ({
     diagnosticos,
     onEditar,
     onEliminar,
-    onAsignarDocente,
     onAgregarEvidencia,
     onVerDetalles,
-    onCerrar,
     currentUser
 }) => {
-
     const getEstadoBadge = (estado?: string) => {
         if (!estado) {
             return (
@@ -60,11 +55,10 @@ const DiagnosticosTable: React.FC<DiagnosticosTableProps> = ({
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Acciones</th>
                         </tr>
                     </thead>
-
                     <tbody className="divide-y divide-gray-200">
                         {diagnosticos.length === 0 ? (
                             <tr>
-                                <td colSpan={8} className="text-center py-6 text-gray-500">
+                                <td colSpan={7} className="text-center py-6 text-gray-500">
                                     No hay diagnósticos
                                 </td>
                             </tr>
@@ -73,7 +67,7 @@ const DiagnosticosTable: React.FC<DiagnosticosTableProps> = ({
                                 <tr key={d.id} className="hover:bg-gray-50">
                                     {/* Tipo */}
                                     <td className="px-4 py-3 text-sm">
-                                        {d.tipo_diagnostico?.replace(/_/g, ' ')}
+                                        {d.tipo_diagnostico?.replace(/_/g, ' ') || 'N/A'}
                                     </td>
 
                                     {/* Programa */}
@@ -107,31 +101,36 @@ const DiagnosticosTable: React.FC<DiagnosticosTableProps> = ({
                                     {/* Acciones */}
                                     <td className="px-4 py-3 text-sm">
                                         <div className="flex gap-2">
-
                                             <button
                                                 onClick={() => onVerDetalles(d)}
                                                 className="text-blue-600 hover:text-blue-800"
+                                                title="Ver detalles"
                                             >
                                                 👁
                                             </button>
-
                                             <button
                                                 onClick={() => onEditar(d)}
                                                 className="text-yellow-600 hover:text-yellow-800"
+                                                title="Editar"
                                             >
                                                 ✏️
                                             </button>
-
+                                            <button
+                                                onClick={() => onAgregarEvidencia(d)}
+                                                className="text-green-600 hover:text-green-800"
+                                                title="Agregar evidencia"
+                                            >
+                                                📷
+                                            </button>
                                             <button
                                                 onClick={() => onEliminar(d.id)}
                                                 className="text-red-600 hover:text-red-800"
+                                                title="Eliminar"
                                             >
                                                 🗑
                                             </button>
-
                                         </div>
                                     </td>
-
                                 </tr>
                             ))
                         )}

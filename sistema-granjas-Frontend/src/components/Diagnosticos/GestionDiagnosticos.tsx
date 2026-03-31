@@ -7,7 +7,7 @@ import monitoreoService from '../../services/monitoreoService';
 import type { DiagnosticoItem, DiagnosticoFiltros } from '../../types/diagnosticoTypes';
 import Modal from '../Common/Modal';
 import DiagnosticosTable from './DiagnosticosTable';
-import DiagnosticoForm from './DiagnosticosForm';        // ✅ Cambiado: sin "s"
+import DiagnosticoForm from './DiagnosticosForm';        // ✅ Correcto: sin "s"
 import AgregarEvidenciaModal from './AgregarEvidenciaModal';
 import DetallesDiagnosticoModal from './DetallesDiagnosticoModal';
 import { useAuth } from '../../hooks/useAuth';
@@ -127,7 +127,6 @@ const GestionDiagnosticos: React.FC = () => {
 
     // ── Handlers CRUD ─────────────────────────────────────────────────────────
 
-    // ✅ Se crea un solo diagnóstico, pero el formulario llamará a esta función varias veces
     const handleCrearDiagnostico = async (data: any) => {
         try {
             const payload = {
@@ -142,7 +141,7 @@ const GestionDiagnosticos: React.FC = () => {
             return nuevo;
         } catch (err: any) {
             toast.error(`Error al crear diagnóstico: ${err.message}`);
-            throw err; // Para que el formulario sepa que falló
+            throw err;
         }
     };
 
