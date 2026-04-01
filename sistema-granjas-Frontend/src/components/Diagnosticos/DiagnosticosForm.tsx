@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { DiagnosticoItem } from '../../types/diagnosticoTypes';
 import { monitoreoService, type Monitoreo } from '../../services/monitoreoService';
 import { loteService, type EstructuraLote } from '../../services/loteService';
 import { CensoSection } from './CensoSection';
 import { FenologicoSection } from './FenologicoSection';
-import { ArthropodSection } from './ArthropodSection';
+import { ArthropodSection, type ArthropodSectionRef } from './ArthropodSection';
 import { EnfermedadesSection } from './EnfermedadesSection';
 import { ArvensesSection } from './ArvensesSection';
 import { ControladoresSection } from './ControladoresSection';
@@ -111,18 +111,19 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     const [condicionesDia, setCondicionesDia] = useState('');
     const [caracterizacion, setCaracterizacion] = useState<Record<string, string>>({});
 
+    // Referencia para ArthropodSection
+    const arthropodRef = useRef<ArthropodSectionRef>(null);
+
     // ── Función para seleccionar plantas al azar (porcentaje) y ordenar ──────
     const seleccionarPlantasAleatorias = useCallback((todasLasPlantas: PlantaBase[], porcentaje: number): PlantaBase[] => {
         if (!todasLasPlantas.length) return [];
         const cantidad = Math.max(1, Math.floor(todasLasPlantas.length * (porcentaje / 100)));
         const plantasCopia = [...todasLasPlantas];
-        // Mezclar (Fisher-Yates)
         for (let i = plantasCopia.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [plantasCopia[i], plantasCopia[j]] = [plantasCopia[j], plantasCopia[i]];
         }
         const seleccionadas = plantasCopia.slice(0, cantidad);
-        // Ordenar por surco y luego por planta
         return seleccionadas.sort((a, b) => {
             if (a.surco !== b.surco) return a.surco - b.surco;
             return a.planta - b.planta;
@@ -302,8 +303,9 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     };
 
     // ── Submit ────────────────────────────────────────────────────────────────
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
         if (!tipoDiagnostico) {
             toast.error('Selecciona un tipo de diagnóstico');
             return;
@@ -315,6 +317,14 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         if (plantas.length === 0) {
             toast.error('No hay plantas seleccionadas para el muestreo');
             return;
+        }
+
+        // Validación específica para artrópodos
+        if (tipoDiagnostico === 'artropodos' && arthropodRef.current) {
+            const isValid = arthropodRef.current.validate();
+            if (!isValid) {
+                return; // No continuar si la validación falla
+            }
         }
 
         const formulario = {
@@ -645,6 +655,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                 )}
                                 {tipoDiagnostico === 'artropodos' && (
                                     <ArthropodSection
+                                        ref={arthropodRef}
                                         plantas={plantas}
                                         caracterizacion={caracterizacion}
                                         onCampoChange={handleCaracterizacionChange}

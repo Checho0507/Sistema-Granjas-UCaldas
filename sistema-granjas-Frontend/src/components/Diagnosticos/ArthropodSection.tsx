@@ -1,10 +1,15 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, forwardRef, useImperativeHandle } from "react";
 import { PlantaBase } from "../types";
+import { toast } from "react-toastify";
 
 interface Props {
   plantas: PlantaBase[];
   caracterizacion: Record<string, string>;
   onCampoChange: (campo: string, valor: string) => void;
+}
+
+export interface ArthropodSectionRef {
+  validate: () => boolean;
 }
 
 // Componente para subir fotos (simulado con input de texto) — usado en insectos/ácaros listados
@@ -157,7 +162,7 @@ const ImageModal: React.FC<{ imageUrl: string | null; onClose: () => void }> = (
   );
 };
 
-// ── Subsecciones para cada tipo de insecto (con required automático) ─────────
+// ── Subsecciones para cada tipo de insecto ──────────────────────────────────
 
 const CompsusSection: React.FC<{
   basePrefix: string; cuadrante: number; rama: number;
@@ -450,21 +455,19 @@ const CuadranteArthropod: React.FC<{
   caracterizacion: Record<string, string>;
   onCampoChange: (campo: string, valor: string) => void;
   onOpenImage: (imageName: string) => void;
-}> = ({ plantaIdx, cuadrante, rama, planta, caracterizacion, onCampoChange, onOpenImage }) => {
+  errores?: Record<string, string>;
+}> = ({ plantaIdx, cuadrante, rama, planta, caracterizacion, onCampoChange, onOpenImage, errores = {} }) => {
   const basePrefix = `artropodo_planta_${plantaIdx + 1}`;
 
-  // Clase de artrópodo: ahora es radio con opciones insecto, arácnido, ninguno
   const claseKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_clase`;
   const claseSeleccionada = caracterizacion[claseKey] || "";
 
-  // Cuando cambia la clase, limpiamos los datos de las otras opciones
   const handleClaseChange = (valor: string) => {
     onCampoChange(claseKey, valor);
     // Limpiar datos de insectos y ácaros si se cambia a otra clase
     if (valor !== 'insecto') {
       const insectoTiposKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_insecto_tipos`;
       onCampoChange(insectoTiposKey, "");
-      // Limpiar todos los campos de insectos
       const insectPrefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_insecto_`;
       Object.keys(caracterizacion).forEach(k => {
         if (k.startsWith(insectPrefix)) onCampoChange(k, "");
@@ -478,7 +481,6 @@ const CuadranteArthropod: React.FC<{
         if (k.startsWith(acaroPrefix)) onCampoChange(k, "");
       });
     }
-    // Limpiar otro artrópodo si no se selecciona nada
     const otroKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_otro_activo`;
     if (valor !== 'insecto' && valor !== 'aracnido') {
       onCampoChange(otroKey, "false");
@@ -489,7 +491,6 @@ const CuadranteArthropod: React.FC<{
     }
   };
 
-  // Insectos
   const insectoTiposKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_insecto_tipos`;
   const insectoTiposArray = (caracterizacion[insectoTiposKey] || "").split(",").filter(Boolean);
 
@@ -504,7 +505,6 @@ const CuadranteArthropod: React.FC<{
     onCampoChange(insectoTiposKey, arr.join(","));
   };
 
-  // Ácaros
   const acaroTiposKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_acaro_tipos`;
   const acaroTiposArray = (caracterizacion[acaroTiposKey] || "").split(",").filter(Boolean);
 
@@ -531,11 +531,16 @@ const CuadranteArthropod: React.FC<{
     { value: 'phyllocoptruta',      label: <><em>Phyllocoptruta sp.</em> - Ácaro tostador</>,     image: 'phyllocoptrutasp.png' },
   ];
 
+  // Generar claves de error
+  const errorClaseKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_clase_error`;
+  const errorInsectoKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_insecto_error`;
+  const errorAcaroKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_acaro_error`;
+
   return (
     <div className="ml-6 mb-6 p-4 border-l-4 border-blue-200 bg-gray-50 rounded">
       <h5 className="font-medium text-md text-gray-700 mb-3">Rama {rama} - Cuadrante {cuadrante}</h5>
 
-      {/* Clase de artrópodo - RADIO con opción Ninguno */}
+      {/* Clase de artrópodo */}
       <div className="mb-4">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           ¿Clase de artrópodo observado en la RAMA {rama} del CUADRANTE {cuadrante}? *
@@ -555,9 +560,12 @@ const CuadranteArthropod: React.FC<{
             </label>
           ))}
         </div>
+        {errores[errorClaseKey] && (
+          <p className="text-red-600 text-xs mt-1">{errores[errorClaseKey]}</p>
+        )}
       </div>
 
-      {/* Insectos - solo si clase = insecto */}
+      {/* Insectos */}
       {claseSeleccionada === 'insecto' && (
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -583,6 +591,9 @@ const CuadranteArthropod: React.FC<{
               Otro
             </label>
           </div>
+          {errores[errorInsectoKey] && (
+            <p className="text-red-600 text-xs mt-1">{errores[errorInsectoKey]}</p>
+          )}
 
           {insectoTiposArray.includes('compsus') && <CompsusSection basePrefix={basePrefix} cuadrante={cuadrante} rama={rama} caracterizacion={caracterizacion} onCampoChange={onCampoChange} />}
           {insectoTiposArray.includes('diaphorina') && <DiaphorinaSection basePrefix={basePrefix} cuadrante={cuadrante} rama={rama} caracterizacion={caracterizacion} onCampoChange={onCampoChange} />}
@@ -591,7 +602,7 @@ const CuadranteArthropod: React.FC<{
         </div>
       )}
 
-      {/* Ácaros - solo si clase = arácnido */}
+      {/* Ácaros */}
       {claseSeleccionada === 'aracnido' && (
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -622,13 +633,16 @@ const CuadranteArthropod: React.FC<{
               Otro
             </label>
           </div>
+          {errores[errorAcaroKey] && (
+            <p className="text-red-600 text-xs mt-1">{errores[errorAcaroKey]}</p>
+          )}
 
           {acaroTiposArray.includes('polyphagotarsonemus') && <PolyphagotarsonemusSection basePrefix={basePrefix} cuadrante={cuadrante} rama={rama} caracterizacion={caracterizacion} onCampoChange={onCampoChange} />}
           {acaroTiposArray.includes('phyllocoptruta') && <PhyllocoptrutaSection basePrefix={basePrefix} cuadrante={cuadrante} rama={rama} caracterizacion={caracterizacion} onCampoChange={onCampoChange} />}
         </div>
       )}
 
-      {/* Otro artrópodo (independiente de la clase) */}
+      {/* Otro artrópodo */}
       <div className="mt-4">
         <label className="inline-flex items-center mb-2">
           <input type="checkbox"
@@ -653,7 +667,8 @@ const PlantaArthropod: React.FC<{
   caracterizacion: Record<string, string>;
   onCampoChange: (campo: string, valor: string) => void;
   onOpenImage: (imageName: string) => void;
-}> = ({ index, planta, caracterizacion, onCampoChange, onOpenImage }) => (
+  errores: Record<string, string>;
+}> = ({ index, planta, caracterizacion, onCampoChange, onOpenImage, errores }) => (
   <div className="border rounded-lg p-4 mb-8 bg-white shadow-sm">
     <h4 className="font-semibold text-lg text-gray-800 mb-2">
       {planta.label} (Código: {planta.codigo})
@@ -667,6 +682,7 @@ const PlantaArthropod: React.FC<{
         plantaIdx={index} cuadrante={cuadrante} rama={cuadrante}
         planta={planta} caracterizacion={caracterizacion}
         onCampoChange={onCampoChange} onOpenImage={onOpenImage}
+        errores={errores}
       />
     ))}
   </div>
@@ -674,40 +690,92 @@ const PlantaArthropod: React.FC<{
 
 // ── Componente principal ─────────────────────────────────────────────────────
 
-export const ArthropodSection: React.FC<Props> = ({ plantas, caracterizacion, onCampoChange }) => {
-  const [modalImage, setModalImage] = useState<string | null>(null);
+export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
+  ({ plantas, caracterizacion, onCampoChange }, ref) => {
+    const [modalImage, setModalImage] = useState<string | null>(null);
+    const [errores, setErrores] = useState<Record<string, string>>({});
 
-  return (
-    <div className="bg-gray-50 p-6 rounded-lg shadow-md mb-6">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Monitoreo de Artrópodos</h2>
+    const validate = (): boolean => {
+      const nuevosErrores: Record<string, string> = {};
+      let isValid = true;
 
-      <div className="mb-6 p-4 bg-white rounded-lg shadow-sm border">
-        <p className="text-sm text-gray-700">
-          <span className="font-bold">Metodología de monitoreo:</span> Para cada árbol seleccionado, divida la copa en 4 cuadrantes.
-          Seleccione una rama al azar de cada cuadrante. Observe: daño en hojas, frutos, puntos de crecimiento y presencia de artrópodos.
+      plantas.forEach((planta, idx) => {
+        const basePrefix = `artropodo_planta_${idx + 1}`;
+        for (let cuadrante = 1; cuadrante <= 4; cuadrante++) {
+          const claseKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_clase`;
+          const clase = caracterizacion[claseKey] || "";
+
+          if (clase === "insecto") {
+            const insectoTiposKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_insecto_tipos`;
+            const insectoTipos = (caracterizacion[insectoTiposKey] || "").split(",").filter(Boolean);
+            const otroActivoKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_otro_activo`;
+            const otroActivo = caracterizacion[otroActivoKey] === "true";
+
+            if (insectoTipos.length === 0 && !otroActivo) {
+              const errorKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_insecto_error`;
+              nuevosErrores[errorKey] = `Debe seleccionar al menos un insecto o marcar "Registrar otro artrópodo no listado" en el cuadrante ${cuadrante} de la planta ${planta.label}.`;
+              isValid = false;
+            }
+          } else if (clase === "aracnido") {
+            const acaroTiposKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_acaro_tipos`;
+            const acaroTipos = (caracterizacion[acaroTiposKey] || "").split(",").filter(Boolean);
+            const otroActivoKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_otro_activo`;
+            const otroActivo = caracterizacion[otroActivoKey] === "true";
+
+            if (acaroTipos.length === 0 && !otroActivo) {
+              const errorKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_acaro_error`;
+              nuevosErrores[errorKey] = `Debe seleccionar al menos un ácaro o marcar "Registrar otro artrópodo no listado" en el cuadrante ${cuadrante} de la planta ${planta.label}.`;
+              isValid = false;
+            }
+          }
+          // Nota: No se valida "Ninguno" porque no requiere selección.
+        }
+      });
+
+      setErrores(nuevosErrores);
+      if (!isValid) {
+        toast.error("Por favor complete los campos obligatorios según las opciones seleccionadas.");
+      }
+      return isValid;
+    };
+
+    useImperativeHandle(ref, () => ({
+      validate
+    }));
+
+    return (
+      <div className="bg-gray-50 p-6 rounded-lg shadow-md mb-6">
+        <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Monitoreo de Artrópodos</h2>
+
+        <div className="mb-6 p-4 bg-white rounded-lg shadow-sm border">
+          <p className="text-sm text-gray-700">
+            <span className="font-bold">Metodología de monitoreo:</span> Para cada árbol seleccionado, divida la copa en 4 cuadrantes.
+            Seleccione una rama al azar de cada cuadrante. Observe: daño en hojas, frutos, puntos de crecimiento y presencia de artrópodos.
+          </p>
+        </div>
+
+        <h3 className="text-xl font-bold text-gray-800 mb-4">Árboles seleccionados para monitoreo</h3>
+        <p className="text-sm text-gray-600 mb-6">
+          Se han generado {plantas.length} árbol(es) para monitoreo. Para cada uno, evalúe los 4 cuadrantes de forma independiente.
         </p>
+
+        {plantas.map((planta, idx) => (
+          <PlantaArthropod key={planta.codigo} index={idx} planta={planta}
+            caracterizacion={caracterizacion} onCampoChange={onCampoChange}
+            onOpenImage={(name) => setModalImage(`/imgs/${name}`)}
+            errores={errores} />
+        ))}
+
+        <div className="mt-6 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-sm text-gray-700">
+          <p className="font-medium mb-1">📝 Nota importante - Variedad Swingle:</p>
+          <p>
+            Si el lote monitoreado tiene o linda con plantas de la variedad Swingle (Lotes: 5, 6, 8 y 9),
+            debe monitorear mínimo 2 árboles adicionales de esta variedad para el monitoreo de <em>Diaphorina citri</em>.
+          </p>
+        </div>
+
+        <ImageModal imageUrl={modalImage} onClose={() => setModalImage(null)} />
       </div>
-
-      <h3 className="text-xl font-bold text-gray-800 mb-4">Árboles seleccionados para monitoreo</h3>
-      <p className="text-sm text-gray-600 mb-6">
-        Se han generado {plantas.length} árbol(es) para monitoreo. Para cada uno, evalúe los 4 cuadrantes de forma independiente.
-      </p>
-
-      {plantas.map((planta, idx) => (
-        <PlantaArthropod key={planta.codigo} index={idx} planta={planta}
-          caracterizacion={caracterizacion} onCampoChange={onCampoChange}
-          onOpenImage={(name) => setModalImage(`/imgs/${name}`)} />
-      ))}
-
-      <div className="mt-6 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-sm text-gray-700">
-        <p className="font-medium mb-1">📝 Nota importante - Variedad Swingle:</p>
-        <p>
-          Si el lote monitoreado tiene o linda con plantas de la variedad Swingle (Lotes: 5, 6, 8 y 9),
-          debe monitorear mínimo 2 árboles adicionales de esta variedad para el monitoreo de <em>Diaphorina citri</em>.
-        </p>
-      </div>
-
-      <ImageModal imageUrl={modalImage} onClose={() => setModalImage(null)} />
-    </div>
-  );
-};
+    );
+  }
+);
