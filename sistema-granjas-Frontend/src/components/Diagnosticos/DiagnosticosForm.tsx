@@ -3,7 +3,7 @@ import type { DiagnosticoItem } from '../../types/diagnosticoTypes';
 import { monitoreoService, type Monitoreo } from '../../services/monitoreoService';
 import { loteService, type EstructuraLote } from '../../services/loteService';
 import { CensoSection } from './CensoSection';
-import { FenologicoSection } from './FenologicoSection';
+import { FenologicoSection, type FenologicoSectionRef } from './FenologicoSection';
 import { ArthropodSection, type ArthropodSectionRef } from './ArthropodSection';
 import { ArvensesSection, type ArvensesSectionRef } from './ArvensesSection';
 import { EnfermedadesSection } from './EnfermedadesSection';
@@ -114,6 +114,8 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     // Referencias para subsecciones que validan
     const arthropodRef = useRef<ArthropodSectionRef>(null);
     const arvensesRef = useRef<ArvensesSectionRef>(null);
+    const fenologicoRef = useRef<FenologicoSectionRef>(null);
+
 
     // ── Función para seleccionar plantas al azar (porcentaje) y ordenar ──────
     const seleccionarPlantasAleatorias = useCallback((todasLasPlantas: PlantaBase[], porcentaje: number): PlantaBase[] => {
@@ -328,6 +330,11 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
 
         if (tipoDiagnostico === 'arvenses' && arvensesRef.current) {
             const isValid = arvensesRef.current.validate();
+            if (!isValid) return;
+        }
+
+        if (tipoDiagnostico === 'monitoreo_fenologico' && fenologicoRef.current) {
+            const isValid = fenologicoRef.current.validate();
             if (!isValid) return;
         }
 
@@ -649,10 +656,10 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                 )}
                                 {tipoDiagnostico === 'monitoreo_fenologico' && (
                                     <FenologicoSection
+                                        ref={fenologicoRef}
                                         plantas={plantas}
                                         caracterizacion={caracterizacion}
                                         onCampoChange={handleCaracterizacionChange}
-                                        onFaseChange={handleCaracterizacionChange}
                                     />
                                 )}
                                 {tipoDiagnostico === 'artropodos' && (
