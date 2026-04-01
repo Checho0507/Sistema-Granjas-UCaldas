@@ -748,7 +748,12 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
           const presencia = caracterizacion[presenciaKey] || "";
           const errorPresenciaKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_presencia_error`;
 
-          if (presencia === "si") {
+          if (!presencia) {
+            const claseKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_clase`;
+            caracterizacion[claseKey] = "ninguno"; // Limpiar clase si no hay presencia
+          } else if (presencia === "si") {
+            const claseKey2 = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_clase`;
+            caracterizacion[claseKey2] = "si";
             // Verificar que al menos una clase esté seleccionada
             const claseKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_clase`;
             const claseString = caracterizacion[claseKey] || "";
