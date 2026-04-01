@@ -3,7 +3,7 @@ import { PlantaBase } from '../types';
 import { toast } from 'react-toastify';
 
 interface ArvensesSectionProps {
-  plantas: PlantaBase[]; // 5 plantas seleccionadas (puntos de monitoreo)
+  plantas: PlantaBase[];
   caracterizacion: Record<string, string>;
   onCampoChange: (campo: string, valor: string) => void;
 }
@@ -22,9 +22,7 @@ interface ArvenseItem {
 type ZonaType = 'plato' | 'calle';
 type TipoArvense = 'noble' | 'agresiva';
 
-// Lista predefinida de arvenses nobles (igual que antes)
 const ARVENSES_NOBLES: ArvenseItem[] = [
-  // ... (mismo contenido que antes)
   { id: 'hyptis_atrorubens', nombre: 'Hyptis atrorubens', nombreCientifico: <em>Hyptis atrorubens</em>, image: 'hyptis_atrorubens.png' },
   { id: 'spermacoce_alata', nombre: 'Spermacoce alata', nombreCientifico: <em>Spermacoce alata</em>, image: 'spermacoce_alata.png' },
   { id: 'drymaria_cordata', nombre: 'Drymaria cordata', nombreCientifico: <em>Drymaria cordata</em>, image: 'drymaria_cordata.png' },
@@ -36,7 +34,6 @@ const ARVENSES_NOBLES: ArvenseItem[] = [
   { id: 'pseudoelephantopus_spicatus', nombre: 'Pseudoelephantopus spicatus', nombreCientifico: <em>Pseudoelephantopus spicatus</em>, image: 'pseudoelephantopus_spicatus.png' },
 ];
 
-// Lista predefinida de arvenses agresivas
 const ARVENSES_AGRESIVAS: ArvenseItem[] = [
   { id: 'setaria_palmifolia', nombre: 'Setaria palmifolia', nombreCientifico: <em>Setaria palmifolia</em>, image: 'setaria_palmifolia.png' },
   { id: 'oxalis_latifolia', nombre: 'Oxalis latifolia', nombreCientifico: <em>Oxalis latifolia</em>, image: 'oxalis_latifolia.png' },
@@ -50,7 +47,6 @@ const ARVENSES_AGRESIVAS: ArvenseItem[] = [
   { id: 'talinum_paniculatum', nombre: 'Talinum paniculatum', nombreCientifico: <em>Talinum paniculatum</em>, image: 'talinum_paniculatum.png' },
 ];
 
-// Modal para mostrar imágenes
 const ImageModal: React.FC<{ imageUrl: string | null; onClose: () => void }> = ({ imageUrl, onClose }) => {
   if (!imageUrl) return null;
   return (
@@ -63,7 +59,6 @@ const ImageModal: React.FC<{ imageUrl: string | null; onClose: () => void }> = (
   );
 };
 
-// Subida REAL de fotos (igual que antes)
 const RealFotosSection: React.FC<{
   prefix: string;
   caracterizacion: Record<string, string>;
@@ -86,7 +81,6 @@ const RealFotosSection: React.FC<{
     if (files.length > MAX_FILES) { setError(`Máximo ${MAX_FILES} fotos permitidas.`); return; }
     const oversized = files.filter((f) => f.size > MAX_SIZE_MB * 1024 * 1024);
     if (oversized.length > 0) { setError(`Algunos archivos superan el límite de ${MAX_SIZE_MB} MB.`); return; }
-
     previews.forEach((p) => URL.revokeObjectURL(p.url));
     const newPreviews = files.map((f) => ({ name: f.name, url: URL.createObjectURL(f) }));
     setPreviews(newPreviews);
@@ -170,7 +164,6 @@ const OtraEspecieSection: React.FC<{
   );
 };
 
-// Componente principal con forwardRef
 export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionProps>(
   ({ plantas, caracterizacion, onCampoChange }, ref) => {
     const [modalImage, setModalImage] = useState<string | null>(null);
@@ -208,7 +201,6 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
       }
     };
 
-    // Función de validación que se expone
     const validate = (): boolean => {
       const nuevosErrores: Record<string, string> = {};
       let isValid = true;
@@ -222,10 +214,10 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
           const zonaMonitoreada = getValor(codigo, `zona_monitoreada_${zona}`) === zona;
           if (!zonaMonitoreada) return;
 
-          // Verificar si hay algún valor de cobertura registrado en nobles, agresivas o "otra especie"
+          // Verificar si hay algún valor de cobertura > 0
           let hayAlgunValor = false;
 
-          // Revisar nobles
+          // Nobles
           for (const arvense of ARVENSES_NOBLES) {
             const val = getValor(codigo, `${zona}_noble_${arvense.id}_porcentaje`);
             if (val && parseFloat(val) > 0) {
@@ -233,7 +225,7 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
               break;
             }
           }
-          // Revisar agresivas
+          // Agresivas
           if (!hayAlgunValor) {
             for (const arvense of ARVENSES_AGRESIVAS) {
               const val = getValor(codigo, `${zona}_agresiva_${arvense.id}_porcentaje`);
@@ -243,13 +235,13 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
               }
             }
           }
-          // Revisar otra especie noble
+          // Otra especie noble
           if (!hayAlgunValor) {
             const nobleNombre = getValor(codigo, `${zona}_otra_especie_noble_nombre`);
             const noblePorc = getValor(codigo, `${zona}_otra_especie_noble_porcentaje`);
             if (nobleNombre.trim() !== '' && noblePorc && parseFloat(noblePorc) > 0) hayAlgunValor = true;
           }
-          // Revisar otra especie agresiva
+          // Otra especie agresiva
           if (!hayAlgunValor) {
             const agresivaNombre = getValor(codigo, `${zona}_otra_especie_agresiva_nombre`);
             const agresivaPorc = getValor(codigo, `${zona}_otra_especie_agresiva_porcentaje`);
@@ -283,7 +275,6 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
           <h5 className="font-medium text-md text-gray-700 mb-3">{titulo}</h5>
           {errorMsg && <p className="text-red-600 text-xs mb-2">{errorMsg}</p>}
 
-          {/* Altura promedio */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">Altura promedio de las arvenses monitoreadas</label>
             <div className="flex flex-col md:flex-row md:flex-wrap gap-3 md:gap-4">
@@ -351,7 +342,6 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
             <div key={codigo} className="border rounded-lg p-4 mb-8 bg-white shadow-sm">
               <h4 className="font-semibold text-lg text-gray-800 mb-2">Punto de Monitoreo {puntoNumero} (Árbol de referencia: {planta.label} - Código: {codigo})</h4>
 
-              {/* Selección de zonas a monitorear */}
               <div className="mb-4 p-3 bg-gray-100 rounded">
                 <label className="block text-sm font-medium text-gray-700 mb-2">¿En qué zonas se realizó el monitoreo?</label>
                 <div className="flex space-x-6">

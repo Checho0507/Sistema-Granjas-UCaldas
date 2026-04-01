@@ -111,9 +111,8 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     const [condicionesDia, setCondicionesDia] = useState('');
     const [caracterizacion, setCaracterizacion] = useState<Record<string, string>>({});
 
-    // Referencia para ArthropodSection
+    // Referencias para subsecciones que validan
     const arthropodRef = useRef<ArthropodSectionRef>(null);
-    // Dentro del componente
     const arvensesRef = useRef<ArvensesSectionRef>(null);
 
     // ── Función para seleccionar plantas al azar (porcentaje) y ordenar ──────
@@ -321,15 +320,12 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             return;
         }
 
-        // Validación específica para artrópodos
+        // Validaciones específicas
         if (tipoDiagnostico === 'artropodos' && arthropodRef.current) {
             const isValid = arthropodRef.current.validate();
-            if (!isValid) {
-                return; // No continuar si la validación falla
-            }
+            if (!isValid) return;
         }
 
-        // En handleSubmit, después de la validación de artrópodos:
         if (tipoDiagnostico === 'arvenses' && arvensesRef.current) {
             const isValid = arvensesRef.current.validate();
             if (!isValid) return;
@@ -357,11 +353,10 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         onSubmit(payload);
         toast.success(esEdicion ? 'Diagnóstico actualizado' : 'Diagnóstico creado');
 
-        // Limpiar paso 2 si no es edición, para permitir nuevos diagnósticos
         if (!esEdicion) {
             resetearPaso2();
         } else {
-            onCancel(); // en edición cerramos el modal
+            onCancel();
         }
     };
 
@@ -382,7 +377,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                 </div>
             </div>
 
-            {/* ── PASO 1 ────────────────────────────────────────────────────── */}
+            {/* PASO 1 */}
             {paso === 1 && (
                 <div className="space-y-6">
                     {/* Programa */}
@@ -552,7 +547,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                 </div>
             )}
 
-            {/* ── PASO 2 ────────────────────────────────────────────────────── */}
+            {/* PASO 2 */}
             {paso === 2 && (
                 <form onSubmit={handleSubmit}>
                     <div className="space-y-6">
@@ -675,7 +670,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                         onCampoChange={handleCaracterizacionChange}
                                     />
                                 )}
-                                // En el render, cuando se muestre ArvensesSection:
                                 {tipoDiagnostico === 'arvenses' && (
                                     <ArvensesSection
                                         ref={arvensesRef}
