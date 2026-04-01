@@ -2,9 +2,7 @@ import React, { forwardRef, useImperativeHandle, useState } from "react";
 import { PlantaBase } from "../types";
 import { toast } from "react-toastify";
 
-interface PlantaFenologico extends PlantaBase {
-  // igual que PlantaBase, solo para mantener la interfaz original
-}
+interface PlantaFenologico extends PlantaBase {}
 
 interface Props {
   plantas: PlantaFenologico[];
@@ -26,34 +24,32 @@ export const FenologicoSection = forwardRef<FenologicoSectionRef, Props>(
   ({ plantas, caracterizacion, onCampoChange }, ref) => {
     const [errores, setErrores] = useState<Record<string, string>>({});
 
-    // Función auxiliar para generar la clave de un campo
     const getKey = (plantaIdx: number, ramaIdx: number, campo: string) =>
       `fenologico_planta_${plantaIdx + 1}_rama_${ramaIdx}_${campo}`;
 
-    // Obtener las fases seleccionadas como array
+    // Obtener fases seleccionadas desde caracterizacion (puede ser array o string JSON)
     const getFasesSeleccionadas = (plantaIdx: number, ramaIdx: number): string[] => {
       const faseKey = getKey(plantaIdx, ramaIdx, "fases");
       const fases = caracterizacion[faseKey];
       if (Array.isArray(fases)) return fases;
-      return fases ? [fases as string] : [];
+      if (typeof fases === 'string') {
+        try {
+          const parsed = JSON.parse(fases);
+          if (Array.isArray(parsed)) return parsed;
+        } catch {}
+        return fases ? [fases] : [];
+      }
+      return [];
     };
 
-    // Verificar si una fase está seleccionada
-    const isFaseSeleccionada = (plantaIdx: number, ramaIdx: number, faseValue: string): boolean => {
-      return getFasesSeleccionadas(plantaIdx, ramaIdx).includes(faseValue);
-    };
+    const isFaseSeleccionada = (plantaIdx: number, ramaIdx: number, faseValue: string): boolean =>
+      getFasesSeleccionadas(plantaIdx, ramaIdx).includes(faseValue);
 
-    // Manejar cambio en selector múltiple
-    const handleFasesChange = (
-      plantaIdx: number,
-      ramaIdx: number,
-      selectedValues: string[]
-    ) => {
+    const handleFasesChange = (plantaIdx: number, ramaIdx: number, selectedValues: string[]) => {
       const faseKey = getKey(plantaIdx, ramaIdx, "fases");
       onCampoChange(faseKey, selectedValues);
     };
 
-    // Validación principal
     const validate = (): boolean => {
       const nuevosErrores: Record<string, string> = {};
       let isValid = true;
@@ -63,15 +59,13 @@ export const FenologicoSection = forwardRef<FenologicoSectionRef, Props>(
           const fases = getFasesSeleccionadas(plantaIdx, ramaIdx);
           const puntoLabel = `${planta.label} (Código: ${planta.codigo}), Rama ${ramaIdx}`;
 
-          // Validar que haya al menos una fase seleccionada
           if (fases.length === 0) {
             const errorKey = `fenologico_${planta.codigo}_rama_${ramaIdx}_sin_fase`;
             nuevosErrores[errorKey] = `En la planta ${puntoLabel} debe seleccionar al menos una fase fenológica.`;
             isValid = false;
-            continue; // No seguir validando campos si no hay fase seleccionada
+            continue;
           }
 
-          // Validar campos según las fases seleccionadas
           if (fases.includes("vegetativa")) {
             const totalPuntosKey = getKey(plantaIdx, ramaIdx, "total_puntos_crecimiento");
             const bbchVegKey = getKey(plantaIdx, ramaIdx, "bbch_vegetativo");
@@ -156,19 +150,14 @@ export const FenologicoSection = forwardRef<FenologicoSectionRef, Props>(
 
     useImperativeHandle(ref, () => ({ validate }));
 
-    // Función para renderizar mensajes de error
     const renderError = (errorKey: string) => {
-      if (errores[errorKey]) {
-        return <p className="text-red-600 text-xs mt-1">{errores[errorKey]}</p>;
-      }
+      if (errores[errorKey]) return <p className="text-red-600 text-xs mt-1">{errores[errorKey]}</p>;
       return null;
     };
 
     return (
       <div className="bg-gray-50 p-6 rounded-lg shadow-md mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-          Monitoreo Fenológico
-        </h2>
+        <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Monitoreo Fenológico</h2>
 
         <div className="mb-6 p-4 bg-white rounded-lg shadow-sm border">
           <p className="text-sm text-gray-700">
@@ -179,35 +168,24 @@ export const FenologicoSection = forwardRef<FenologicoSectionRef, Props>(
           </p>
         </div>
 
-        <h3 className="text-xl font-bold text-gray-800 mb-4 mt-8">
-          Plantas seleccionadas para monitoreo fenológico
-        </h3>
+        <h3 className="text-xl font-bold text-gray-800 mb-4 mt-8">Plantas seleccionadas para monitoreo fenológico</h3>
         <p className="text-sm text-gray-600 mb-6">
           Las siguientes {plantas.length} plantas han sido generadas. Para cada una, evalúe las 4 ramas (una por cuadrante).
         </p>
 
         {plantas.map((planta, idxPlanta) => {
-          const i = idxPlanta + 1; // Número de planta para mostrar
-
           return (
-            <div
-              key={planta.codigo}
-              className="border rounded-lg p-4 mb-8 bg-white shadow-sm"
-            >
+            <div key={planta.codigo} className="border rounded-lg p-4 mb-8 bg-white shadow-sm">
               <h4 className="font-semibold text-lg text-gray-800 mb-2">
                 {planta.label} (Código: {planta.codigo})
               </h4>
-              <p className="text-sm text-gray-500 mb-4">
-                Evalúe cada una de las 4 ramas (cuadrantes)
-              </p>
+              <p className="text-sm text-gray-500 mb-4">Evalúe cada una de las 4 ramas (cuadrantes)</p>
 
-              {/* Generar las 4 ramas */}
               {[1, 2, 3, 4].map((ramaNum) => {
-                const j = ramaNum; // 1-indexed
+                const j = ramaNum;
                 const fasesSeleccionadas = getFasesSeleccionadas(idxPlanta, j);
                 const sinFaseErrorKey = `fenologico_${planta.codigo}_rama_${j}_sin_fase`;
 
-                // Claves específicas para cada fase
                 const totalPuntosKey = getKey(idxPlanta, j, "total_puntos_crecimiento");
                 const bbchVegKey = getKey(idxPlanta, j, "bbch_vegetativo");
                 const totalFloresKey = getKey(idxPlanta, j, "total_flores");
@@ -220,15 +198,9 @@ export const FenologicoSection = forwardRef<FenologicoSectionRef, Props>(
                 const bbchFrucKey = getKey(idxPlanta, j, "bbch_fructificacion");
 
                 return (
-                  <div
-                    key={`${planta.codigo}-rama-${j}`}
-                    className="ml-4 mb-6 p-3 border-l-4 border-blue-200 bg-gray-50 rounded"
-                  >
-                    <h5 className="font-medium text-md text-gray-700 mb-3">
-                      Rama {j} (Cuadrante {j})
-                    </h5>
+                  <div key={`${planta.codigo}-rama-${j}`} className="ml-4 mb-6 p-3 border-l-4 border-blue-200 bg-gray-50 rounded">
+                    <h5 className="font-medium text-md text-gray-700 mb-3">Rama {j} (Cuadrante {j})</h5>
 
-                    {/* Selector múltiple de fases para esta rama */}
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Fase(s) fenológica(s) de la rama (puede seleccionar varias)
@@ -259,39 +231,22 @@ export const FenologicoSection = forwardRef<FenologicoSectionRef, Props>(
                       )}
                     </div>
 
-                    {/* Campos según fases seleccionadas */}
                     <div className="space-y-4">
-                      {/* Fase Vegetativa */}
                       {isFaseSeleccionada(idxPlanta, j, "vegetativa") && (
                         <div className="border-t pt-4">
                           <h6 className="font-medium mb-3">Fase Vegetativa</h6>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="flex flex-col">
-                              <label className="text-sm font-medium text-gray-700 mb-1">
-                                Número total de puntos de crecimiento evaluados en la Rama {j}
-                              </label>
-                              <input
-                                type="number"
-                                step="1"
-                                min="0"
-                                name={totalPuntosKey}
-                                value={caracterizacion[totalPuntosKey] || ""}
+                            <div>
+                              <label className="text-sm font-medium text-gray-700 mb-1">Número total de puntos de crecimiento evaluados en la Rama {j}</label>
+                              <input type="number" step="1" min="0" value={caracterizacion[totalPuntosKey] || ""}
                                 onChange={(e) => onCampoChange(totalPuntosKey, e.target.value)}
-                                className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-                                placeholder="Ej: 45"
-                              />
+                                className="border rounded px-3 py-2 w-full" placeholder="Ej: 45" />
                               {renderError(totalPuntosKey)}
                             </div>
-                            <div className="flex flex-col">
-                              <label className="text-sm font-medium text-gray-700 mb-1">
-                                Estado BBCH predominante
-                              </label>
-                              <select
-                                name={bbchVegKey}
-                                value={caracterizacion[bbchVegKey] || ""}
-                                onChange={(e) => onCampoChange(bbchVegKey, e.target.value)}
-                                className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-                              >
+                            <div>
+                              <label className="text-sm font-medium text-gray-700 mb-1">Estado BBCH predominante</label>
+                              <select value={caracterizacion[bbchVegKey] || ""} onChange={(e) => onCampoChange(bbchVegKey, e.target.value)}
+                                className="border rounded px-3 py-2 w-full">
                                 <option value="" disabled>Seleccione</option>
                                 <option value="09">09: Los primordios foliares son visibles</option>
                                 <option value="10">10: Las primeras hojas empiezan a separarse</option>
@@ -307,37 +262,21 @@ export const FenologicoSection = forwardRef<FenologicoSectionRef, Props>(
                         </div>
                       )}
 
-                      {/* Fase Floración */}
                       {isFaseSeleccionada(idxPlanta, j, "floracion") && (
                         <div className="border-t pt-4">
                           <h6 className="font-medium mb-3">Fase de Floración</h6>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="flex flex-col">
-                              <label className="text-sm font-medium text-gray-700 mb-1">
-                                Número total de flores evaluadas en la Rama {j}
-                              </label>
-                              <input
-                                type="number"
-                                step="1"
-                                min="0"
-                                name={totalFloresKey}
-                                value={caracterizacion[totalFloresKey] || ""}
+                            <div>
+                              <label className="text-sm font-medium text-gray-700 mb-1">Número total de flores evaluadas en la Rama {j}</label>
+                              <input type="number" step="1" min="0" value={caracterizacion[totalFloresKey] || ""}
                                 onChange={(e) => onCampoChange(totalFloresKey, e.target.value)}
-                                className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-500"
-                                placeholder="Ej: 30"
-                              />
+                                className="border rounded px-3 py-2 w-full" placeholder="Ej: 30" />
                               {renderError(totalFloresKey)}
                             </div>
-                            <div className="flex flex-col">
-                              <label className="text-sm font-medium text-gray-700 mb-1">
-                                Estado BBCH predominante
-                              </label>
-                              <select
-                                name={bbchFlorKey}
-                                value={caracterizacion[bbchFlorKey] || ""}
-                                onChange={(e) => onCampoChange(bbchFlorKey, e.target.value)}
-                                className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-500"
-                              >
+                            <div>
+                              <label className="text-sm font-medium text-gray-700 mb-1">Estado BBCH predominante</label>
+                              <select value={caracterizacion[bbchFlorKey] || ""} onChange={(e) => onCampoChange(bbchFlorKey, e.target.value)}
+                                className="border rounded px-3 py-2 w-full">
                                 <option value="" disabled>Seleccione</option>
                                 <option value="51">51: Se hacen visibles las escamas ligeramente verdes</option>
                                 <option value="53">53: Las escamas se separan y se hacen visibles los primordios florales</option>
@@ -357,105 +296,53 @@ export const FenologicoSection = forwardRef<FenologicoSectionRef, Props>(
                         </div>
                       )}
 
-                      {/* Fase Fructificación */}
                       {isFaseSeleccionada(idxPlanta, j, "fructificacion") && (
                         <div className="border-t pt-4">
                           <h6 className="font-medium mb-3">Fase de Fructificación</h6>
                           <div className="space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="flex flex-col">
-                                <label className="text-sm font-medium text-gray-700 mb-1">
-                                  Número total de frutos observados en la Rama {j}
-                                </label>
-                                <input
-                                  type="number"
-                                  step="1"
-                                  min="0"
-                                  name={totalFrutosKey}
-                                  value={caracterizacion[totalFrutosKey] || ""}
+                              <div>
+                                <label className="text-sm font-medium text-gray-700 mb-1">Número total de frutos observados en la Rama {j}</label>
+                                <input type="number" step="1" min="0" value={caracterizacion[totalFrutosKey] || ""}
                                   onChange={(e) => onCampoChange(totalFrutosKey, e.target.value)}
-                                  className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                  placeholder="Ej: 50"
-                                />
+                                  className="border rounded px-3 py-2 w-full" placeholder="Ej: 50" />
                                 {renderError(totalFrutosKey)}
                               </div>
-                              <div className="flex flex-col">
-                                <label className="text-sm font-medium text-gray-700 mb-1">
-                                  Frutos tipo canica
-                                </label>
-                                <input
-                                  type="number"
-                                  step="1"
-                                  min="0"
-                                  name={canicaKey}
-                                  value={caracterizacion[canicaKey] || ""}
+                              <div>
+                                <label className="text-sm font-medium text-gray-700 mb-1">Frutos tipo canica</label>
+                                <input type="number" step="1" min="0" value={caracterizacion[canicaKey] || ""}
                                   onChange={(e) => onCampoChange(canicaKey, e.target.value)}
-                                  className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                  placeholder="Ej: 10"
-                                />
+                                  className="border rounded px-3 py-2 w-full" placeholder="Ej: 10" />
                                 {renderError(canicaKey)}
                               </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <div className="flex flex-col">
-                                <label className="text-sm font-medium text-gray-700 mb-1">
-                                  Frutos tipo pin-pon
-                                </label>
-                                <input
-                                  type="number"
-                                  step="1"
-                                  min="0"
-                                  name={pinponKey}
-                                  value={caracterizacion[pinponKey] || ""}
+                              <div>
+                                <label className="text-sm font-medium text-gray-700 mb-1">Frutos tipo pin-pon</label>
+                                <input type="number" step="1" min="0" value={caracterizacion[pinponKey] || ""}
                                   onChange={(e) => onCampoChange(pinponKey, e.target.value)}
-                                  className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                  placeholder="Ej: 15"
-                                />
+                                  className="border rounded px-3 py-2 w-full" placeholder="Ej: 15" />
                                 {renderError(pinponKey)}
                               </div>
-                              <div className="flex flex-col">
-                                <label className="text-sm font-medium text-gray-700 mb-1">
-                                  Frutos tipo bola de tenis
-                                </label>
-                                <input
-                                  type="number"
-                                  step="1"
-                                  min="0"
-                                  name={bolaTenisKey}
-                                  value={caracterizacion[bolaTenisKey] || ""}
+                              <div>
+                                <label className="text-sm font-medium text-gray-700 mb-1">Frutos tipo bola de tenis</label>
+                                <input type="number" step="1" min="0" value={caracterizacion[bolaTenisKey] || ""}
                                   onChange={(e) => onCampoChange(bolaTenisKey, e.target.value)}
-                                  className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                  placeholder="Ej: 12"
-                                />
+                                  className="border rounded px-3 py-2 w-full" placeholder="Ej: 12" />
                                 {renderError(bolaTenisKey)}
                               </div>
-                              <div className="flex flex-col">
-                                <label className="text-sm font-medium text-gray-700 mb-1">
-                                  Frutos 1/4 de maduración
-                                </label>
-                                <input
-                                  type="number"
-                                  step="1"
-                                  min="0"
-                                  name={cuartoKey}
-                                  value={caracterizacion[cuartoKey] || ""}
+                              <div>
+                                <label className="text-sm font-medium text-gray-700 mb-1">Frutos 1/4 de maduración</label>
+                                <input type="number" step="1" min="0" value={caracterizacion[cuartoKey] || ""}
                                   onChange={(e) => onCampoChange(cuartoKey, e.target.value)}
-                                  className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                  placeholder="Ej: 8"
-                                />
+                                  className="border rounded px-3 py-2 w-full" placeholder="Ej: 8" />
                                 {renderError(cuartoKey)}
                               </div>
                             </div>
-                            <div className="flex flex-col md:w-1/3 mt-2">
-                              <label className="text-sm font-medium text-gray-700 mb-1">
-                                Estado BBCH predominante
-                              </label>
-                              <select
-                                name={bbchFrucKey}
-                                value={caracterizacion[bbchFrucKey] || ""}
-                                onChange={(e) => onCampoChange(bbchFrucKey, e.target.value)}
-                                className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                              >
+                            <div className="md:w-1/3">
+                              <label className="text-sm font-medium text-gray-700 mb-1">Estado BBCH predominante</label>
+                              <select value={caracterizacion[bbchFrucKey] || ""} onChange={(e) => onCampoChange(bbchFrucKey, e.target.value)}
+                                className="border rounded px-3 py-2 w-full">
                                 <option value="" disabled>Seleccione</option>
                                 <option value="71">71: Cuajado: el ovario empieza a crecer</option>
                                 <option value="72">72: El fruto, verde, está rodeado por los sépalos</option>
@@ -470,19 +357,12 @@ export const FenologicoSection = forwardRef<FenologicoSectionRef, Props>(
                       )}
                     </div>
 
-                    {/* Resumen de fases seleccionadas */}
                     {fasesSeleccionadas.length > 0 && (
                       <div className="mt-3 text-xs text-gray-500 flex flex-wrap gap-2">
                         <span className="font-medium">Fases activas:</span>
                         {fasesSeleccionadas.map(fase => (
-                          <span key={fase} className={`px-2 py-1 rounded-full ${
-                            fase === 'vegetativa' ? 'bg-green-100' :
-                            fase === 'floracion' ? 'bg-pink-100' :
-                            'bg-orange-100'
-                          }`}>
-                            {fase === 'vegetativa' ? 'Vegetativa' :
-                             fase === 'floracion' ? 'Floración' :
-                             'Fructificación'}
+                          <span key={fase} className={`px-2 py-1 rounded-full ${fase === 'vegetativa' ? 'bg-green-100' : fase === 'floracion' ? 'bg-pink-100' : 'bg-orange-100'}`}>
+                            {fase === 'vegetativa' ? 'Vegetativa' : fase === 'floracion' ? 'Floración' : 'Fructificación'}
                           </span>
                         ))}
                       </div>
