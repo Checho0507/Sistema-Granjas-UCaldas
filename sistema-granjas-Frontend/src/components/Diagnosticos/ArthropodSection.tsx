@@ -1,29 +1,6 @@
 import React, { useState, useRef, forwardRef, useImperativeHandle } from "react";
-import { PlantaBase } from "../types";
+import { type PlantaBase } from "../types";
 import { toast } from "react-toastify";
-
-// Componente de subida de fotos (simulado con input de texto) — usado en insectos/ácaros listados
-const FotosSection: React.FC<{
-  prefix: string;
-  caracterizacion: Record<string, string>;
-  onCampoChange: (campo: string, valor: string) => void;
-}> = ({ prefix, caracterizacion, onCampoChange }) => (
-  <div className="mb-4">
-    <label className="block text-sm font-medium text-gray-700 mb-1">
-      Fotos tomadas en campo de síntomas o del artrópodo
-    </label>
-    <p className="text-xs text-gray-500 mb-2">
-      Sube hasta 5 archivos compatibles. Tamaño máximo por archivo: 10 MB.
-    </p>
-    <input
-      type="text"
-      value={caracterizacion[prefix] || ""}
-      onChange={(e) => onCampoChange(prefix, e.target.value)}
-      className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
-      placeholder="Ruta de la foto (simulado)"
-    />
-  </div>
-);
 
 // Componente de subida REAL de fotos — usado en "Otro artrópodo"
 const RealFotosSection: React.FC<{
@@ -206,7 +183,6 @@ const CompsusSection: React.FC<SectionProps> = ({
           <p className="text-red-600 text-xs mt-1">{errores[`${danoHojasKey}_error`]}</p>
         )}
       </div>
-      <FotosSection prefix={`${prefix}_fotos`} caracterizacion={caracterizacion} onCampoChange={onCampoChange} />
     </div>
   );
 };
@@ -266,7 +242,6 @@ const DiaphorinaSection: React.FC<SectionProps> = ({
           <p className="text-red-600 text-xs mt-1">{errores[`${estadosKey}_error`]}</p>
         )}
       </div>
-      <FotosSection prefix={`${prefix}_fotos`} caracterizacion={caracterizacion} onCampoChange={onCampoChange} />
     </div>
   );
 };
@@ -313,7 +288,6 @@ const PhyllocnistisSection: React.FC<SectionProps> = ({
           <p className="text-red-600 text-xs mt-1">{errores[`${danoHojasKey}_error`]}</p>
         )}
       </div>
-      <FotosSection prefix={`${prefix}_fotos`} caracterizacion={caracterizacion} onCampoChange={onCampoChange} />
     </div>
   );
 };
@@ -376,7 +350,6 @@ const ToxopteraSection: React.FC<SectionProps> = ({
           <p className="text-red-600 text-xs mt-1">{errores[`${fumaginaKey}_error`]}</p>
         )}
       </div>
-      <FotosSection prefix={`${prefix}_fotos`} caracterizacion={caracterizacion} onCampoChange={onCampoChange} />
     </div>
   );
 };
@@ -423,7 +396,6 @@ const PolyphagotarsonemusSection: React.FC<SectionProps> = ({
           <p className="text-red-600 text-xs mt-1">{errores[`${danoFrutosKey}_error`]}</p>
         )}
       </div>
-      <FotosSection prefix={`${prefix}_fotos`} caracterizacion={caracterizacion} onCampoChange={onCampoChange} />
     </div>
   );
 };
@@ -468,7 +440,6 @@ const PhyllocoptrutaSection: React.FC<SectionProps> = ({
           <p className="text-red-600 text-xs mt-1">{errores[`${danoFrutosKey}_error`]}</p>
         )}
       </div>
-      <FotosSection prefix={`${prefix}_fotos`} caracterizacion={caracterizacion} onCampoChange={onCampoChange} />
     </div>
   );
 };
