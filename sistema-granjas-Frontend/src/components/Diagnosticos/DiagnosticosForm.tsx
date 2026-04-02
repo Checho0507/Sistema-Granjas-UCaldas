@@ -462,7 +462,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         {/* Tipo de diagnóstico */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Diagnóstico *</label>
-                            <select value={tipoDiagnostico} onChange={e => setTipoDiagnostico(e.target.value)} className="w-full border rounded-lg p-3" required>
+                            <select value={tipoDiagnostico} onChange={e => {setTipoDiagnostico(e.target.value); setCaracterizacion({});}} className="w-full border rounded-lg p-3" required>
                                 <option value="">Seleccionar tipo</option>
                                 {TIPOS_DIAGNOSTICO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                             </select>
