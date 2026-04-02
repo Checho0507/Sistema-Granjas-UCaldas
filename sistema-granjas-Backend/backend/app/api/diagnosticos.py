@@ -1,13 +1,10 @@
 import os
 import json
-import shutil
-import uuid
 import re
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse
+import logging
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from typing import Optional, List, Dict, Any
-from datetime import datetime
 
 from app.db.database import get_db
 from app.db.models import Diagnostico, Usuario, Lote, Programa, Monitoreo, Recomendacion
@@ -17,42 +14,31 @@ from app.schemas.diagnostico_schema import (
     DiagnosticoListResponse, EstadisticasDiagnosticosResponse,
 )
 from app.core.dependencies import get_current_user, require_any_role
+from app.core.r2_storage import upload_file_to_r2, delete_file_from_r2
 from app.CRUD import diagnosticos as crud
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/diagnosticos", tags=["diagnosticos"])
 
-UPLOAD_DIR = "uploads/"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-def guardar_archivo(archivo: UploadFile, prefix: str) -> str:
-    """Guarda un archivo en el disco y devuelve la ruta relativa."""
-    ext = os.path.splitext(archivo.filename)[1]  # .filename, no .name
-    nombre_unico = f"{uuid.uuid4().hex}{ext}"
-    # Sanitizar prefix para evitar problemas de rutas
-    prefix_clean = prefix.replace('[', '_').replace(']', '_').replace('/', '_')
-    ruta_relativa = os.path.join(UPLOAD_DIR, f"{prefix_clean}_{nombre_unico}")
-    with open(ruta_relativa, "wb") as buffer:
-        shutil.copyfileobj(archivo.file, buffer)
-    return ruta_relativa
-
-def procesar_archivos(form_data) -> Dict[str, List[str]]:
+# ── Procesamiento de archivos con R2 ───────────────────────────────────────────
+def procesar_archivos_r2(form_data) -> Dict[str, List[str]]:
     """
-    Procesa los archivos subidos. Recorre el form_data completo.
+    Extrae archivos del form_data, los sube a Cloudflare R2 y devuelve
+    un diccionario { prefix: [url_pública1, url_pública2, ...] }.
     Las claves deben tener el formato: files[prefix][indice]
-    Retorna un diccionario: { prefix: [ruta1, ruta2, ...] }
     """
     fotos_por_prefix: Dict[str, List[str]] = {}
     for key, value in form_data.items():
-        # Verificar si es un archivo (tiene atributo filename)
         if key.startswith("files[") and hasattr(value, "filename"):
             match = re.search(r'files\[(.*?)\]', key)
             if match:
                 prefix = match.group(1)
-                ruta = guardar_archivo(value, prefix)
-                fotos_por_prefix.setdefault(prefix, []).append(ruta)
+                url = upload_file_to_r2(value, prefix)  # Sube a R2 y retorna URL
+                fotos_por_prefix.setdefault(prefix, []).append(url)
+                logger.info(f"Archivo subido: {url}")
     return fotos_por_prefix
 
-# ── Helper ────────────────────────────────────────────────────────────────────
+# ── Helpers ────────────────────────────────────────────────────────────────────
 def get_or_404(db: Session, model, id: int, msg: str = "Recurso no encontrado"):
     obj = db.get(model, id)
     if not obj:
@@ -66,7 +52,7 @@ def _enriquecer(obj: Diagnostico) -> None:
     obj.granja_nombre         = getattr(obj.lote.granja, "nombre", None) if obj.lote else None
     obj.usuario_nombre        = obj.usuario.nombre if obj.usuario else None
 
-# ── LISTAR ──────────────────────────────────────────────────────────────────────
+# ── ENDPOINTS ──────────────────────────────────────────────────────────────────
 @router.get("/", response_model=DiagnosticoListResponse)
 def listar_diagnosticos(
     skip: int = 0, limit: int = 100,
@@ -98,7 +84,6 @@ def listar_diagnosticos(
         _enriquecer(d)
     return DiagnosticoListResponse(items=items, total=total, paginas=(total + limit - 1) // limit)
 
-# ── CREAR (con archivos) ──────────────────────────────────────────────────────
 @router.post("/", response_model=DiagnosticoResponse, status_code=201)
 async def crear_diagnostico(
     request: Request,
@@ -106,8 +91,8 @@ async def crear_diagnostico(
     user: Usuario = Depends(require_any_role(["admin", "docente", "asesor", "estudiante"]))
 ):
     form_data = await request.form()
+    logger.info(f"Creando diagnóstico. Campos recibidos: {list(form_data.keys())}")
 
-    # Función auxiliar para obtener campos requeridos
     def get_required(nombre: str) -> str:
         valor = form_data.get(nombre)
         if valor is None:
@@ -130,12 +115,13 @@ async def crear_diagnostico(
     except json.JSONDecodeError:
         raise HTTPException(400, "El campo 'formulario' debe ser un JSON válido")
 
-    # Procesar archivos
-    fotos_por_prefix = procesar_archivos(form_data)
+    # Subir archivos a R2
+    fotos_por_prefix = procesar_archivos_r2(form_data)
     if fotos_por_prefix:
         formulario["fotos_subidas"] = fotos_por_prefix
+        logger.info(f"Archivos subidos: {list(fotos_por_prefix.keys())}")
 
-    # Validar permisos (estudiante solo para sí mismo)
+    # Validar permisos
     if user.rol.nombre == "estudiante" and usuario_id != user.id:
         raise HTTPException(403, "Solo puede crear diagnósticos para su propio usuario")
 
@@ -158,7 +144,6 @@ async def crear_diagnostico(
     _enriquecer(obj)
     return obj
 
-# ── OBTENER UNO ────────────────────────────────────────────────────────────────
 @router.get("/{id}", response_model=DiagnosticoWithRecomendacionesResponse)
 def obtener_diagnostico(
     id: int,
@@ -172,7 +157,6 @@ def obtener_diagnostico(
     obj.recomendaciones = db.query(Recomendacion).filter_by(diagnostico_id=id).all()
     return obj
 
-# ── ACTUALIZAR ─────────────────────────────────────────────────────────────────
 @router.put("/{id}", response_model=DiagnosticoResponse)
 async def actualizar_diagnostico(
     id: int,
@@ -198,12 +182,16 @@ async def actualizar_diagnostico(
         except json.JSONDecodeError:
             raise HTTPException(400, "El campo 'formulario' debe ser JSON válido")
 
-    # Manejo de archivos: si se envían, se agregan al formulario (reemplazando los anteriores para esos prefijos)
-    fotos_por_prefix = procesar_archivos(form_data)
+    # Subir nuevos archivos (si los hay) y añadirlos a los existentes
+    fotos_por_prefix = procesar_archivos_r2(form_data)
     if fotos_por_prefix:
         formulario_actual = update_data.get("formulario", obj.formulario or {})
-        formulario_actual["fotos_subidas"] = fotos_por_prefix
+        existing = formulario_actual.get("fotos_subidas", {})
+        for prefix, urls in fotos_por_prefix.items():
+            existing.setdefault(prefix, []).extend(urls)
+        formulario_actual["fotos_subidas"] = existing
         update_data["formulario"] = formulario_actual
+        logger.info(f"Nuevos archivos añadidos en actualización: {list(fotos_por_prefix.keys())}")
 
     if update_data:
         data_update = DiagnosticoUpdate(**update_data)
@@ -212,7 +200,6 @@ async def actualizar_diagnostico(
     _enriquecer(obj)
     return obj
 
-# ── ELIMINAR ───────────────────────────────────────────────────────────────────
 @router.delete("/{id}", status_code=200)
 def eliminar_diagnostico(
     id: int,
@@ -223,18 +210,16 @@ def eliminar_diagnostico(
     if obj.recomendaciones:
         raise HTTPException(400, "No se puede eliminar un diagnóstico con recomendaciones asociadas")
 
-    # Eliminar archivos físicos asociados
+    # Eliminar archivos de R2
     if obj.formulario and "fotos_subidas" in obj.formulario:
-        for rutas in obj.formulario["fotos_subidas"].values():
-            for ruta in rutas:
-                ruta_abs = os.path.abspath(ruta)
-                if os.path.exists(ruta_abs):
-                    os.remove(ruta_abs)
+        for urls in obj.formulario["fotos_subidas"].values():
+            for url in urls:
+                delete_file_from_r2(url)
+        logger.info(f"Archivos eliminados de R2 para diagnóstico {id}")
 
     crud.delete_diagnostico(db, obj)
     return {"message": "Diagnóstico eliminado correctamente"}
 
-# ── ESTADÍSTICAS ───────────────────────────────────────────────────────────────
 @router.get("/estadisticas/resumen", response_model=EstadisticasDiagnosticosResponse)
 def obtener_estadisticas(
     programa_id: Optional[int] = None,
