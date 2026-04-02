@@ -39,20 +39,11 @@ interface Lote {
     plantas_por_surco?: number | null;
 }
 
-interface DiagnosticoPayload {
-    programa_id: number;
-    tipo_monitoreo_id: number;
-    lote_id: number;
-    usuario_id: number;
-    tipo_diagnostico: string;
-    condiciones_dia: string;
-    formulario: Record<string, any>;
-}
-
+// Cambiamos el tipo del payload: ahora es FormData para enviar archivos
 interface DiagnosticoFormProps {
     isOpen?: boolean;
     diagnostico?: DiagnosticoItem;
-    onSubmit: (data: DiagnosticoPayload) => void;
+    onSubmit: (data: FormData) => void;   // Ahora recibe FormData
     onCancel: () => void;
     lotes: Lote[];
     programas: Programa[];
@@ -108,7 +99,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     const arthropodRef = useRef<ArthropodSectionRef>(null);
     const arvensesRef = useRef<ArvensesSectionRef>(null);
     const fenologicoRef = useRef<FenologicoSectionRef>(null);
-    const enfermedadesRef = useRef<EnfermedadesSectionRef>(null); // 👈 NUEVA referencia
+    const enfermedadesRef = useRef<EnfermedadesSectionRef>(null);
 
     // ── Función auxiliar para manejar cambios (soporta arrays) ────────────────
     const handleCaracterizacionChange = (campo: string, valor: string | string[]) => {
@@ -296,9 +287,19 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         if (tipoDiagnostico === 'monitoreo_fenologico' && fenologicoRef.current) {
             if (!fenologicoRef.current.validate()) return;
         }
-        if (tipoDiagnostico === 'enfermedades' && enfermedadesRef.current) { // 👈 CORREGIDO
+        if (tipoDiagnostico === 'enfermedades' && enfermedadesRef.current) {
             if (!enfermedadesRef.current.validate()) return;
         }
+
+        const formData = new FormData();
+
+        // Campos normales
+        formData.append('programa_id', String(programaId));
+        formData.append('tipo_monitoreo_id', String(tipoMonitoreoId));
+        formData.append('lote_id', String(loteId));
+        formData.append('usuario_id', String(currentUser?.id));
+        formData.append('tipo_diagnostico', tipoDiagnostico);
+        formData.append('condiciones_dia', condicionesDia);
 
         const formulario = {
             plantas,
@@ -307,19 +308,20 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             total_plantas_lote: estructuraLote?.total_plantas || 0,
             plantas_totales_lote: plantasOriginales.length,
         };
+        formData.append('formulario', JSON.stringify(formulario));
 
-        const payload: DiagnosticoPayload = {
-            programa_id: programaId!,
-            tipo_monitoreo_id: tipoMonitoreoId!,
-            lote_id: loteId!,
-            usuario_id: currentUser?.id,
-            tipo_diagnostico: tipoDiagnostico,
-            condiciones_dia: condicionesDia,
-            formulario,
-        };
+        // Adjuntar archivos si es artrópodos
+        if (tipoDiagnostico === 'artropodos' && arthropodRef.current) {
+            const filesMap = arthropodRef.current.getFiles();
+            for (const [prefix, files] of filesMap.entries()) {
+                files.forEach((file, idx) => {
+                    // Se envía como files[prefix][idx]
+                    formData.append(`files[${prefix}][${idx}]`, file);
+                });
+            }
+        }
 
-        console.log('📤 Enviando diagnóstico:', payload);
-        onSubmit(payload);
+        onSubmit(formData);
         toast.success(esEdicion ? 'Diagnóstico actualizado' : 'Diagnóstico creado');
 
         if (!esEdicion) resetearPaso2();
@@ -468,7 +470,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                 value={tipoDiagnostico}
                                 onChange={e => {
                                     setTipoDiagnostico(e.target.value);
-                                    setCaracterizacion({}); // Limpia datos al cambiar de tipo
+                                    setCaracterizacion({});
                                 }}
                                 className="w-full border rounded-lg p-3"
                                 required

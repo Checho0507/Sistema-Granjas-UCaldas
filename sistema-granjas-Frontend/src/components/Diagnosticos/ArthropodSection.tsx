@@ -1,4 +1,4 @@
-import React, { useState, useRef, forwardRef, useImperativeHandle } from "react";
+import React, { useState, useRef, forwardRef, useImperativeHandle, useCallback } from "react";
 import { type PlantaBase } from "../types";
 import { toast } from "react-toastify";
 
@@ -7,45 +7,53 @@ const RealFotosSection: React.FC<{
   prefix: string;
   caracterizacion: Record<string, string>;
   onCampoChange: (campo: string, valor: string) => void;
-}> = ({ prefix, caracterizacion, onCampoChange }) => {
+  onFilesChange?: (prefix: string, files: File[]) => void;
+}> = ({ prefix, caracterizacion, onCampoChange, onFilesChange }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const MAX_FILES = 5;
   const MAX_SIZE_MB = 10;
 
+  const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<{ name: string; url: string }[]>([]);
   const [error, setError] = useState<string>("");
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setError("");
-    const files = Array.from(e.target.files || []);
+    const selected = Array.from(e.target.files || []);
 
-    if (files.length > MAX_FILES) {
+    if (selected.length > MAX_FILES) {
       setError(`Máximo ${MAX_FILES} fotos permitidas.`);
       return;
     }
 
-    const oversized = files.filter((f) => f.size > MAX_SIZE_MB * 1024 * 1024);
+    const oversized = selected.filter((f) => f.size > MAX_SIZE_MB * 1024 * 1024);
     if (oversized.length > 0) {
       setError(`Algunos archivos superan el límite de ${MAX_SIZE_MB} MB.`);
       return;
     }
 
+    // Limpiar URLs anteriores
     previews.forEach((p) => URL.revokeObjectURL(p.url));
 
-    const newPreviews = files.map((f) => ({
+    const newPreviews = selected.map((f) => ({
       name: f.name,
       url: URL.createObjectURL(f),
     }));
 
+    setFiles(selected);
     setPreviews(newPreviews);
-    onCampoChange(prefix, files.map((f) => f.name).join(","));
+    onCampoChange(prefix, selected.map((f) => f.name).join(","));
+    if (onFilesChange) onFilesChange(prefix, selected);
   };
 
   const removePhoto = (index: number) => {
     URL.revokeObjectURL(previews[index].url);
-    const updated = previews.filter((_, i) => i !== index);
-    setPreviews(updated);
-    onCampoChange(prefix, updated.map((p) => p.name).join(","));
+    const updatedFiles = files.filter((_, i) => i !== index);
+    const updatedPreviews = previews.filter((_, i) => i !== index);
+    setFiles(updatedFiles);
+    setPreviews(updatedPreviews);
+    onCampoChange(prefix, updatedFiles.map((f) => f.name).join(","));
+    if (onFilesChange) onFilesChange(prefix, updatedFiles);
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -75,9 +83,7 @@ const RealFotosSection: React.FC<{
         onChange={handleFileChange}
       />
 
-      {error && (
-        <p className="text-xs text-red-600 mt-2">{error}</p>
-      )}
+      {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
 
       {previews.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-3">
@@ -157,7 +163,7 @@ const CompsusSection: React.FC<SectionProps> = ({
     <div className="mt-4 p-4 bg-gray-100 rounded-lg">
       <h6 className="font-semibold mb-2 text-sm">Monitoreo de <em>Compsus sp.</em> - Picudo</h6>
       <p className="text-xs text-gray-600 mb-2 italic">
-        Seleccione preferiblemente árboles de los linderos, de los bordes de carretera o los que están cerca de los centros de acopio de frutas. Sacuda de forma suave las ramas de arriba hacia abajo, dándole la vuelta al árbol. Observe en el suelo la presencia de adultos.
+        Sacuda de forma suave las ramas de arriba hacia abajo, dándole la vuelta al árbol. Observe en el suelo la presencia de adultos.
       </p>
       <div className="mb-3">
         <label className="block text-sm font-medium text-gray-700 mb-1">Adultos de <em>Compsus sp.</em> encontrados *</label>
@@ -444,15 +450,16 @@ const PhyllocoptrutaSection: React.FC<SectionProps> = ({
   );
 };
 
-// ── Sección "Otro artrópodo" con validación ─────────────────────────────────
+// ── Sección "Otro artrópodo" con validación y fotos obligatorias ─────────────────────────────────
 
-const OtroArthropodSection: React.FC<SectionProps> = ({
-  basePrefix, cuadrante, rama, caracterizacion, onCampoChange, errores, clearErrorsForPrefix
+const OtroArthropodSection: React.FC<SectionProps & { onFilesChange?: (prefix: string, files: File[]) => void }> = ({
+  basePrefix, cuadrante, rama, caracterizacion, onCampoChange, errores, clearErrorsForPrefix, onFilesChange
 }) => {
   const prefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_otro`;
   const sintomasKey = `${prefix}_sintomas`;
   const claseKey = `${prefix}_clase`;
   const nombreKey = `${prefix}_nombre`;
+  const fotosPrefix = `${prefix}_fotos`;
 
   const handleChange = (key: string, value: string) => {
     onCampoChange(key, value);
@@ -478,7 +485,7 @@ const OtroArthropodSection: React.FC<SectionProps> = ({
       <div className="mb-3">
         <label className="block text-sm font-medium text-gray-700 mb-2">Clase de artrópodo observado *</label>
         <div className="flex gap-4">
-          {["Insecto", "Ácaro"].map((opcion) => (
+          {["Insecto", "Arácnido", "Otro"].map((opcion) => (
             <label key={opcion} className="inline-flex items-center">
               <input type="radio" name={claseKey} value={opcion}
                 checked={caracterizacion[claseKey] === opcion}
@@ -508,10 +515,14 @@ const OtroArthropodSection: React.FC<SectionProps> = ({
       </div>
 
       <RealFotosSection
-        prefix={`${prefix}_fotos`}
+        prefix={fotosPrefix}
         caracterizacion={caracterizacion}
         onCampoChange={onCampoChange}
+        onFilesChange={onFilesChange}
       />
+      {errores[`${fotosPrefix}_error`] && (
+        <p className="text-red-600 text-xs mt-1">{errores[`${fotosPrefix}_error`]}</p>
+      )}
     </div>
   );
 };
@@ -528,10 +539,11 @@ interface CuadranteProps {
   onOpenImage: (imageName: string) => void;
   errores: Record<string, string>;
   clearErrorsForPrefix: (prefix: string) => void;
+  onFilesChange?: (prefix: string, files: File[]) => void;
 }
 
 const CuadranteArthropod: React.FC<CuadranteProps> = ({
-  plantaIdx, cuadrante, rama, planta, caracterizacion, onCampoChange, onOpenImage, errores, clearErrorsForPrefix
+  plantaIdx, cuadrante, rama, planta, caracterizacion, onCampoChange, onOpenImage, errores, clearErrorsForPrefix, onFilesChange
 }) => {
   const basePrefix = `artropodo_planta_${plantaIdx + 1}`;
   const presenciaKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_presencia`;
@@ -849,6 +861,7 @@ const CuadranteArthropod: React.FC<CuadranteProps> = ({
                 basePrefix={basePrefix} cuadrante={cuadrante} rama={rama}
                 caracterizacion={caracterizacion} onCampoChange={onCampoChange}
                 errores={errores} clearErrorsForPrefix={clearErrorsForPrefix}
+                onFilesChange={onFilesChange}
               />
             )}
           </div>
@@ -868,10 +881,11 @@ interface PlantaArthropodProps {
   onOpenImage: (imageName: string) => void;
   errores: Record<string, string>;
   clearErrorsForPrefix: (prefix: string) => void;
+  onFilesChange?: (prefix: string, files: File[]) => void;
 }
 
 const PlantaArthropod: React.FC<PlantaArthropodProps> = ({
-  index, planta, caracterizacion, onCampoChange, onOpenImage, errores, clearErrorsForPrefix
+  index, planta, caracterizacion, onCampoChange, onOpenImage, errores, clearErrorsForPrefix, onFilesChange
 }) => (
   <div className="border rounded-lg p-4 mb-8 bg-white shadow-sm">
     <h4 className="font-semibold text-lg text-gray-800 mb-2">
@@ -887,6 +901,7 @@ const PlantaArthropod: React.FC<PlantaArthropodProps> = ({
         planta={planta} caracterizacion={caracterizacion}
         onCampoChange={onCampoChange} onOpenImage={onOpenImage}
         errores={errores} clearErrorsForPrefix={clearErrorsForPrefix}
+        onFilesChange={onFilesChange}
       />
     ))}
   </div>
@@ -896,6 +911,7 @@ const PlantaArthropod: React.FC<PlantaArthropodProps> = ({
 
 export interface ArthropodSectionRef {
   validate: () => boolean;
+  getFiles: () => Map<string, File[]>;
 }
 
 interface Props {
@@ -908,6 +924,11 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
   ({ plantas, caracterizacion, onCampoChange }, ref) => {
     const [modalImage, setModalImage] = useState<string | null>(null);
     const [errores, setErrores] = useState<Record<string, string>>({});
+    const [filesMap, setFilesMap] = useState<Map<string, File[]>>(new Map());
+
+    const updateFiles = useCallback((prefix: string, files: File[]) => {
+      setFilesMap(prev => new Map(prev).set(prefix, files));
+    }, []);
 
     // Función para limpiar errores cuyo key empiece con un prefijo
     const clearErrorsForPrefix = (prefix: string) => {
@@ -1077,7 +1098,13 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
                   nuevosErrores[`${otroPrefix}_nombre_error`] = "Debe indicar el nombre del artrópodo (mínimo género).";
                   isValid = false;
                 }
-                // Las fotos no son obligatorias.
+                // Validar fotos obligatorias
+                const fotosPrefix = `${otroPrefix}_fotos`;
+                const fotosFiles = filesMap.get(fotosPrefix) || [];
+                if (fotosFiles.length === 0) {
+                  nuevosErrores[`${fotosPrefix}_error`] = "Debe subir al menos una foto del artrópodo o síntoma.";
+                  isValid = false;
+                }
               }
             }
           }
@@ -1092,7 +1119,8 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
     };
 
     useImperativeHandle(ref, () => ({
-      validate
+      validate,
+      getFiles: () => filesMap,
     }));
 
     return (
@@ -1118,6 +1146,7 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
             onOpenImage={(name) => setModalImage(`/imgs/${name}`)}
             errores={errores}
             clearErrorsForPrefix={clearErrorsForPrefix}
+            onFilesChange={updateFiles}
           />
         ))}
         <div className="mt-6 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-sm text-gray-700">
