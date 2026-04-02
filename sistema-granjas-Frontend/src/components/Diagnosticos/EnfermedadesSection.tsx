@@ -910,88 +910,148 @@ export const EnfermedadesSection = forwardRef<EnfermedadesSectionRef, Enfermedad
           const quadrantPrefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}`;
           const agentesKey = `${quadrantPrefix}_agentes`;
           const agentes = splitValues(caracterizacion[agentesKey]);
-
-          // Verificar si "Otra enfermedad" está activa en este cuadrante
           const otraActivo = caracterizacion[`${quadrantPrefix}_otra_enfermedad_activo`] === 'true';
 
-          // Si no hay agentes seleccionados y no es "no_aplica", error (a menos que otraActivo sea true)
+          // Validación de agentes: si no hay agentes y no hay otra enfermedad, error
           if (agentes.length === 0 && !otraActivo) {
             nuevosErrores[`${agentesKey}_error`] = 'Debe seleccionar al menos un agente causal o "No aplica".';
             isValid = false;
-            continue; // No seguir validando grupos si no hay agentes y tampoco otra enfermedad
+            // No continuamos con la validación de grupos porque no hay agentes
+            // pero sí debemos validar otra enfermedad si está activa (se hace después)
           }
 
-          // Si seleccionó "no_aplica" o "otra enfermedad" está activa, omitimos la validación de grupos
-          if (agentes.includes('no_aplica') || otraActivo) continue;
-
-          // Validar hongos
-          if (agentes.includes('hongo')) {
-            const hongoNoAplica = caracterizacion[`${quadrantPrefix}_hongo_no_aplica`] === 'true';
-            const tieneAntracnosis = caracterizacion[`${quadrantPrefix}_hongo_antracnosis_activo`] === 'true';
-            const tieneMancha = caracterizacion[`${quadrantPrefix}_hongo_mancha_grasienta_activo`] === 'true';
-            if (!hongoNoAplica && !tieneAntracnosis && !tieneMancha) {
-              nuevosErrores[`${quadrantPrefix}_hongo_error`] = 'Debe seleccionar al menos una enfermedad de hongo o marcar "No aplica".';
-              isValid = false;
-            } else {
-              // Validar antracnosis
-              if (tieneAntracnosis) {
-                const hojasKey = `${quadrantPrefix}_hongo_antracnosis_hojas`;
-                const sintomasKey = `${quadrantPrefix}_hongo_antracnosis_sintomas`;
-                if (!caracterizacion[hojasKey] && caracterizacion[hojasKey] !== '0') {
-                  nuevosErrores[`${hojasKey}_error`] = 'Campo obligatorio. Ingrese 0 si no hay.';
-                  isValid = false;
+          // Si hay agentes y no incluye "no_aplica", validamos cada grupo
+          if (agentes.length > 0 && !agentes.includes('no_aplica')) {
+            // Validar hongos
+            if (agentes.includes('hongo')) {
+              const hongoNoAplica = caracterizacion[`${quadrantPrefix}_hongo_no_aplica`] === 'true';
+              const tieneAntracnosis = caracterizacion[`${quadrantPrefix}_hongo_antracnosis_activo`] === 'true';
+              const tieneMancha = caracterizacion[`${quadrantPrefix}_hongo_mancha_grasienta_activo`] === 'true';
+              if (!hongoNoAplica && !tieneAntracnosis && !tieneMancha) {
+                nuevosErrores[`${quadrantPrefix}_hongo_error`] = 'Debe seleccionar al menos una enfermedad de hongo o marcar "No aplica".';
+                isValid = false;
+              } else {
+                // Validar antracnosis
+                if (tieneAntracnosis) {
+                  const hojasKey = `${quadrantPrefix}_hongo_antracnosis_hojas`;
+                  const sintomasKey = `${quadrantPrefix}_hongo_antracnosis_sintomas`;
+                  if (!caracterizacion[hojasKey] && caracterizacion[hojasKey] !== '0') {
+                    nuevosErrores[`${hojasKey}_error`] = 'Campo obligatorio. Ingrese 0 si no hay.';
+                    isValid = false;
+                  }
+                  if (!caracterizacion[sintomasKey]) {
+                    nuevosErrores[`${sintomasKey}_error`] = 'Debe seleccionar al menos un síntoma.';
+                    isValid = false;
+                  }
                 }
-                if (!caracterizacion[sintomasKey]) {
-                  nuevosErrores[`${sintomasKey}_error`] = 'Debe seleccionar al menos un síntoma.';
-                  isValid = false;
-                }
-              }
-              if (tieneMancha) {
-                const hojasKey = `${quadrantPrefix}_hongo_mancha_grasienta_hojas`;
-                const sintomasKey = `${quadrantPrefix}_hongo_mancha_grasienta_sintomas`;
-                if (!caracterizacion[hojasKey] && caracterizacion[hojasKey] !== '0') {
-                  nuevosErrores[`${hojasKey}_error`] = 'Campo obligatorio. Ingrese 0 si no hay.';
-                  isValid = false;
-                }
-                if (!caracterizacion[sintomasKey]) {
-                  nuevosErrores[`${sintomasKey}_error`] = 'Debe seleccionar al menos un síntoma.';
-                  isValid = false;
+                // Validar mancha grasienta
+                if (tieneMancha) {
+                  const hojasKey = `${quadrantPrefix}_hongo_mancha_grasienta_hojas`;
+                  const sintomasKey = `${quadrantPrefix}_hongo_mancha_grasienta_sintomas`;
+                  if (!caracterizacion[hojasKey] && caracterizacion[hojasKey] !== '0') {
+                    nuevosErrores[`${hojasKey}_error`] = 'Campo obligatorio. Ingrese 0 si no hay.';
+                    isValid = false;
+                  }
+                  if (!caracterizacion[sintomasKey]) {
+                    nuevosErrores[`${sintomasKey}_error`] = 'Debe seleccionar al menos un síntoma.';
+                    isValid = false;
+                  }
                 }
               }
             }
-          }
 
-          // Validar bacterias
-          if (agentes.includes('bacteria')) {
-            const bacteriaNoAplica = caracterizacion[`${quadrantPrefix}_bacteria_no_aplica`] === 'true';
-            const tieneHLB = caracterizacion[`${quadrantPrefix}_bacteria_hlb_activo`] === 'true';
-            const tieneXylella = caracterizacion[`${quadrantPrefix}_bacteria_xylella_activo`] === 'true';
-            if (!bacteriaNoAplica && !tieneHLB && !tieneXylella) {
-              nuevosErrores[`${quadrantPrefix}_bacteria_error`] = 'Debe seleccionar al menos una enfermedad de bacteria o marcar "No aplica".';
-              isValid = false;
-            } else {
-              if (tieneHLB) {
-                const hojasKey = `${quadrantPrefix}_bacteria_hlb_hojas`;
-                const sintomasKey = `${quadrantPrefix}_bacteria_hlb_sintomas`;
-                const vectorKey = `${quadrantPrefix}_bacteria_hlb_vector`;
-                if (!caracterizacion[hojasKey] && caracterizacion[hojasKey] !== '0') {
-                  nuevosErrores[`${hojasKey}_error`] = 'Campo obligatorio. Ingrese 0 si no hay.';
+            // Validar bacterias
+            if (agentes.includes('bacteria')) {
+              const bacteriaNoAplica = caracterizacion[`${quadrantPrefix}_bacteria_no_aplica`] === 'true';
+              const tieneHLB = caracterizacion[`${quadrantPrefix}_bacteria_hlb_activo`] === 'true';
+              const tieneXylella = caracterizacion[`${quadrantPrefix}_bacteria_xylella_activo`] === 'true';
+              if (!bacteriaNoAplica && !tieneHLB && !tieneXylella) {
+                nuevosErrores[`${quadrantPrefix}_bacteria_error`] = 'Debe seleccionar al menos una enfermedad de bacteria o marcar "No aplica".';
+                isValid = false;
+              } else {
+                if (tieneHLB) {
+                  const hojasKey = `${quadrantPrefix}_bacteria_hlb_hojas`;
+                  const sintomasKey = `${quadrantPrefix}_bacteria_hlb_sintomas`;
+                  const vectorKey = `${quadrantPrefix}_bacteria_hlb_vector`;
+                  if (!caracterizacion[hojasKey] && caracterizacion[hojasKey] !== '0') {
+                    nuevosErrores[`${hojasKey}_error`] = 'Campo obligatorio. Ingrese 0 si no hay.';
+                    isValid = false;
+                  }
+                  if (!caracterizacion[sintomasKey]) {
+                    nuevosErrores[`${sintomasKey}_error`] = 'Debe seleccionar al menos un síntoma.';
+                    isValid = false;
+                  }
+                  if (!caracterizacion[vectorKey]) {
+                    nuevosErrores[`${vectorKey}_error`] = 'Debe indicar si hay presencia del vector.';
+                    isValid = false;
+                  }
+                }
+                if (tieneXylella) {
+                  const hojasKey = `${quadrantPrefix}_bacteria_xylella_hojas`;
+                  const sintomasKey = `${quadrantPrefix}_bacteria_xylella_sintomas`;
+                  if (!caracterizacion[hojasKey] && caracterizacion[hojasKey] !== '0') {
+                    nuevosErrores[`${hojasKey}_error`] = 'Campo obligatorio. Ingrese 0 si no hay.';
+                    isValid = false;
+                  }
+                  if (!caracterizacion[sintomasKey]) {
+                    nuevosErrores[`${sintomasKey}_error`] = 'Debe seleccionar al menos un síntoma.';
+                    isValid = false;
+                  }
+                }
+              }
+            }
+
+            // Validar oomicetos
+            if (agentes.includes('oomiceto')) {
+              const oomicetoNoAplica = caracterizacion[`${quadrantPrefix}_oomiceto_no_aplica`] === 'true';
+              const tienePhytophthora = caracterizacion[`${quadrantPrefix}_oomiceto_phytophthora_activo`] === 'true';
+              const tieneOtro = caracterizacion[`${quadrantPrefix}_oomiceto_otro`] === 'true';
+              if (!oomicetoNoAplica && !tienePhytophthora && !tieneOtro) {
+                nuevosErrores[`${quadrantPrefix}_oomiceto_error`] = 'Debe seleccionar al menos una enfermedad de oomiceto, "Otro" o marcar "No aplica".';
+                isValid = false;
+              }
+              if (tienePhytophthora) {
+                const afectacionKey = `${quadrantPrefix}_oomiceto_phytophthora_afectacion`;
+                const sintomasKey = `${quadrantPrefix}_oomiceto_phytophthora_sintomas`;
+                if (!caracterizacion[afectacionKey] && caracterizacion[afectacionKey] !== '0') {
+                  nuevosErrores[`${afectacionKey}_error`] = 'Campo obligatorio. Ingrese 0 si no hay.';
                   isValid = false;
                 }
                 if (!caracterizacion[sintomasKey]) {
                   nuevosErrores[`${sintomasKey}_error`] = 'Debe seleccionar al menos un síntoma.';
+                  isValid = false;
+                }
+              }
+              if (tieneOtro && !caracterizacion[`${quadrantPrefix}_oomiceto_otro_nombre`]) {
+                nuevosErrores[`${quadrantPrefix}_oomiceto_otro_error`] = 'Debe especificar el nombre del oomiceto.';
+                isValid = false;
+              }
+            }
+
+            // Validar virus
+            if (agentes.includes('virus')) {
+              const virusNoAplica = caracterizacion[`${quadrantPrefix}_virus_no_aplica`] === 'true';
+              const tieneCTV = caracterizacion[`${quadrantPrefix}_virus_ctv_activo`] === 'true';
+              const tieneOtro = caracterizacion[`${quadrantPrefix}_virus_otro`] === 'true';
+              if (!virusNoAplica && !tieneCTV && !tieneOtro) {
+                nuevosErrores[`${quadrantPrefix}_virus_error`] = 'Debe seleccionar al menos una enfermedad de virus, "Otro" o marcar "No aplica".';
+                isValid = false;
+              }
+              if (tieneCTV) {
+                const presenteKey = `${quadrantPrefix}_virus_ctv_presente`;
+                const vectorKey = `${quadrantPrefix}_virus_ctv_vector`;
+                const danoKey = `${quadrantPrefix}_virus_ctv_dano`;
+                const sintomasKey = `${quadrantPrefix}_virus_ctv_sintomas`;
+                if (!caracterizacion[presenteKey]) {
+                  nuevosErrores[`${presenteKey}_error`] = 'Debe indicar si hay presencia de síntomas.';
                   isValid = false;
                 }
                 if (!caracterizacion[vectorKey]) {
                   nuevosErrores[`${vectorKey}_error`] = 'Debe indicar si hay presencia del vector.';
                   isValid = false;
                 }
-              }
-              if (tieneXylella) {
-                const hojasKey = `${quadrantPrefix}_bacteria_xylella_hojas`;
-                const sintomasKey = `${quadrantPrefix}_bacteria_xylella_sintomas`;
-                if (!caracterizacion[hojasKey] && caracterizacion[hojasKey] !== '0') {
-                  nuevosErrores[`${hojasKey}_error`] = 'Campo obligatorio. Ingrese 0 si no hay.';
+                if (!caracterizacion[danoKey] && caracterizacion[danoKey] !== '0') {
+                  nuevosErrores[`${danoKey}_error`] = 'Campo obligatorio. Ingrese 0 si no hay.';
                   isValid = false;
                 }
                 if (!caracterizacion[sintomasKey]) {
@@ -999,117 +1059,41 @@ export const EnfermedadesSection = forwardRef<EnfermedadesSectionRef, Enfermedad
                   isValid = false;
                 }
               }
+              if (tieneOtro && !caracterizacion[`${quadrantPrefix}_virus_otro_nombre`]) {
+                nuevosErrores[`${quadrantPrefix}_virus_otro_error`] = 'Debe especificar el nombre del virus.';
+                isValid = false;
+              }
+            }
+
+            // Validar nematodos
+            if (agentes.includes('nematodo')) {
+              const nematodoNoAplica = caracterizacion[`${quadrantPrefix}_nematodo_no_aplica`] === 'true';
+              const tienePresente = caracterizacion[`${quadrantPrefix}_nematodo_presente`] === 'true';
+              if (!nematodoNoAplica && !tienePresente) {
+                nuevosErrores[`${quadrantPrefix}_nematodo_error`] = 'Debe indicar presencia de nematodos o marcar "No aplica".';
+                isValid = false;
+              }
+              if (tienePresente) {
+                const tipo = caracterizacion[`${quadrantPrefix}_nematodo_tipo`];
+                if (!tipo) {
+                  nuevosErrores[`${quadrantPrefix}_nematodo_tipo_error`] = 'Debe seleccionar el tipo de nematodo.';
+                  isValid = false;
+                }
+                const sintomasPlanta = caracterizacion[`${quadrantPrefix}_nematodo_sintomas_planta`];
+                if (!sintomasPlanta) {
+                  nuevosErrores[`${quadrantPrefix}_nematodo_sintomas_planta_error`] = 'Debe seleccionar al menos un síntoma en planta.';
+                  isValid = false;
+                }
+                const sintomasRaices = caracterizacion[`${quadrantPrefix}_nematodo_sintomas_raices`];
+                if (!sintomasRaices) {
+                  nuevosErrores[`${quadrantPrefix}_nematodo_sintomas_raices_error`] = 'Debe seleccionar al menos un síntoma en raíces.';
+                  isValid = false;
+                }
+              }
             }
           }
 
-          // Validar oomicetos
-          if (agentes.includes('oomiceto')) {
-            const oomicetoNoAplica = caracterizacion[`${quadrantPrefix}_oomiceto_no_aplica`] === 'true';
-            const tienePhytophthora = caracterizacion[`${quadrantPrefix}_oomiceto_phytophthora_activo`] === 'true';
-            const tieneOtro = caracterizacion[`${quadrantPrefix}_oomiceto_otro`] === 'true';
-            if (!oomicetoNoAplica && !tienePhytophthora && !tieneOtro) {
-              nuevosErrores[`${quadrantPrefix}_oomiceto_error`] = 'Debe seleccionar al menos una enfermedad de oomiceto, "Otro" o marcar "No aplica".';
-              isValid = false;
-            }
-            if (tienePhytophthora) {
-              const afectacionKey = `${quadrantPrefix}_oomiceto_phytophthora_afectacion`;
-              const sintomasKey = `${quadrantPrefix}_oomiceto_phytophthora_sintomas`;
-              if (!caracterizacion[afectacionKey] && caracterizacion[afectacionKey] !== '0') {
-                nuevosErrores[`${afectacionKey}_error`] = 'Campo obligatorio. Ingrese 0 si no hay.';
-                isValid = false;
-              }
-              if (!caracterizacion[sintomasKey]) {
-                nuevosErrores[`${sintomasKey}_error`] = 'Debe seleccionar al menos un síntoma.';
-                isValid = false;
-              }
-            }
-            if (tieneOtro && !caracterizacion[`${quadrantPrefix}_oomiceto_otro_nombre`]) {
-              nuevosErrores[`${quadrantPrefix}_oomiceto_otro_error`] = 'Debe especificar el nombre del oomiceto.';
-              isValid = false;
-            }
-          }
-
-          // Validar virus
-          if (agentes.includes('virus')) {
-            const virusNoAplica = caracterizacion[`${quadrantPrefix}_virus_no_aplica`] === 'true';
-            const tieneCTV = caracterizacion[`${quadrantPrefix}_virus_ctv_activo`] === 'true';
-            const tieneOtro = caracterizacion[`${quadrantPrefix}_virus_otro`] === 'true';
-            if (!virusNoAplica && !tieneCTV && !tieneOtro) {
-              nuevosErrores[`${quadrantPrefix}_virus_error`] = 'Debe seleccionar al menos una enfermedad de virus, "Otro" o marcar "No aplica".';
-              isValid = false;
-            }
-            if (tieneCTV) {
-              const presenteKey = `${quadrantPrefix}_virus_ctv_presente`;
-              const vectorKey = `${quadrantPrefix}_virus_ctv_vector`;
-              const danoKey = `${quadrantPrefix}_virus_ctv_dano`;
-              const sintomasKey = `${quadrantPrefix}_virus_ctv_sintomas`;
-              if (!caracterizacion[presenteKey]) {
-                nuevosErrores[`${presenteKey}_error`] = 'Debe indicar si hay presencia de síntomas.';
-                isValid = false;
-              }
-              if (!caracterizacion[vectorKey]) {
-                nuevosErrores[`${vectorKey}_error`] = 'Debe indicar si hay presencia del vector.';
-                isValid = false;
-              }
-              if (!caracterizacion[danoKey] && caracterizacion[danoKey] !== '0') {
-                nuevosErrores[`${danoKey}_error`] = 'Campo obligatorio. Ingrese 0 si no hay.';
-                isValid = false;
-              }
-              if (!caracterizacion[sintomasKey]) {
-                nuevosErrores[`${sintomasKey}_error`] = 'Debe seleccionar al menos un síntoma.';
-                isValid = false;
-              }
-            }
-            if (tieneOtro && !caracterizacion[`${quadrantPrefix}_virus_otro_nombre`]) {
-              nuevosErrores[`${quadrantPrefix}_virus_otro_error`] = 'Debe especificar el nombre del virus.';
-              isValid = false;
-            }
-          }
-
-          // Validar nematodos
-          if (agentes.includes('nematodo')) {
-            const nematodoNoAplica = caracterizacion[`${quadrantPrefix}_nematodo_no_aplica`] === 'true';
-            const tienePresente = caracterizacion[`${quadrantPrefix}_nematodo_presente`] === 'true';
-            if (!nematodoNoAplica && !tienePresente) {
-              nuevosErrores[`${quadrantPrefix}_nematodo_error`] = 'Debe indicar presencia de nematodos o marcar "No aplica".';
-              isValid = false;
-            }
-            if (tienePresente) {
-              const tipo = caracterizacion[`${quadrantPrefix}_nematodo_tipo`];
-              if (!tipo) {
-                nuevosErrores[`${quadrantPrefix}_nematodo_tipo_error`] = 'Debe seleccionar el tipo de nematodo.';
-                isValid = false;
-              }
-              const sintomasPlanta = caracterizacion[`${quadrantPrefix}_nematodo_sintomas_planta`];
-              if (!sintomasPlanta) {
-                nuevosErrores[`${quadrantPrefix}_nematodo_sintomas_planta_error`] = 'Debe seleccionar al menos un síntoma en planta.';
-                isValid = false;
-              }
-              const sintomasRaices = caracterizacion[`${quadrantPrefix}_nematodo_sintomas_raices`];
-              if (!sintomasRaices) {
-                nuevosErrores[`${quadrantPrefix}_nematodo_sintomas_raices_error`] = 'Debe seleccionar al menos un síntoma en raíces.';
-                isValid = false;
-              }
-            }
-          }
-        }
-      });
-
-      // Validación de "Otra enfermedad" (ya se validan sus campos independientemente)
-      // Nota: La validación de los campos de "otra enfermedad" se hace dentro de OtraEnfermedadSection,
-      // pero también podemos agregar una validación global aquí si es necesario. Por ahora, confiamos en
-      // que la sección muestra sus propios errores. Sin embargo, para que el formulario no permita
-      // enviar si falta algún campo de "otra enfermedad", ya se incluye en la validación de la sección
-      // porque esos campos tienen el atributo "required" y la función validate de cada subcomponente
-      // no se llama explícitamente, pero el formulario padre llama a validate() de EnfermedadesSection
-      // y aquí no estamos validando esos campos específicos. Para asegurar, deberíamos recorrer
-      // los cuadrantes y si otraActivo está true, validar síntomas y agente. Lo añadimos:
-
-      plantas.forEach((planta, idx) => {
-        const basePrefix = `enfermedades_planta_${idx + 1}`;
-        for (let cuadrante = 1; cuadrante <= 4; cuadrante++) {
-          const quadrantPrefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}`;
-          const otraActivo = caracterizacion[`${quadrantPrefix}_otra_enfermedad_activo`] === 'true';
+          // Validar otra enfermedad si está activa
           if (otraActivo) {
             const sintomasKey = `${quadrantPrefix}_otra_enfermedad_sintomas`;
             const agenteKey = `${quadrantPrefix}_otra_enfermedad_agente`;
