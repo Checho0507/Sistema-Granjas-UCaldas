@@ -20,7 +20,6 @@ from app.CRUD import diagnosticos as crud
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/diagnosticos", tags=["diagnosticos"])
 
-# ── Procesamiento de archivos con R2 ───────────────────────────────────────────
 def procesar_archivos_r2(form_data) -> Dict[str, List[str]]:
     """
     Extrae archivos del form_data, los sube a Cloudflare R2 y devuelve
@@ -33,12 +32,18 @@ def procesar_archivos_r2(form_data) -> Dict[str, List[str]]:
             match = re.search(r'files\[(.*?)\]', key)
             if match:
                 prefix = match.group(1)
-                url = upload_file_to_r2(value, prefix)  # Sube a R2 y retorna URL
-                fotos_por_prefix.setdefault(prefix, []).append(url)
-                logger.info(f"Archivo subido: {url}")
+                logger.info(f"📤 Subiendo archivo para prefix: {prefix} - {value.filename}")
+                try:
+                    url = upload_file_to_r2(value, prefix)
+                    fotos_por_prefix.setdefault(prefix, []).append(url)
+                    logger.info(f"✅ Archivo subido: {url}")
+                except Exception as e:
+                    logger.error(f"❌ Error subiendo archivo {value.filename}: {e}")
+                    # No detenemos el proceso, pero registramos
+            else:
+                logger.warning(f"⚠️ Clave no coincide con patrón: {key}")
     return fotos_por_prefix
 
-# ── Helpers ────────────────────────────────────────────────────────────────────
 def get_or_404(db: Session, model, id: int, msg: str = "Recurso no encontrado"):
     obj = db.get(model, id)
     if not obj:
@@ -52,7 +57,6 @@ def _enriquecer(obj: Diagnostico) -> None:
     obj.granja_nombre         = getattr(obj.lote.granja, "nombre", None) if obj.lote else None
     obj.usuario_nombre        = obj.usuario.nombre if obj.usuario else None
 
-# ── ENDPOINTS ──────────────────────────────────────────────────────────────────
 @router.get("/", response_model=DiagnosticoListResponse)
 def listar_diagnosticos(
     skip: int = 0, limit: int = 100,
@@ -91,7 +95,7 @@ async def crear_diagnostico(
     user: Usuario = Depends(require_any_role(["admin", "docente", "asesor", "estudiante"]))
 ):
     form_data = await request.form()
-    logger.info(f"Creando diagnóstico. Campos recibidos: {list(form_data.keys())}")
+    logger.info(f"🔍 Campos recibidos en form_data: {list(form_data.keys())}")
 
     def get_required(nombre: str) -> str:
         valor = form_data.get(nombre)
@@ -115,16 +119,18 @@ async def crear_diagnostico(
     except json.JSONDecodeError:
         raise HTTPException(400, "El campo 'formulario' debe ser un JSON válido")
 
-    # Subir archivos a R2 y reemplazar los campos originales con las URLs
+    logger.info(f"📄 Formulario original (antes de archivos): {list(formulario.keys())}")
+
+    # Procesar archivos y reemplazar campos
     fotos_por_prefix = procesar_archivos_r2(form_data)
     if fotos_por_prefix:
-        # Guardar también en fotos_subidas (opcional, para compatibilidad)
         formulario["fotos_subidas"] = fotos_por_prefix
-
-        # Reemplazar cada campo original con las URLs concatenadas
         for prefix, urls in fotos_por_prefix.items():
             formulario[prefix] = ",".join(urls)
-        logger.info(f"Campos actualizados con URLs: {list(fotos_por_prefix.keys())}")
+            logger.info(f"✏️ Reemplazado {prefix} con {len(urls)} URL(s)")
+        logger.info(f"✅ Campos actualizados con URLs: {list(fotos_por_prefix.keys())}")
+    else:
+        logger.warning("⚠️ No se encontraron archivos para procesar")
 
     # Validar permisos
     if user.rol.nombre == "estudiante" and usuario_id != user.id:
@@ -187,25 +193,18 @@ async def actualizar_diagnostico(
         except json.JSONDecodeError:
             raise HTTPException(400, "El campo 'formulario' debe ser JSON válido")
 
-    # Subir nuevos archivos (si los hay)
     fotos_por_prefix = procesar_archivos_r2(form_data)
     if fotos_por_prefix:
-        # Obtener el formulario actual (ya sea el nuevo o el existente)
         formulario_actual = update_data.get("formulario", obj.formulario or {})
-        # Asegurar que exista la clave fotos_subidas
         if "fotos_subidas" not in formulario_actual:
             formulario_actual["fotos_subidas"] = {}
-        # Añadir nuevas URLs a fotos_subidas
         for prefix, urls in fotos_por_prefix.items():
-            # Actualizar fotos_subidas
             if prefix in formulario_actual["fotos_subidas"]:
                 formulario_actual["fotos_subidas"][prefix].extend(urls)
             else:
                 formulario_actual["fotos_subidas"][prefix] = urls
-            # Actualizar el campo original (prefix) con las URLs (concatenar)
             existing_urls = formulario_actual.get(prefix, "")
             if existing_urls:
-                # Si ya tenía URLs, añadir las nuevas separadas por coma
                 formulario_actual[prefix] = existing_urls + "," + ",".join(urls)
             else:
                 formulario_actual[prefix] = ",".join(urls)
@@ -229,7 +228,6 @@ def eliminar_diagnostico(
     if obj.recomendaciones:
         raise HTTPException(400, "No se puede eliminar un diagnóstico con recomendaciones asociadas")
 
-    # Eliminar archivos de R2 (basado en fotos_subidas)
     if obj.formulario and "fotos_subidas" in obj.formulario:
         for urls in obj.formulario["fotos_subidas"].values():
             for url in urls:

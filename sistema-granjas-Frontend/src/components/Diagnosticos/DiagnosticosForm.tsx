@@ -11,8 +11,6 @@ import { ControladoresSection } from './ControladoresSection';
 import { PolinizadoresSection } from './PolinizadoresSection';
 import { toast } from 'react-toastify';
 
-// ── Tipos locales ─────────────────────────────────────────────────────────────
-
 interface PlantaBase {
     codigo: string;
     label: string;
@@ -39,11 +37,10 @@ interface Lote {
     plantas_por_surco?: number | null;
 }
 
-// Cambiamos el tipo del payload: ahora es FormData para enviar archivos
 interface DiagnosticoFormProps {
     isOpen?: boolean;
     diagnostico?: DiagnosticoItem;
-    onSubmit: (data: FormData) => void;   // Ahora recibe FormData
+    onSubmit: (data: FormData) => void;
     onCancel: () => void;
     lotes: Lote[];
     programas: Programa[];
@@ -78,30 +75,23 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     porcentajeMuestreo = 10,
 }) => {
     const [paso, setPaso] = useState(1);
-
-    // Paso 1
     const [programaId, setProgramaId] = useState<number | null>(null);
     const [tipoMonitoreoId, setTipoMonitoreoId] = useState<number | null>(null);
     const [loteId, setLoteId] = useState<number | null>(null);
     const [monitoreos, setMonitoreos] = useState<Monitoreo[]>(externalMonitoreos || []);
     const [estructuraLote, setEstructuraLote] = useState<EstructuraLote | null>(null);
     const [cargandoEstructura, setCargandoEstructura] = useState(false);
-
     const [plantas, setPlantas] = useState<PlantaBase[]>([]);
     const [plantasOriginales, setPlantasOriginales] = useState<PlantaBase[]>([]);
-
-    // Paso 2
     const [tipoDiagnostico, setTipoDiagnostico] = useState('');
     const [condicionesDia, setCondicionesDia] = useState('');
     const [caracterizacion, setCaracterizacion] = useState<Record<string, string>>({});
 
-    // Referencias para secciones con validación
     const arthropodRef = useRef<ArthropodSectionRef>(null);
     const arvensesRef = useRef<ArvensesSectionRef>(null);
     const fenologicoRef = useRef<FenologicoSectionRef>(null);
     const enfermedadesRef = useRef<EnfermedadesSectionRef>(null);
 
-    // ── Función auxiliar para manejar cambios (soporta arrays) ────────────────
     const handleCaracterizacionChange = (campo: string, valor: string | string[]) => {
         if (Array.isArray(valor)) {
             setCaracterizacion(prev => ({ ...prev, [campo]: JSON.stringify(valor) }));
@@ -110,7 +100,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         }
     };
 
-    // ── Función para parsear caracterización al cargar edición ────────────────
     const parseCaracterizacion = (raw: Record<string, any>): Record<string, string> => {
         const parsed: Record<string, string> = {};
         Object.entries(raw).forEach(([key, value]) => {
@@ -129,7 +118,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         return parsed;
     };
 
-    // ── Selección de plantas aleatorias ───────────────────────────────────────
     const seleccionarPlantasAleatorias = useCallback((todas: PlantaBase[], porcentaje: number): PlantaBase[] => {
         if (!todas.length) return [];
         const cantidad = Math.max(1, Math.floor(todas.length * (porcentaje / 100)));
@@ -152,7 +140,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         }
     }, [plantasOriginales, porcentajeMuestreo, seleccionarPlantasAleatorias]);
 
-    // ── Cargar monitoreos ─────────────────────────────────────────────────────
     useEffect(() => {
         if (!programaId) { setMonitoreos([]); return; }
         monitoreoService.obtenerMonitoreosPorPrograma(programaId)
@@ -160,7 +147,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             .catch(() => toast.error('Error al cargar tipos de monitoreo'));
     }, [programaId]);
 
-    // ── Cargar estructura del lote ───────────────────────────────────────────
     useEffect(() => {
         const cargar = async () => {
             if (!loteId) {
@@ -210,7 +196,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     const loteSeleccionado = useMemo(() => lotesFiltrados.find(l => l.id === loteId) || null, [lotesFiltrados, loteId]);
     const monitoreoSeleccionado = useMemo(() => monitoreos.find(m => m.id === tipoMonitoreoId) || null, [monitoreos, tipoMonitoreoId]);
 
-    // Cargar edición
     useEffect(() => {
         if (!esEdicion || !diagnostico) return;
         setPaso(2);
@@ -226,7 +211,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         }
     }, [esEdicion, diagnostico]);
 
-    // Auto‑selección lote único
     useEffect(() => {
         if (!esEdicion && lotesFiltrados.length === 1 && !loteId && isOpen) {
             setLoteId(lotesFiltrados[0].id);
@@ -277,7 +261,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         if (!condicionesDia) { toast.error('Selecciona condiciones del día'); return; }
         if (plantas.length === 0) { toast.error('No hay plantas seleccionadas'); return; }
 
-        // Validaciones específicas según el tipo de diagnóstico
         if (tipoDiagnostico === 'artropodos' && arthropodRef.current) {
             if (!arthropodRef.current.validate()) return;
         }
@@ -292,8 +275,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         }
 
         const formData = new FormData();
-
-        // Campos normales
         formData.append('programa_id', String(programaId));
         formData.append('tipo_monitoreo_id', String(tipoMonitoreoId));
         formData.append('lote_id', String(loteId));
@@ -310,14 +291,21 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         };
         formData.append('formulario', JSON.stringify(formulario));
 
-        // Adjuntar archivos si es artrópodos
         if (tipoDiagnostico === 'artropodos' && arthropodRef.current) {
             const filesMap = arthropodRef.current.getFiles();
+            console.log("📦 Archivos a enviar (Map):", filesMap);
             for (const [prefix, files] of filesMap.entries()) {
+                console.log(`  → Prefix: ${prefix}, archivos:`, files.map(f => f.name));
                 files.forEach((file, idx) => {
-                    // Se envía como files[prefix][idx]
                     formData.append(`files[${prefix}][${idx}]`, file);
                 });
+            }
+        }
+
+        // Verificar que los archivos se hayan agregado
+        for (let pair of formData.entries()) {
+            if (pair[0].startsWith('files[')) {
+                console.log("✅ FormData contiene:", pair[0], pair[1]);
             }
         }
 
@@ -333,7 +321,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             <h2 className="text-xl font-bold mb-4 border-b pb-3">
                 {esEdicion ? 'Editar Diagnóstico' : 'Nuevo Diagnóstico'}
             </h2>
-
             <div className="flex mb-6">
                 <div className={`flex-1 text-center py-2 rounded-l-lg text-sm font-medium ${paso === 1 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
                     Paso 1: Programa, monitoreo y lote
@@ -343,7 +330,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                 </div>
             </div>
 
-            {/* PASO 1 */}
             {paso === 1 && (
                 <div className="space-y-6">
                     <div>
@@ -431,11 +417,9 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                 </div>
             )}
 
-            {/* PASO 2 */}
             {paso === 2 && (
                 <form onSubmit={handleSubmit}>
                     <div className="space-y-6">
-                        {/* Resumen */}
                         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
                             <div className="flex justify-between items-start">
                                 <div>
@@ -463,7 +447,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                             </div>
                         </div>
 
-                        {/* Tipo de diagnóstico */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Diagnóstico *</label>
                             <select
@@ -480,7 +463,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                             </select>
                         </div>
 
-                        {/* Condiciones del día */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Condiciones del día *</label>
                             <select value={condicionesDia} onChange={e => setCondicionesDia(e.target.value)} className="w-full border rounded-lg p-3" required>
@@ -489,7 +471,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                             </select>
                         </div>
 
-                        {/* Secciones específicas */}
                         {tipoDiagnostico && plantas.length > 0 && (
                             <div>
                                 <div className="mb-3 text-sm text-gray-600">
@@ -505,7 +486,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                             </div>
                         )}
 
-                        {/* Advertencias */}
                         {(!tipoDiagnostico || !condicionesDia) && (
                             <div className="bg-yellow-50 p-4 rounded-lg">
                                 {!tipoDiagnostico ? 'Selecciona un tipo de diagnóstico.' : 'Selecciona las condiciones del día.'}

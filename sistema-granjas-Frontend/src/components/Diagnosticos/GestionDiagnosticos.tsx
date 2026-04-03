@@ -7,7 +7,7 @@ import monitoreoService from '../../services/monitoreoService';
 import type { DiagnosticoItem, DiagnosticoFiltros } from '../../types/diagnosticoTypes';
 import Modal from '../Common/Modal';
 import DiagnosticosTable from './DiagnosticosTable';
-import DiagnosticoForm from './DiagnosticosForm';
+import DiagnosticoForm from './DiagnosticoForm';
 import AgregarEvidenciaModal from './AgregarEvidenciaModal';
 import DetallesDiagnosticoModal from './DetallesDiagnosticoModal';
 import { useAuth } from '../../hooks/useAuth';
@@ -20,21 +20,16 @@ const GestionDiagnosticos: React.FC = () => {
   const [diagnosticos, setDiagnosticos] = useState<DiagnosticoItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const [showCrearModal, setShowCrearModal] = useState(false);
   const [showEditarModal, setShowEditarModal] = useState(false);
   const [showEvidenciaModal, setShowEvidenciaModal] = useState(false);
   const [showDetallesModal, setShowDetallesModal] = useState(false);
-
   const [selectedDiagnostico, setSelectedDiagnostico] = useState<DiagnosticoItem | null>(null);
-
   const [lotes, setLotes] = useState<any[]>([]);
   const [programas, setProgramas] = useState<any[]>([]);
   const [monitoreos, setMonitoreos] = useState<any[]>([]);
-
   const [filtros, setFiltros] = useState<DiagnosticoFiltros>({});
   const [estadisticas, setEstadisticas] = useState<any>(null);
-
   const [exporting, setExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState('');
 
@@ -64,21 +59,17 @@ const GestionDiagnosticos: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-
       const data = await diagnosticoService.obtenerDiagnosticos(filtros);
       const diagnosticosData = Array.isArray(data) ? data : (data?.items || []);
       setDiagnosticos(diagnosticosData);
-
       try {
         const programasData = await programaService.obtenerProgramas();
         setProgramas(Array.isArray(programasData) ? programasData : (programasData?.items || []));
       } catch { setProgramas([]); }
-
       try {
         const monitoreosData = await monitoreoService.obtenerMonitoreos();
         setMonitoreos(Array.isArray(monitoreosData) ? monitoreosData : (monitoreosData?.items || []));
       } catch { setMonitoreos([]); }
-
       try {
         const lotesData = await loteService.obtenerLotes();
         let lotesArray = Array.isArray(lotesData) ? lotesData : (lotesData?.items || []);
@@ -115,7 +106,6 @@ const GestionDiagnosticos: React.FC = () => {
     }
   };
 
-  // ========== HANDLERS CORREGIDOS ==========
   const handleCrearDiagnostico = async (formData: FormData) => {
     try {
       if (!user?.id) throw new Error('Usuario no autenticado');
@@ -156,13 +146,10 @@ const GestionDiagnosticos: React.FC = () => {
   const handleAgregarEvidencia = async (file: File, descripcion: string, tipo: string) => {
     if (!selectedDiagnostico) return;
     try {
-      // Si el servicio tiene el método, se usa; si no, se implementa
       if (diagnosticoService.agregarEvidencia) {
         await diagnosticoService.agregarEvidencia(selectedDiagnostico.id, file, descripcion, tipo, user);
       } else {
-        // Fallback: subir evidencia por separado (implementar si es necesario)
         console.warn('Método agregarEvidencia no implementado en el servicio');
-        // Aquí podrías llamar a un endpoint de evidencias directamente
       }
       toast.success('Evidencia agregada');
       setShowEvidenciaModal(false);
@@ -196,7 +183,6 @@ const GestionDiagnosticos: React.FC = () => {
             </button>
           </div>
         </div>
-
         <div className="bg-white p-4 rounded-lg shadow mb-6">
           <h3 className="font-semibold mb-3">Filtros</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -222,7 +208,6 @@ const GestionDiagnosticos: React.FC = () => {
           </div>
         </div>
       </div>
-
       {loading ? (
         <div className="text-center py-8"><i className="fas fa-spinner fa-spin text-2xl"></i><p className="mt-2 text-gray-600">Cargando...</p></div>
       ) : error ? (
@@ -230,15 +215,12 @@ const GestionDiagnosticos: React.FC = () => {
       ) : (
         <DiagnosticosTable diagnosticos={diagnosticosFiltrados} onEditar={openEditarModal} onEliminar={handleEliminarDiagnostico} onAgregarEvidencia={openEvidenciaModal} onVerDetalles={openDetallesModal} currentUser={user} />
       )}
-
       <Modal isOpen={showCrearModal} onClose={() => setShowCrearModal(false)} width="max-w-2xl">
         <DiagnosticoForm onSubmit={handleCrearDiagnostico} onCancel={() => setShowCrearModal(false)} lotes={lotes} programas={programas} monitoreos={monitoreos} condiciones_dia={['Soleado', 'Nublado', 'Lluvia']} currentUser={user} />
       </Modal>
-
       <Modal isOpen={showEditarModal} onClose={() => setShowEditarModal(false)} width="max-w-2xl">
         {selectedDiagnostico && <DiagnosticoForm diagnostico={selectedDiagnostico} onSubmit={(data) => handleActualizarDiagnostico(selectedDiagnostico.id, data)} onCancel={() => setShowEditarModal(false)} lotes={lotes} programas={programas} monitoreos={monitoreos} condiciones_dia={['Soleado', 'Nublado', 'Lluvia']} currentUser={user} esEdicion />}
       </Modal>
-
       {showEvidenciaModal && selectedDiagnostico && <AgregarEvidenciaModal isOpen={showEvidenciaModal} onClose={() => setShowEvidenciaModal(false)} diagnostico={selectedDiagnostico} onSubmit={handleAgregarEvidencia} />}
       {showDetallesModal && selectedDiagnostico && <DetallesDiagnosticoModal isOpen={showDetallesModal} onClose={() => setShowDetallesModal(false)} diagnostico={selectedDiagnostico} />}
     </div>
