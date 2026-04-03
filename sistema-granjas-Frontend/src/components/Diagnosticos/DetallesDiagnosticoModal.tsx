@@ -61,9 +61,6 @@ const DetallesDiagnosticoModal: React.FC<DetallesDiagnosticoModalProps> = ({
                             {data.tipo_diagnostico?.replace(/_/g, ' ')}
                         </p>
                     </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-                        ✖
-                    </button>
                 </div>
 
                 {loadingDetalles ? (
