@@ -110,7 +110,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         }
     };
 
-    // ── Función para parsear caracterización al cargar edición ────────────────
+    // ── Función para parsear caracterización al cargar edición ───────────────
     const parseCaracterizacion = (raw: Record<string, any>): Record<string, string> => {
         const parsed: Record<string, string> = {};
         Object.entries(raw).forEach(([key, value]) => {
