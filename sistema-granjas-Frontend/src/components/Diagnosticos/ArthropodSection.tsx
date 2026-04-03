@@ -2,7 +2,7 @@ import React, { useState, useRef, forwardRef, useImperativeHandle, useCallback }
 import { type PlantaBase } from "../types";
 import { toast } from "react-toastify";
 
-// Componente de subida REAL de fotos — usado en "Otro artrópodo"
+// Componente de subida REAL de fotos — usado en "Otro insecto" y "Otro ácaro"
 const RealFotosSection: React.FC<{
   prefix: string;
   caracterizacion: Record<string, string>;
@@ -60,10 +60,10 @@ const RealFotosSection: React.FC<{
   return (
     <div className="mb-4">
       <label className="block text-sm font-medium text-gray-700 mb-1">
-        Fotos tomadas en campo de síntomas o del artrópodo
+        Fotos tomadas en campo (síntomas o del artrópodo) *
       </label>
       <p className="text-xs text-gray-500 mb-2">
-        Sube hasta {MAX_FILES} fotos desde tu galería. Tamaño máximo por archivo: {MAX_SIZE_MB} MB.
+        Sube hasta {MAX_FILES} fotos. Tamaño máximo por archivo: {MAX_SIZE_MB} MB.
       </p>
 
       <button
@@ -135,7 +135,7 @@ const ImageModal: React.FC<{ imageUrl: string | null; onClose: () => void }> = (
   );
 };
 
-// ── Subsecciones para cada tipo de insecto con validación ──────────────────────────────────
+// ── Subsecciones para cada tipo de insecto (incluyendo "Otro insecto") ─────────────────
 
 interface SectionProps {
   basePrefix: string;
@@ -145,6 +145,7 @@ interface SectionProps {
   onCampoChange: (campo: string, valor: string) => void;
   errores: Record<string, string>;
   clearErrorsForPrefix: (prefix: string) => void;
+  onFilesChange?: (prefix: string, files: File[]) => void;
 }
 
 const CompsusSection: React.FC<SectionProps> = ({
@@ -360,7 +361,60 @@ const ToxopteraSection: React.FC<SectionProps> = ({
   );
 };
 
-// ── Subsecciones para ácaros con validación ─────────────────────────────────────────────────
+// Nuevo componente: Otro insecto
+const OtroInsectoSection: React.FC<SectionProps> = ({
+  basePrefix, cuadrante, rama, caracterizacion, onCampoChange, errores, clearErrorsForPrefix, onFilesChange
+}) => {
+  const prefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_insecto_otro`;
+  const nombreKey = `${prefix}_nombre`;
+  const sintomasKey = `${prefix}_sintomas`;
+  const fotosPrefix = `${prefix}_fotos`;
+
+  const handleChange = (key: string, value: string) => {
+    onCampoChange(key, value);
+    clearErrorsForPrefix(key + "_error");
+  };
+
+  return (
+    <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+      <h6 className="font-semibold mb-2 text-sm">Registro de otro insecto no listado</h6>
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del insecto (mínimo hasta género) *</label>
+        <input type="text"
+          value={caracterizacion[nombreKey] || ""}
+          onChange={(e) => handleChange(nombreKey, e.target.value)}
+          className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
+          placeholder="Ej: Leptopharsa sp." required />
+        {errores[`${nombreKey}_error`] && (
+          <p className="text-red-600 text-xs mt-1">{errores[`${nombreKey}_error`]}</p>
+        )}
+      </div>
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Síntomas observados *</label>
+        <textarea
+          value={caracterizacion[sintomasKey] || ""}
+          onChange={(e) => handleChange(sintomasKey, e.target.value)}
+          className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
+          rows={2}
+          placeholder="Describa los síntomas o daño observado" required />
+        {errores[`${sintomasKey}_error`] && (
+          <p className="text-red-600 text-xs mt-1">{errores[`${sintomasKey}_error`]}</p>
+        )}
+      </div>
+      <RealFotosSection
+        prefix={fotosPrefix}
+        caracterizacion={caracterizacion}
+        onCampoChange={onCampoChange}
+        onFilesChange={onFilesChange}
+      />
+      {errores[`${fotosPrefix}_error`] && (
+        <p className="text-red-600 text-xs mt-1">{errores[`${fotosPrefix}_error`]}</p>
+      )}
+    </div>
+  );
+};
+
+// ── Subsecciones para ácaros (incluyendo "Otro ácaro") ─────────────────────────────────
 
 const PolyphagotarsonemusSection: React.FC<SectionProps> = ({
   basePrefix, cuadrante, rama, caracterizacion, onCampoChange, errores, clearErrorsForPrefix
@@ -450,15 +504,13 @@ const PhyllocoptrutaSection: React.FC<SectionProps> = ({
   );
 };
 
-// ── Sección "Otro artrópodo" con validación y fotos obligatorias ─────────────────────────────────
-
-const OtroArthropodSection: React.FC<SectionProps & { onFilesChange?: (prefix: string, files: File[]) => void }> = ({
+// Nuevo componente: Otro ácaro
+const OtroAcaroSection: React.FC<SectionProps> = ({
   basePrefix, cuadrante, rama, caracterizacion, onCampoChange, errores, clearErrorsForPrefix, onFilesChange
 }) => {
-  const prefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_otro`;
-  const sintomasKey = `${prefix}_sintomas`;
-  const claseKey = `${prefix}_clase`;
+  const prefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_acaro_otro`;
   const nombreKey = `${prefix}_nombre`;
+  const sintomasKey = `${prefix}_sintomas`;
   const fotosPrefix = `${prefix}_fotos`;
 
   const handleChange = (key: string, value: string) => {
@@ -468,52 +520,30 @@ const OtroArthropodSection: React.FC<SectionProps & { onFilesChange?: (prefix: s
 
   return (
     <div className="mt-4 p-4 bg-gray-100 rounded-lg">
-      <h6 className="font-semibold mb-2 text-sm">Otro artrópodo observado</h6>
-
+      <h6 className="font-semibold mb-2 text-sm">Registro de otro ácaro no listado</h6>
       <div className="mb-3">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Síntomas observados *</label>
-        <input type="text"
-          value={caracterizacion[sintomasKey] || ""}
-          onChange={(e) => handleChange(sintomasKey, e.target.value)}
-          className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
-          placeholder="Describa los síntomas observados" required />
-        {errores[`${sintomasKey}_error`] && (
-          <p className="text-red-600 text-xs mt-1">{errores[`${sintomasKey}_error`]}</p>
-        )}
-      </div>
-
-      <div className="mb-3">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Clase de artrópodo observado *</label>
-        <div className="flex gap-4">
-          {["Insecto", "Arácnido", "Otro"].map((opcion) => (
-            <label key={opcion} className="inline-flex items-center">
-              <input type="radio" name={claseKey} value={opcion}
-                checked={caracterizacion[claseKey] === opcion}
-                onChange={(e) => handleChange(claseKey, e.target.value)}
-                className="mr-2" required />
-              {opcion}
-            </label>
-          ))}
-        </div>
-        {errores[`${claseKey}_error`] && (
-          <p className="text-red-600 text-xs mt-1">{errores[`${claseKey}_error`]}</p>
-        )}
-      </div>
-
-      <div className="mb-3">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Nombre del artrópodo observado (mínimo hasta género) *
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del ácaro (mínimo hasta género) *</label>
         <input type="text"
           value={caracterizacion[nombreKey] || ""}
           onChange={(e) => handleChange(nombreKey, e.target.value)}
           className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
-          placeholder="Ej: Atta sp." required />
+          placeholder="Ej: Eriophyes sp." required />
         {errores[`${nombreKey}_error`] && (
           <p className="text-red-600 text-xs mt-1">{errores[`${nombreKey}_error`]}</p>
         )}
       </div>
-
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Síntomas observados *</label>
+        <textarea
+          value={caracterizacion[sintomasKey] || ""}
+          onChange={(e) => handleChange(sintomasKey, e.target.value)}
+          className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
+          rows={2}
+          placeholder="Describa los síntomas o daño observado" required />
+        {errores[`${sintomasKey}_error`] && (
+          <p className="text-red-600 text-xs mt-1">{errores[`${sintomasKey}_error`]}</p>
+        )}
+      </div>
       <RealFotosSection
         prefix={fotosPrefix}
         caracterizacion={caracterizacion}
@@ -527,7 +557,7 @@ const OtroArthropodSection: React.FC<SectionProps & { onFilesChange?: (prefix: s
   );
 };
 
-// ── CuadranteArthropod con validación ────────────────────────────────────────────────
+// ── CuadranteArthropod con validación y opciones "Otro" integradas ───────────────────
 
 interface CuadranteProps {
   plantaIdx: number;
@@ -554,7 +584,7 @@ const CuadranteArthropod: React.FC<CuadranteProps> = ({
   const isInsecto = claseString.includes('insecto');
   const isAracnido = claseString.includes('aracnido');
 
-  // Función para limpiar datos y errores de una clase
+  // Función para limpiar datos y errores de una categoría completa (insecto o arácnido)
   const clearClassData = (tipo: 'insecto' | 'aracnido') => {
     const tipoPrefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_${tipo === 'insecto' ? 'insecto' : 'acaro'}`;
     Object.keys(caracterizacion).forEach(k => {
@@ -575,16 +605,8 @@ const CuadranteArthropod: React.FC<CuadranteProps> = ({
       onCampoChange(claseKey, "");
       clearClassData('insecto');
       clearClassData('aracnido');
-      // Limpiar "otro artrópodo"
-      const otroActivoKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_otro_activo`;
-      onCampoChange(otroActivoKey, "false");
-      const otroPrefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_otro`;
-      Object.keys(caracterizacion).forEach(k => {
-        if (k.startsWith(otroPrefix)) onCampoChange(k, "");
-      });
       clearErrorsForPrefix(`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}`);
     } else {
-      // Si se selecciona "Sí", se limpia cualquier error de presencia previo
       clearErrorsForPrefix(presenciaKey + "_error");
     }
   };
@@ -600,13 +622,12 @@ const CuadranteArthropod: React.FC<CuadranteProps> = ({
       clearClassData(clase);
     }
     onCampoChange(claseKey, newClases.join(','));
-    // Limpiar error de clase si se ha seleccionado alguna
     if (newClases.length > 0) {
       clearErrorsForPrefix(claseKey + "_error");
     }
   };
 
-  // Insectos
+  // Insectos (incluye 'otro_insecto')
   const insectoTiposKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_insecto_tipos`;
   const insectoTiposArray = (caracterizacion[insectoTiposKey] || "").split(",").filter(Boolean);
 
@@ -616,6 +637,7 @@ const CuadranteArthropod: React.FC<CuadranteProps> = ({
       if (!arr.includes(tipo)) arr.push(tipo);
     } else {
       arr = arr.filter(t => t !== tipo);
+      // Limpiar datos específicos del subtipo que se desmarca
       const prefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_insecto_${tipo}`;
       Object.keys(caracterizacion).forEach(k => {
         if (k.startsWith(prefix)) onCampoChange(k, "");
@@ -623,14 +645,13 @@ const CuadranteArthropod: React.FC<CuadranteProps> = ({
       clearErrorsForPrefix(prefix);
     }
     onCampoChange(insectoTiposKey, arr.join(","));
-    // Limpiar error de insecto si ahora hay al menos un tipo o "otro" está activo
-    const otroActivo = caracterizacion[`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_otro_activo`] === "true";
-    if (arr.length > 0 || otroActivo) {
+    // Limpiar error general de insecto si ahora hay al menos un tipo seleccionado
+    if (arr.length > 0) {
       clearErrorsForPrefix(`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_insecto_error`);
     }
   };
 
-  // Ácaros
+  // Ácaros (incluye 'otro_acaro')
   const acaroTiposKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_acaro_tipos`;
   const acaroTiposArray = (caracterizacion[acaroTiposKey] || "").split(",").filter(Boolean);
 
@@ -647,8 +668,7 @@ const CuadranteArthropod: React.FC<CuadranteProps> = ({
       clearErrorsForPrefix(prefix);
     }
     onCampoChange(acaroTiposKey, arr.join(","));
-    const otroActivo = caracterizacion[`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_otro_activo`] === "true";
-    if (arr.length > 0 || otroActivo) {
+    if (arr.length > 0) {
       clearErrorsForPrefix(`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_acaro_error`);
     }
   };
@@ -658,11 +678,13 @@ const CuadranteArthropod: React.FC<CuadranteProps> = ({
     { value: 'diaphorina',  label: <><em>Diaphorina citri</em> - Psílido asiático</>,   image: 'diaphorinacitri.png' },
     { value: 'phyllocnistis',label: <><em>Phyllocnistis sp.</em> - Minador de la hoja</>,image: 'phyllocnistissp.png' },
     { value: 'toxoptera',   label: <><em>Toxoptera citricidus</em> - Pulgón negro</>,   image: 'toxopteracitricidus.png' },
+    { value: 'otro_insecto',label: "🐛 Otro insecto (no listado)", image: '' },
   ];
 
   const acaroTiposDisponibles = [
     { value: 'polyphagotarsonemus', label: <><em>Polyphago- tarsonemus sp.</em> - Ácaro blanco</>,  image: 'polyphagotarsonemussp.png' },
     { value: 'phyllocoptruta',      label: <><em>Phyllocoptruta sp.</em> - Ácaro tostador</>,     image: 'phyllocoptrutasp.png' },
+    { value: 'otro_acaro',          label: "🕷️ Otro ácaro (no listado)", image: '' },
   ];
 
   // Errores específicos
@@ -743,10 +765,12 @@ const CuadranteArthropod: React.FC<CuadranteProps> = ({
                         onChange={(e) => handleInsectoTipoChange(tipo.value, e.target.checked)} className="mr-2" />
                       {tipo.label}
                     </label>
-                    <button type="button" onClick={() => onOpenImage(tipo.image)}
-                      className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded">
-                      Ver imagen
-                    </button>
+                    {tipo.image && (
+                      <button type="button" onClick={() => onOpenImage(`/imgs/${tipo.image}`)}
+                        className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded">
+                        Ver imagen
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -782,6 +806,14 @@ const CuadranteArthropod: React.FC<CuadranteProps> = ({
                   errores={errores} clearErrorsForPrefix={clearErrorsForPrefix}
                 />
               )}
+              {insectoTiposArray.includes('otro_insecto') && (
+                <OtroInsectoSection
+                  basePrefix={basePrefix} cuadrante={cuadrante} rama={rama}
+                  caracterizacion={caracterizacion} onCampoChange={onCampoChange}
+                  errores={errores} clearErrorsForPrefix={clearErrorsForPrefix}
+                  onFilesChange={onFilesChange}
+                />
+              )}
             </div>
           )}
 
@@ -799,10 +831,12 @@ const CuadranteArthropod: React.FC<CuadranteProps> = ({
                         onChange={(e) => handleAcaroTipoChange(tipo.value, e.target.checked)} className="mr-2" />
                       {tipo.label}
                     </label>
-                    <button type="button" onClick={() => onOpenImage(tipo.image)}
-                      className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded">
-                      Ver imagen
-                    </button>
+                    {tipo.image && (
+                      <button type="button" onClick={() => onOpenImage(`/imgs/${tipo.image}`)}
+                        className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded">
+                        Ver imagen
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -824,54 +858,23 @@ const CuadranteArthropod: React.FC<CuadranteProps> = ({
                   errores={errores} clearErrorsForPrefix={clearErrorsForPrefix}
                 />
               )}
+              {acaroTiposArray.includes('otro_acaro') && (
+                <OtroAcaroSection
+                  basePrefix={basePrefix} cuadrante={cuadrante} rama={rama}
+                  caracterizacion={caracterizacion} onCampoChange={onCampoChange}
+                  errores={errores} clearErrorsForPrefix={clearErrorsForPrefix}
+                  onFilesChange={onFilesChange}
+                />
+              )}
             </div>
           )}
-
-          {/* Otro artrópodo */}
-          <div className="mt-4">
-            <label className="inline-flex items-center mb-2">
-              <input type="checkbox"
-                checked={caracterizacion[`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_otro_activo`] === 'true'}
-                onChange={(e) => {
-                  const isChecked = e.target.checked;
-                  onCampoChange(`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_otro_activo`, isChecked ? 'true' : 'false');
-                  if (!isChecked) {
-                    // Limpiar datos y errores de otro
-                    const otroPrefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_otro`;
-                    Object.keys(caracterizacion).forEach(k => {
-                      if (k.startsWith(otroPrefix)) onCampoChange(k, "");
-                    });
-                    clearErrorsForPrefix(otroPrefix);
-                  } else {
-                    // Si se marca, limpiar errores de insecto/ácaro que podrían ser resueltos por "otro"
-                    if (isInsecto && insectoTiposArray.length === 0) {
-                      clearErrorsForPrefix(errorInsectoKey);
-                    }
-                    if (isAracnido && acaroTiposArray.length === 0) {
-                      clearErrorsForPrefix(errorAcaroKey);
-                    }
-                  }
-                }}
-                className="mr-2" />
-              <span className="text-sm font-medium text-gray-700">Registrar otro artrópodo no listado</span>
-            </label>
-
-            {caracterizacion[`${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_otro_activo`] === 'true' && (
-              <OtroArthropodSection
-                basePrefix={basePrefix} cuadrante={cuadrante} rama={rama}
-                caracterizacion={caracterizacion} onCampoChange={onCampoChange}
-                errores={errores} clearErrorsForPrefix={clearErrorsForPrefix}
-                onFilesChange={onFilesChange}
-              />
-            )}
-          </div>
         </>
       )}
     </div>
   );
 };
 
-// ── PlantaArthropod ───────────────────────────────────────────────────────────────────
+// ── PlantaArthropod (sin cambios, solo pasa props) ───────────────────────────────────
 
 interface PlantaArthropodProps {
   index: number;
@@ -930,7 +933,6 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
       setFilesMap(prev => new Map(prev).set(prefix, files));
     }, []);
 
-    // Función para limpiar errores cuyo key empiece con un prefijo
     const clearErrorsForPrefix = (prefix: string) => {
       setErrores(prev => {
         const newErrores = { ...prev };
@@ -954,32 +956,30 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
           const presencia = caracterizacion[presenciaKey] || "";
 
           if (!presencia) {
-            const presenciaKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_presencia`;
-            caracterizacion[presenciaKey] = "no";
-          } else if (presencia === "si") {
-            // Verificar que al menos una clase esté seleccionada
+            // Si no hay valor, lo forzamos a "no" (esto ya se maneja en el render)
+            continue;
+          }
+
+          if (presencia === "si") {
+            // Validar clase
             const claseKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_clase`;
             const claseString = caracterizacion[claseKey] || "";
-            const errorClaseKey = `${claseKey}_error`;
             if (!claseString) {
-              nuevosErrores[errorClaseKey] = "Debe seleccionar al menos una clase (Insecto o Arácnido).";
+              nuevosErrores[`${claseKey}_error`] = "Debe seleccionar al menos una clase (Insecto o Arácnido).";
               isValid = false;
             } else {
-              // Validar insectos si están seleccionados
+              // Validar insectos si está seleccionado
               if (claseString.includes('insecto')) {
                 const insectoTiposKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_insecto_tipos`;
                 const insectoTipos = (caracterizacion[insectoTiposKey] || "").split(",").filter(Boolean);
-                const otroActivoKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_otro_activo`;
-                const otroActivo = caracterizacion[otroActivoKey] === "true";
-                const errorInsectoKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_insecto_error`;
-                if (insectoTipos.length === 0 && !otroActivo) {
-                  nuevosErrores[errorInsectoKey] = "Debe seleccionar al menos un insecto o marcar 'Registrar otro artrópodo no listado'.";
+                if (insectoTipos.length === 0) {
+                  nuevosErrores[`${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_insecto_error`] =
+                    "Debe seleccionar al menos un insecto de la lista.";
                   isValid = false;
                 } else {
                   // Validar cada insecto seleccionado
                   insectoTipos.forEach(tipo => {
                     const tipoPrefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_insecto_${tipo}`;
-                    // Compsus
                     if (tipo === 'compsus') {
                       const adultosKey = `${tipoPrefix}_adultos`;
                       const danoKey = `${tipoPrefix}_dano_hojas`;
@@ -992,7 +992,6 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
                         isValid = false;
                       }
                     }
-                    // Diaphorina
                     if (tipo === 'diaphorina') {
                       const adultosKey = `${tipoPrefix}_adultos`;
                       const estadosKey = `${tipoPrefix}_estados`;
@@ -1005,7 +1004,6 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
                         isValid = false;
                       }
                     }
-                    // Phyllocnistis
                     if (tipo === 'phyllocnistis') {
                       const galeriasKey = `${tipoPrefix}_galerias`;
                       const danoKey = `${tipoPrefix}_dano_hojas`;
@@ -1018,7 +1016,6 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
                         isValid = false;
                       }
                     }
-                    // Toxoptera
                     if (tipo === 'toxoptera') {
                       const adultosKey = `${tipoPrefix}_adultos`;
                       const mielecillaKey = `${tipoPrefix}_mielecilla`;
@@ -1036,18 +1033,35 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
                         isValid = false;
                       }
                     }
+                    if (tipo === 'otro_insecto') {
+                      const nombreKey = `${tipoPrefix}_nombre`;
+                      const sintomasKey = `${tipoPrefix}_sintomas`;
+                      const fotosPrefix = `${tipoPrefix}_fotos`;
+                      if (!caracterizacion[nombreKey]) {
+                        nuevosErrores[`${nombreKey}_error`] = "Debe indicar el nombre del insecto.";
+                        isValid = false;
+                      }
+                      if (!caracterizacion[sintomasKey]) {
+                        nuevosErrores[`${sintomasKey}_error`] = "Debe describir los síntomas observados.";
+                        isValid = false;
+                      }
+                      const fotosFiles = filesMap.get(fotosPrefix) || [];
+                      if (fotosFiles.length === 0) {
+                        nuevosErrores[`${fotosPrefix}_error`] = "Debe subir al menos una foto del insecto o síntoma.";
+                        isValid = false;
+                      }
+                    }
                   });
                 }
               }
-              // Validar ácaros si están seleccionados
+
+              // Validar ácaros si está seleccionado
               if (claseString.includes('aracnido')) {
                 const acaroTiposKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_acaro_tipos`;
                 const acaroTipos = (caracterizacion[acaroTiposKey] || "").split(",").filter(Boolean);
-                const otroActivoKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_otro_activo`;
-                const otroActivo = caracterizacion[otroActivoKey] === "true";
-                const errorAcaroKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_acaro_error`;
-                if (acaroTipos.length === 0 && !otroActivo) {
-                  nuevosErrores[errorAcaroKey] = "Debe seleccionar al menos un ácaro o marcar 'Registrar otro artrópodo no listado'.";
+                if (acaroTipos.length === 0) {
+                  nuevosErrores[`${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_acaro_error`] =
+                    "Debe seleccionar al menos un ácaro de la lista.";
                   isValid = false;
                 } else {
                   acaroTipos.forEach(tipo => {
@@ -1076,34 +1090,25 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
                         isValid = false;
                       }
                     }
+                    if (tipo === 'otro_acaro') {
+                      const nombreKey = `${tipoPrefix}_nombre`;
+                      const sintomasKey = `${tipoPrefix}_sintomas`;
+                      const fotosPrefix = `${tipoPrefix}_fotos`;
+                      if (!caracterizacion[nombreKey]) {
+                        nuevosErrores[`${nombreKey}_error`] = "Debe indicar el nombre del ácaro.";
+                        isValid = false;
+                      }
+                      if (!caracterizacion[sintomasKey]) {
+                        nuevosErrores[`${sintomasKey}_error`] = "Debe describir los síntomas observados.";
+                        isValid = false;
+                      }
+                      const fotosFiles = filesMap.get(fotosPrefix) || [];
+                      if (fotosFiles.length === 0) {
+                        nuevosErrores[`${fotosPrefix}_error`] = "Debe subir al menos una foto del ácaro o síntoma.";
+                        isValid = false;
+                      }
+                    }
                   });
-                }
-              }
-              // Validar "Otro artrópodo" si está activo
-              const otroActivoKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_otro_activo`;
-              if (caracterizacion[otroActivoKey] === "true") {
-                const otroPrefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_otro`;
-                const sintomas = caracterizacion[`${otroPrefix}_sintomas`];
-                const clase = caracterizacion[`${otroPrefix}_clase`];
-                const nombre = caracterizacion[`${otroPrefix}_nombre`];
-                if (!sintomas) {
-                  nuevosErrores[`${otroPrefix}_sintomas_error`] = "Debe describir los síntomas observados.";
-                  isValid = false;
-                }
-                if (!clase) {
-                  nuevosErrores[`${otroPrefix}_clase_error`] = "Debe seleccionar la clase del artrópodo.";
-                  isValid = false;
-                }
-                if (!nombre) {
-                  nuevosErrores[`${otroPrefix}_nombre_error`] = "Debe indicar el nombre del artrópodo (mínimo género).";
-                  isValid = false;
-                }
-                // Validar fotos obligatorias
-                const fotosPrefix = `${otroPrefix}_fotos`;
-                const fotosFiles = filesMap.get(fotosPrefix) || [];
-                if (fotosFiles.length === 0) {
-                  nuevosErrores[`${fotosPrefix}_error`] = "Debe subir al menos una foto del artrópodo o síntoma.";
-                  isValid = false;
                 }
               }
             }
@@ -1143,7 +1148,7 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
             planta={planta}
             caracterizacion={caracterizacion}
             onCampoChange={onCampoChange}
-            onOpenImage={(name) => setModalImage(`/imgs/${name}`)}
+            onOpenImage={(name) => setModalImage(name)}
             errores={errores}
             clearErrorsForPrefix={clearErrorsForPrefix}
             onFilesChange={updateFiles}
