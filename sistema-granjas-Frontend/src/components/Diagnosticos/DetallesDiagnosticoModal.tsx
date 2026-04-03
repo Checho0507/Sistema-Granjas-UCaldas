@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { DiagnosticoDetalle, Evidencia } from '../../types/diagnosticoTypes';
+import type { DiagnosticoDetalle } from '../../types/diagnosticoTypes';
 import Modal from '../Common/Modal';
 import diagnosticoService from '../../services/diagnosticoService';
 
@@ -14,8 +14,6 @@ const DetallesDiagnosticoModal: React.FC<DetallesDiagnosticoModalProps> = ({
     diagnostico,
     onClose
 }) => {
-    const [evidencias, setEvidencias] = useState<Evidencia[]>([]);
-    const [loadingEvidencias, setLoadingEvidencias] = useState(false);
     const [loadingDetalles, setLoadingDetalles] = useState(false);
     const [diagnosticoDetallado, setDiagnosticoDetallado] = useState<DiagnosticoDetalle | null>(null);
 
@@ -23,7 +21,6 @@ const DetallesDiagnosticoModal: React.FC<DetallesDiagnosticoModalProps> = ({
         if (isOpen && diagnostico) {
             setDiagnosticoDetallado(null);
             cargarDetallesCompletos(diagnostico.id);
-            cargarEvidencias(diagnostico.id);
         }
     }, [isOpen, diagnostico]);
 
@@ -36,19 +33,6 @@ const DetallesDiagnosticoModal: React.FC<DetallesDiagnosticoModalProps> = ({
             console.error('Error cargando detalles:', err);
         } finally {
             setLoadingDetalles(false);
-        }
-    };
-
-    const cargarEvidencias = async (id: number) => {
-        try {
-            setLoadingEvidencias(true);
-            const data = await diagnosticoService.obtenerEvidencias(id);
-            setEvidencias(Array.isArray(data) ? data : (data?.items || []));
-        } catch (err) {
-            console.error('Error cargando evidencias:', err);
-            setEvidencias([]);
-        } finally {
-            setLoadingEvidencias(false);
         }
     };
 
@@ -179,32 +163,6 @@ const DetallesDiagnosticoModal: React.FC<DetallesDiagnosticoModalProps> = ({
                                 )}
                             </div>
                         )}
-
-                        {/* EVIDENCIAS (se mantiene igual) */}
-                        <div>
-                            <h3 className="font-bold mb-3">
-                                Evidencias ({evidencias.length})
-                            </h3>
-                            {loadingEvidencias ? (
-                                <p>Cargando evidencias...</p>
-                            ) : evidencias.length === 0 ? (
-                                <p className="text-gray-500">No hay evidencias</p>
-                            ) : (
-                                <div className="grid grid-cols-2 gap-3">
-                                    {evidencias.map(e => (
-                                        <a
-                                            key={e.id}
-                                            href={e.url_archivo}
-                                            target="_blank"
-                                            className="border p-3 rounded hover:bg-gray-50"
-                                        >
-                                            <p className="font-medium">{e.tipo}</p>
-                                            <p className="text-sm text-gray-500">{e.descripcion}</p>
-                                        </a>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
                     </>
                 )}
             </div>
