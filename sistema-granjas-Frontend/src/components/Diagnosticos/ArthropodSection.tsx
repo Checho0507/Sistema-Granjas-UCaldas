@@ -956,8 +956,8 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
           const presencia = caracterizacion[presenciaKey] || "";
 
           if (!presencia) {
-            // Si no hay valor, lo forzamos a "no" (esto ya se maneja en el render)
-            continue;
+            const presenciaKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_presencia`;
+            caracterizacion[presenciaKey] = "no"; // Asumir "no" si no se ha respondido
           }
 
           if (presencia === "si") {
