@@ -115,11 +115,16 @@ async def crear_diagnostico(
     except json.JSONDecodeError:
         raise HTTPException(400, "El campo 'formulario' debe ser un JSON válido")
 
-    # Subir archivos a R2
+    # Subir archivos a R2 y reemplazar los campos originales con las URLs
     fotos_por_prefix = procesar_archivos_r2(form_data)
     if fotos_por_prefix:
+        # Guardar también en fotos_subidas (opcional, para compatibilidad)
         formulario["fotos_subidas"] = fotos_por_prefix
-        logger.info(f"Archivos subidos: {list(fotos_por_prefix.keys())}")
+
+        # Reemplazar cada campo original con las URLs concatenadas
+        for prefix, urls in fotos_por_prefix.items():
+            formulario[prefix] = ",".join(urls)
+        logger.info(f"Campos actualizados con URLs: {list(fotos_por_prefix.keys())}")
 
     # Validar permisos
     if user.rol.nombre == "estudiante" and usuario_id != user.id:
@@ -182,14 +187,28 @@ async def actualizar_diagnostico(
         except json.JSONDecodeError:
             raise HTTPException(400, "El campo 'formulario' debe ser JSON válido")
 
-    # Subir nuevos archivos (si los hay) y añadirlos a los existentes
+    # Subir nuevos archivos (si los hay)
     fotos_por_prefix = procesar_archivos_r2(form_data)
     if fotos_por_prefix:
+        # Obtener el formulario actual (ya sea el nuevo o el existente)
         formulario_actual = update_data.get("formulario", obj.formulario or {})
-        existing = formulario_actual.get("fotos_subidas", {})
+        # Asegurar que exista la clave fotos_subidas
+        if "fotos_subidas" not in formulario_actual:
+            formulario_actual["fotos_subidas"] = {}
+        # Añadir nuevas URLs a fotos_subidas
         for prefix, urls in fotos_por_prefix.items():
-            existing.setdefault(prefix, []).extend(urls)
-        formulario_actual["fotos_subidas"] = existing
+            # Actualizar fotos_subidas
+            if prefix in formulario_actual["fotos_subidas"]:
+                formulario_actual["fotos_subidas"][prefix].extend(urls)
+            else:
+                formulario_actual["fotos_subidas"][prefix] = urls
+            # Actualizar el campo original (prefix) con las URLs (concatenar)
+            existing_urls = formulario_actual.get(prefix, "")
+            if existing_urls:
+                # Si ya tenía URLs, añadir las nuevas separadas por coma
+                formulario_actual[prefix] = existing_urls + "," + ",".join(urls)
+            else:
+                formulario_actual[prefix] = ",".join(urls)
         update_data["formulario"] = formulario_actual
         logger.info(f"Nuevos archivos añadidos en actualización: {list(fotos_por_prefix.keys())}")
 
@@ -210,7 +229,7 @@ def eliminar_diagnostico(
     if obj.recomendaciones:
         raise HTTPException(400, "No se puede eliminar un diagnóstico con recomendaciones asociadas")
 
-    # Eliminar archivos de R2
+    # Eliminar archivos de R2 (basado en fotos_subidas)
     if obj.formulario and "fotos_subidas" in obj.formulario:
         for urls in obj.formulario["fotos_subidas"].values():
             for url in urls:
