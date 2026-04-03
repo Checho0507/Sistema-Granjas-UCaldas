@@ -128,7 +128,7 @@ const DetallesDiagnosticoModal: React.FC<DetallesDiagnosticoModalProps> = ({
                                 {/* ✨ NUEVA SECCIÓN: Fotos subidas */}
                                 {fotosSubidas && Object.keys(fotosSubidas).length > 0 && (
                                     <div className="mt-6">
-                                        <h4 className="font-semibold mb-3">📸 Fotos subidas</h4>
+                                        <h4 className="font-semibold mb-3">Fotos subidas</h4>
                                         <div className="space-y-6">
                                             {Object.entries(fotosSubidas).map(([campo, urls]) => (
                                                 <div key={campo}>
