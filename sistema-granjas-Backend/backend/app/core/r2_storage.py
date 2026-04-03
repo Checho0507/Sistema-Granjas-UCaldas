@@ -1,7 +1,7 @@
 import os
 import uuid
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import UploadFile, HTTPException
 from app.core.config import settings
 
@@ -21,7 +21,7 @@ def upload_file_to_r2(file: UploadFile, prefix: str) -> str:
     if not settings.r2_client:
         raise HTTPException(500, "Servicio de almacenamiento no disponible")
 
-    now = datetime.now()
+    now = (datetime.utcnow() - timedelta(hours=5))  # Ajuste de zona horaria
     year = now.strftime("%Y")
     month = now.strftime("%m")
     day = now.strftime("%d")
