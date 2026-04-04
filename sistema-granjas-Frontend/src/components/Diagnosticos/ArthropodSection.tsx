@@ -957,11 +957,13 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
             const presenciaKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_presencia`;
             caracterizacion[presenciaKey] = "no";
           } else if (presencia === "si") {
+            // Declaramos las variables de "otro" una sola vez al inicio del bloque
+            const otroActivoKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_otro_activo`;
+            const otroActivo = caracterizacion[otroActivoKey] === "true";
+
             // Verificar que al menos una clase esté seleccionada, a menos que "otro" esté activo
             const claseKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_clase`;
             const claseString = caracterizacion[claseKey] || "";
-            const otroActivoKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_otro_activo`;
-            const otroActivo = caracterizacion[otroActivoKey] === "true";
             const errorClaseKey = `${claseKey}_error`;
 
             if (!claseString && !otroActivo) {
@@ -972,8 +974,6 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
               if (claseString.includes('insecto')) {
                 const insectoTiposKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_insecto_tipos`;
                 const insectoTipos = (caracterizacion[insectoTiposKey] || "").split(",").filter(Boolean);
-                const otroActivoKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_otro_activo`;
-                const otroActivo = caracterizacion[otroActivoKey] === "true";
                 const errorInsectoKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_insecto_error`;
                 if (insectoTipos.length === 0 && !otroActivo) {
                   nuevosErrores[errorInsectoKey] = "Debe seleccionar al menos un insecto o marcar 'Registrar otro artrópodo no listado'.";
@@ -1046,8 +1046,6 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
               if (claseString.includes('aracnido')) {
                 const acaroTiposKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_acaro_tipos`;
                 const acaroTipos = (caracterizacion[acaroTiposKey] || "").split(",").filter(Boolean);
-                const otroActivoKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_otro_activo`;
-                const otroActivo = caracterizacion[otroActivoKey] === "true";
                 const errorAcaroKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_acaro_error`;
                 if (acaroTipos.length === 0 && !otroActivo) {
                   nuevosErrores[errorAcaroKey] = "Debe seleccionar al menos un ácaro o marcar 'Registrar otro artrópodo no listado'.";
@@ -1084,8 +1082,8 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
               }
             }
             // Validar "Otro artrópodo" si está activo (independientemente de si hay clases)
-            const otroActivoKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_otro_activo`;
-            if (caracterizacion[otroActivoKey] === "true") {
+            // Usamos la variable otroActivo ya declarada
+            if (otroActivo) {
               const otroPrefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_otro`;
               const sintomas = caracterizacion[`${otroPrefix}_sintomas`];
               const clase = caracterizacion[`${otroPrefix}_clase`];
