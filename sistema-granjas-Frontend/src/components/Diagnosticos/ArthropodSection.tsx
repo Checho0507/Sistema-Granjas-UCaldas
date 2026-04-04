@@ -172,7 +172,7 @@ const CompsusSection: React.FC<SectionProps> = ({
           value={caracterizacion[adultosKey] || ""}
           onChange={(e) => handleChange(adultosKey, e.target.value)}
           className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
-          placeholder="Ej: 3 (0 si no hay)" required />
+          placeholder="Ej: 3 (0 si no hay)" />
         <p className="text-xs text-gray-500 mt-1">De no encontrarse presencia del insecto, colocar 0</p>
         {errores[`${adultosKey}_error`] && (
           <p className="text-red-600 text-xs mt-1">{errores[`${adultosKey}_error`]}</p>
@@ -184,7 +184,7 @@ const CompsusSection: React.FC<SectionProps> = ({
           value={caracterizacion[danoHojasKey] || ""}
           onChange={(e) => handleChange(danoHojasKey, e.target.value)}
           className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
-          placeholder="Ej: 30 (0 si no hay daño)" required />
+          placeholder="Ej: 30 (0 si no hay daño)" />
         <p className="text-xs text-gray-500 mt-1">De no encontrarse daño del insecto, colocar 0</p>
         {errores[`${danoHojasKey}_error`] && (
           <p className="text-red-600 text-xs mt-1">{errores[`${danoHojasKey}_error`]}</p>
@@ -220,7 +220,7 @@ const DiaphorinaSection: React.FC<SectionProps> = ({
           value={caracterizacion[adultosKey] || ""}
           onChange={(e) => handleChange(adultosKey, e.target.value)}
           className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
-          placeholder="Ej: 3 (0 si no hay)" required />
+          placeholder="Ej: 3 (0 si no hay)" />
         <p className="text-xs text-gray-500 mt-1">De no encontrarse presencia del insecto, colocar 0</p>
         {errores[`${adultosKey}_error`] && (
           <p className="text-red-600 text-xs mt-1">{errores[`${adultosKey}_error`]}</p>
@@ -240,7 +240,7 @@ const DiaphorinaSection: React.FC<SectionProps> = ({
                   else { const i = values.indexOf(estado); if (i > -1) values.splice(i, 1); }
                   handleChange(estadosKey, values.join(","));
                 }}
-                className="mr-2" required />
+                className="mr-2" />
               {estado}
             </label>
           ))}
@@ -277,7 +277,7 @@ const PhyllocnistisSection: React.FC<SectionProps> = ({
           value={caracterizacion[galeriasKey] || ""}
           onChange={(e) => handleChange(galeriasKey, e.target.value)}
           className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
-          placeholder="Ej: 3 (0 si no hay)" required />
+          placeholder="Ej: 3 (0 si no hay)" />
         <p className="text-xs text-gray-500 mt-1">De no encontrarse presencia del insecto, colocar 0</p>
         {errores[`${galeriasKey}_error`] && (
           <p className="text-red-600 text-xs mt-1">{errores[`${galeriasKey}_error`]}</p>
@@ -289,7 +289,7 @@ const PhyllocnistisSection: React.FC<SectionProps> = ({
           value={caracterizacion[danoHojasKey] || ""}
           onChange={(e) => handleChange(danoHojasKey, e.target.value)}
           className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
-          placeholder="Ej: 30 (0 si no hay daño)" required />
+          placeholder="Ej: 30 (0 si no hay daño)" />
         <p className="text-xs text-gray-500 mt-1">De no encontrarse daño del insecto, colocar 0</p>
         {errores[`${danoHojasKey}_error`] && (
           <p className="text-red-600 text-xs mt-1">{errores[`${danoHojasKey}_error`]}</p>
@@ -322,7 +322,7 @@ const ToxopteraSection: React.FC<SectionProps> = ({
           value={caracterizacion[adultosKey] || ""}
           onChange={(e) => handleChange(adultosKey, e.target.value)}
           className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
-          placeholder="Ej: 3 (0 si no hay)" required />
+          placeholder="Ej: 3 (0 si no hay)" />
         <p className="text-xs text-gray-500 mt-1">De no encontrarse presencia del insecto, colocar 0</p>
         {errores[`${adultosKey}_error`] && (
           <p className="text-red-600 text-xs mt-1">{errores[`${adultosKey}_error`]}</p>
@@ -336,7 +336,7 @@ const ToxopteraSection: React.FC<SectionProps> = ({
               <input type="radio" name={mielecillaKey} value={opcion}
                 checked={caracterizacion[mielecillaKey] === opcion}
                 onChange={(e) => handleChange(mielecillaKey, e.target.value)}
-                className="mr-2" required />
+                className="mr-2" />
               {opcion}
             </label>
           ))}
@@ -351,7 +351,7 @@ const ToxopteraSection: React.FC<SectionProps> = ({
           value={caracterizacion[fumaginaKey] || ""}
           onChange={(e) => handleChange(fumaginaKey, e.target.value)}
           className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
-          placeholder="Ej: 30 (0 si no hay)" required />
+          placeholder="Ej: 30 (0 si no hay)" />
         <p className="text-xs text-gray-500 mt-1">De no encontrarse daño, colocar 0</p>
         {errores[`${fumaginaKey}_error`] && (
           <p className="text-red-600 text-xs mt-1">{errores[`${fumaginaKey}_error`]}</p>
@@ -384,7 +384,7 @@ const OtroInsectoSection: React.FC<SectionProps> = ({
           value={caracterizacion[nombreKey] || ""}
           onChange={(e) => handleChange(nombreKey, e.target.value)}
           className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
-          placeholder="Ej: Leptopharsa sp." required />
+          placeholder="Ej: Leptopharsa sp." />
         {errores[`${nombreKey}_error`] && (
           <p className="text-red-600 text-xs mt-1">{errores[`${nombreKey}_error`]}</p>
         )}
@@ -396,7 +396,7 @@ const OtroInsectoSection: React.FC<SectionProps> = ({
           onChange={(e) => handleChange(sintomasKey, e.target.value)}
           className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
           rows={2}
-          placeholder="Describa los síntomas o daño observado" required />
+          placeholder="Describa los síntomas o daño observado" />
         {errores[`${sintomasKey}_error`] && (
           <p className="text-red-600 text-xs mt-1">{errores[`${sintomasKey}_error`]}</p>
         )}
@@ -438,7 +438,7 @@ const PolyphagotarsonemusSection: React.FC<SectionProps> = ({
           value={caracterizacion[frutosAfectadosKey] || ""}
           onChange={(e) => handleChange(frutosAfectadosKey, e.target.value)}
           className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
-          placeholder="Ej: 3 (0 si no hay)" required />
+          placeholder="Ej: 3 (0 si no hay)" />
         <p className="text-xs text-gray-500 mt-1">De no encontrarse presencia del ácaro, colocar 0</p>
         {errores[`${frutosAfectadosKey}_error`] && (
           <p className="text-red-600 text-xs mt-1">{errores[`${frutosAfectadosKey}_error`]}</p>
@@ -450,7 +450,7 @@ const PolyphagotarsonemusSection: React.FC<SectionProps> = ({
           value={caracterizacion[danoFrutosKey] || ""}
           onChange={(e) => handleChange(danoFrutosKey, e.target.value)}
           className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
-          placeholder="Ej: 30 (0 si no hay daño)" required />
+          placeholder="Ej: 30 (0 si no hay daño)" />
         <p className="text-xs text-gray-500 mt-1">De no encontrarse daño, colocar 0</p>
         {errores[`${danoFrutosKey}_error`] && (
           <p className="text-red-600 text-xs mt-1">{errores[`${danoFrutosKey}_error`]}</p>
@@ -482,7 +482,7 @@ const PhyllocoptrutaSection: React.FC<SectionProps> = ({
           value={caracterizacion[frutosAfectadosKey] || ""}
           onChange={(e) => handleChange(frutosAfectadosKey, e.target.value)}
           className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
-          placeholder="Ej: 3 (0 si no hay)" required />
+          placeholder="Ej: 3 (0 si no hay)" />
         <p className="text-xs text-gray-500 mt-1">De no encontrarse presencia del ácaro, colocar 0</p>
         {errores[`${frutosAfectadosKey}_error`] && (
           <p className="text-red-600 text-xs mt-1">{errores[`${frutosAfectadosKey}_error`]}</p>
@@ -494,7 +494,7 @@ const PhyllocoptrutaSection: React.FC<SectionProps> = ({
           value={caracterizacion[danoFrutosKey] || ""}
           onChange={(e) => handleChange(danoFrutosKey, e.target.value)}
           className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
-          placeholder="Ej: 30 (0 si no hay daño)" required />
+          placeholder="Ej: 30 (0 si no hay daño)" />
         <p className="text-xs text-gray-500 mt-1">De no encontrarse daño, colocar 0</p>
         {errores[`${danoFrutosKey}_error`] && (
           <p className="text-red-600 text-xs mt-1">{errores[`${danoFrutosKey}_error`]}</p>
@@ -527,7 +527,7 @@ const OtroAcaroSection: React.FC<SectionProps> = ({
           value={caracterizacion[nombreKey] || ""}
           onChange={(e) => handleChange(nombreKey, e.target.value)}
           className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
-          placeholder="Ej: Eriophyes sp." required />
+          placeholder="Ej: Eriophyes sp." />
         {errores[`${nombreKey}_error`] && (
           <p className="text-red-600 text-xs mt-1">{errores[`${nombreKey}_error`]}</p>
         )}
@@ -539,7 +539,7 @@ const OtroAcaroSection: React.FC<SectionProps> = ({
           onChange={(e) => handleChange(sintomasKey, e.target.value)}
           className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
           rows={2}
-          placeholder="Describa los síntomas o daño observado" required />
+          placeholder="Describa los síntomas o daño observado" />
         {errores[`${sintomasKey}_error`] && (
           <p className="text-red-600 text-xs mt-1">{errores[`${sintomasKey}_error`]}</p>
         )}
@@ -577,7 +577,7 @@ const CuadranteArthropod: React.FC<CuadranteProps> = ({
 }) => {
   const basePrefix = `artropodo_planta_${plantaIdx + 1}`;
   const presenciaKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_presencia`;
-  const presencia = caracterizacion[presenciaKey] || "no";
+  const presencia = caracterizacion[presenciaKey] || "";
 
   const claseKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_clase`;
   const claseString = caracterizacion[claseKey] || "";
@@ -707,14 +707,14 @@ const CuadranteArthropod: React.FC<CuadranteProps> = ({
             <input type="radio" name={presenciaKey} value="si"
               checked={presencia === "si"}
               onChange={(e) => handlePresenciaChange(e.target.value)}
-              className="mr-2" required />
+              className="mr-2" />
             Sí
           </label>
           <label className="inline-flex items-center">
             <input type="radio" name={presenciaKey} value="no"
               checked={presencia === "no"}
               onChange={(e) => handlePresenciaChange(e.target.value)}
-              className="mr-2" required />
+              className="mr-2" />
             Ninguno
           </label>
         </div>
@@ -955,163 +955,168 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
           const presenciaKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_presencia`;
           const presencia = caracterizacion[presenciaKey] || "";
 
-          if (!presencia) {
-            const presenciaKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_presencia`;
-            caracterizacion[presenciaKey] = "no"; // Asumir "no" si no se ha respondido
-            continue; // No hay presencia, no se requieren más validaciones para este cuadrante
+          // Validar que se haya seleccionado una opción de presencia
+          if (presencia !== "si" && presencia !== "no") {
+            nuevosErrores[`${presenciaKey}_error`] = "Debe indicar si hay presencia de artrópodos.";
+            isValid = false;
+            continue; // No seguir validando este cuadrante
           }
 
-          if (presencia === "si") {
-            // Validar clase
-            const claseKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_clase`;
-            const claseString = caracterizacion[claseKey] || "";
-            if (!claseString) {
-              nuevosErrores[`${claseKey}_error`] = "Debe seleccionar al menos una clase (Insecto o Arácnido).";
+          if (presencia === "no") {
+            continue; // No hay presencia, no se requiere más validación
+          }
+
+          // presencia === "si"
+          // Validar clase
+          const claseKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_clase`;
+          const claseString = caracterizacion[claseKey] || "";
+          if (!claseString) {
+            nuevosErrores[`${claseKey}_error`] = "Debe seleccionar al menos una clase (Insecto o Arácnido).";
+            isValid = false;
+            continue;
+          }
+
+          // Validar insectos si está seleccionado
+          if (claseString.includes('insecto')) {
+            const insectoTiposKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_insecto_tipos`;
+            const insectoTipos = (caracterizacion[insectoTiposKey] || "").split(",").filter(Boolean);
+            if (insectoTipos.length === 0) {
+              nuevosErrores[`${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_insecto_error`] =
+                "Debe seleccionar al menos un insecto de la lista.";
               isValid = false;
             } else {
-              // Validar insectos si está seleccionado
-              if (claseString.includes('insecto')) {
-                const insectoTiposKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_insecto_tipos`;
-                const insectoTipos = (caracterizacion[insectoTiposKey] || "").split(",").filter(Boolean);
-                if (insectoTipos.length === 0) {
-                  nuevosErrores[`${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_insecto_error`] =
-                    "Debe seleccionar al menos un insecto de la lista.";
-                  isValid = false;
-                } else {
-                  // Validar cada insecto seleccionado
-                  insectoTipos.forEach(tipo => {
-                    const tipoPrefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_insecto_${tipo}`;
-                    if (tipo === 'compsus') {
-                      const adultosKey = `${tipoPrefix}_adultos`;
-                      const danoKey = `${tipoPrefix}_dano_hojas`;
-                      if (!caracterizacion[adultosKey] && caracterizacion[adultosKey] !== "0") {
-                        nuevosErrores[`${adultosKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay.";
-                        isValid = false;
-                      }
-                      if (!caracterizacion[danoKey] && caracterizacion[danoKey] !== "0") {
-                        nuevosErrores[`${danoKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay daño.";
-                        isValid = false;
-                      }
-                    }
-                    if (tipo === 'diaphorina') {
-                      const adultosKey = `${tipoPrefix}_adultos`;
-                      const estadosKey = `${tipoPrefix}_estados`;
-                      if (!caracterizacion[adultosKey] && caracterizacion[adultosKey] !== "0") {
-                        nuevosErrores[`${adultosKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay.";
-                        isValid = false;
-                      }
-                      if (!caracterizacion[estadosKey]) {
-                        nuevosErrores[`${estadosKey}_error`] = "Debe seleccionar al menos un estado del insecto.";
-                        isValid = false;
-                      }
-                    }
-                    if (tipo === 'phyllocnistis') {
-                      const galeriasKey = `${tipoPrefix}_galerias`;
-                      const danoKey = `${tipoPrefix}_dano_hojas`;
-                      if (!caracterizacion[galeriasKey] && caracterizacion[galeriasKey] !== "0") {
-                        nuevosErrores[`${galeriasKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay.";
-                        isValid = false;
-                      }
-                      if (!caracterizacion[danoKey] && caracterizacion[danoKey] !== "0") {
-                        nuevosErrores[`${danoKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay daño.";
-                        isValid = false;
-                      }
-                    }
-                    if (tipo === 'toxoptera') {
-                      const adultosKey = `${tipoPrefix}_adultos`;
-                      const mielecillaKey = `${tipoPrefix}_mielecilla`;
-                      const fumaginaKey = `${tipoPrefix}_dano_fumagina`;
-                      if (!caracterizacion[adultosKey] && caracterizacion[adultosKey] !== "0") {
-                        nuevosErrores[`${adultosKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay.";
-                        isValid = false;
-                      }
-                      if (!caracterizacion[mielecillaKey]) {
-                        nuevosErrores[`${mielecillaKey}_error`] = "Debe indicar si se observó mielecilla y fumagina.";
-                        isValid = false;
-                      }
-                      if (!caracterizacion[fumaginaKey] && caracterizacion[fumaginaKey] !== "0") {
-                        nuevosErrores[`${fumaginaKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay daño.";
-                        isValid = false;
-                      }
-                    }
-                    if (tipo === 'otro_insecto') {
-                      const nombreKey = `${tipoPrefix}_nombre`;
-                      const sintomasKey = `${tipoPrefix}_sintomas`;
-                      const fotosPrefix = `${tipoPrefix}_fotos`;
-                      if (!caracterizacion[nombreKey]) {
-                        nuevosErrores[`${nombreKey}_error`] = "Debe indicar el nombre del insecto.";
-                        isValid = false;
-                      }
-                      if (!caracterizacion[sintomasKey]) {
-                        nuevosErrores[`${sintomasKey}_error`] = "Debe describir los síntomas observados.";
-                        isValid = false;
-                      }
-                      const fotosFiles = filesMap.get(fotosPrefix) || [];
-                      if (fotosFiles.length === 0) {
-                        nuevosErrores[`${fotosPrefix}_error`] = "Debe subir al menos una foto del insecto o síntoma.";
-                        isValid = false;
-                      }
-                    }
-                  });
+              // Validar cada insecto seleccionado
+              insectoTipos.forEach(tipo => {
+                const tipoPrefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_insecto_${tipo}`;
+                if (tipo === 'compsus') {
+                  const adultosKey = `${tipoPrefix}_adultos`;
+                  const danoKey = `${tipoPrefix}_dano_hojas`;
+                  if (!caracterizacion[adultosKey] && caracterizacion[adultosKey] !== "0") {
+                    nuevosErrores[`${adultosKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay.";
+                    isValid = false;
+                  }
+                  if (!caracterizacion[danoKey] && caracterizacion[danoKey] !== "0") {
+                    nuevosErrores[`${danoKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay daño.";
+                    isValid = false;
+                  }
                 }
-              }
+                if (tipo === 'diaphorina') {
+                  const adultosKey = `${tipoPrefix}_adultos`;
+                  const estadosKey = `${tipoPrefix}_estados`;
+                  if (!caracterizacion[adultosKey] && caracterizacion[adultosKey] !== "0") {
+                    nuevosErrores[`${adultosKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay.";
+                    isValid = false;
+                  }
+                  if (!caracterizacion[estadosKey]) {
+                    nuevosErrores[`${estadosKey}_error`] = "Debe seleccionar al menos un estado del insecto.";
+                    isValid = false;
+                  }
+                }
+                if (tipo === 'phyllocnistis') {
+                  const galeriasKey = `${tipoPrefix}_galerias`;
+                  const danoKey = `${tipoPrefix}_dano_hojas`;
+                  if (!caracterizacion[galeriasKey] && caracterizacion[galeriasKey] !== "0") {
+                    nuevosErrores[`${galeriasKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay.";
+                    isValid = false;
+                  }
+                  if (!caracterizacion[danoKey] && caracterizacion[danoKey] !== "0") {
+                    nuevosErrores[`${danoKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay daño.";
+                    isValid = false;
+                  }
+                }
+                if (tipo === 'toxoptera') {
+                  const adultosKey = `${tipoPrefix}_adultos`;
+                  const mielecillaKey = `${tipoPrefix}_mielecilla`;
+                  const fumaginaKey = `${tipoPrefix}_dano_fumagina`;
+                  if (!caracterizacion[adultosKey] && caracterizacion[adultosKey] !== "0") {
+                    nuevosErrores[`${adultosKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay.";
+                    isValid = false;
+                  }
+                  if (!caracterizacion[mielecillaKey]) {
+                    nuevosErrores[`${mielecillaKey}_error`] = "Debe indicar si se observó mielecilla y fumagina.";
+                    isValid = false;
+                  }
+                  if (!caracterizacion[fumaginaKey] && caracterizacion[fumaginaKey] !== "0") {
+                    nuevosErrores[`${fumaginaKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay daño.";
+                    isValid = false;
+                  }
+                }
+                if (tipo === 'otro_insecto') {
+                  const nombreKey = `${tipoPrefix}_nombre`;
+                  const sintomasKey = `${tipoPrefix}_sintomas`;
+                  const fotosPrefix = `${tipoPrefix}_fotos`;
+                  if (!caracterizacion[nombreKey]) {
+                    nuevosErrores[`${nombreKey}_error`] = "Debe indicar el nombre del insecto.";
+                    isValid = false;
+                  }
+                  if (!caracterizacion[sintomasKey]) {
+                    nuevosErrores[`${sintomasKey}_error`] = "Debe describir los síntomas observados.";
+                    isValid = false;
+                  }
+                  const fotosFiles = filesMap.get(fotosPrefix) || [];
+                  if (fotosFiles.length === 0) {
+                    nuevosErrores[`${fotosPrefix}_error`] = "Debe subir al menos una foto del insecto o síntoma.";
+                    isValid = false;
+                  }
+                }
+              });
+            }
+          }
 
-              // Validar ácaros si está seleccionado
-              if (claseString.includes('aracnido')) {
-                const acaroTiposKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_acaro_tipos`;
-                const acaroTipos = (caracterizacion[acaroTiposKey] || "").split(",").filter(Boolean);
-                if (acaroTipos.length === 0) {
-                  nuevosErrores[`${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_acaro_error`] =
-                    "Debe seleccionar al menos un ácaro de la lista.";
-                  isValid = false;
-                } else {
-                  acaroTipos.forEach(tipo => {
-                    const tipoPrefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_acaro_${tipo}`;
-                    if (tipo === 'polyphagotarsonemus') {
-                      const frutosKey = `${tipoPrefix}_frutos_afectados`;
-                      const danoKey = `${tipoPrefix}_dano_frutos`;
-                      if (!caracterizacion[frutosKey] && caracterizacion[frutosKey] !== "0") {
-                        nuevosErrores[`${frutosKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay.";
-                        isValid = false;
-                      }
-                      if (!caracterizacion[danoKey] && caracterizacion[danoKey] !== "0") {
-                        nuevosErrores[`${danoKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay daño.";
-                        isValid = false;
-                      }
-                    }
-                    if (tipo === 'phyllocoptruta') {
-                      const frutosKey = `${tipoPrefix}_frutos_afectados`;
-                      const danoKey = `${tipoPrefix}_dano_frutos`;
-                      if (!caracterizacion[frutosKey] && caracterizacion[frutosKey] !== "0") {
-                        nuevosErrores[`${frutosKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay.";
-                        isValid = false;
-                      }
-                      if (!caracterizacion[danoKey] && caracterizacion[danoKey] !== "0") {
-                        nuevosErrores[`${danoKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay daño.";
-                        isValid = false;
-                      }
-                    }
-                    if (tipo === 'otro_acaro') {
-                      const nombreKey = `${tipoPrefix}_nombre`;
-                      const sintomasKey = `${tipoPrefix}_sintomas`;
-                      const fotosPrefix = `${tipoPrefix}_fotos`;
-                      if (!caracterizacion[nombreKey]) {
-                        nuevosErrores[`${nombreKey}_error`] = "Debe indicar el nombre del ácaro.";
-                        isValid = false;
-                      }
-                      if (!caracterizacion[sintomasKey]) {
-                        nuevosErrores[`${sintomasKey}_error`] = "Debe describir los síntomas observados.";
-                        isValid = false;
-                      }
-                      const fotosFiles = filesMap.get(fotosPrefix) || [];
-                      if (fotosFiles.length === 0) {
-                        nuevosErrores[`${fotosPrefix}_error`] = "Debe subir al menos una foto del ácaro o síntoma.";
-                        isValid = false;
-                      }
-                    }
-                  });
+          // Validar ácaros si está seleccionado
+          if (claseString.includes('aracnido')) {
+            const acaroTiposKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_acaro_tipos`;
+            const acaroTipos = (caracterizacion[acaroTiposKey] || "").split(",").filter(Boolean);
+            if (acaroTipos.length === 0) {
+              nuevosErrores[`${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_acaro_error`] =
+                "Debe seleccionar al menos un ácaro de la lista.";
+              isValid = false;
+            } else {
+              acaroTipos.forEach(tipo => {
+                const tipoPrefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_acaro_${tipo}`;
+                if (tipo === 'polyphagotarsonemus') {
+                  const frutosKey = `${tipoPrefix}_frutos_afectados`;
+                  const danoKey = `${tipoPrefix}_dano_frutos`;
+                  if (!caracterizacion[frutosKey] && caracterizacion[frutosKey] !== "0") {
+                    nuevosErrores[`${frutosKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay.";
+                    isValid = false;
+                  }
+                  if (!caracterizacion[danoKey] && caracterizacion[danoKey] !== "0") {
+                    nuevosErrores[`${danoKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay daño.";
+                    isValid = false;
+                  }
                 }
-              }
+                if (tipo === 'phyllocoptruta') {
+                  const frutosKey = `${tipoPrefix}_frutos_afectados`;
+                  const danoKey = `${tipoPrefix}_dano_frutos`;
+                  if (!caracterizacion[frutosKey] && caracterizacion[frutosKey] !== "0") {
+                    nuevosErrores[`${frutosKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay.";
+                    isValid = false;
+                  }
+                  if (!caracterizacion[danoKey] && caracterizacion[danoKey] !== "0") {
+                    nuevosErrores[`${danoKey}_error`] = "Campo obligatorio. Ingrese 0 si no hay daño.";
+                    isValid = false;
+                  }
+                }
+                if (tipo === 'otro_acaro') {
+                  const nombreKey = `${tipoPrefix}_nombre`;
+                  const sintomasKey = `${tipoPrefix}_sintomas`;
+                  const fotosPrefix = `${tipoPrefix}_fotos`;
+                  if (!caracterizacion[nombreKey]) {
+                    nuevosErrores[`${nombreKey}_error`] = "Debe indicar el nombre del ácaro.";
+                    isValid = false;
+                  }
+                  if (!caracterizacion[sintomasKey]) {
+                    nuevosErrores[`${sintomasKey}_error`] = "Debe describir los síntomas observados.";
+                    isValid = false;
+                  }
+                  const fotosFiles = filesMap.get(fotosPrefix) || [];
+                  if (fotosFiles.length === 0) {
+                    nuevosErrores[`${fotosPrefix}_error`] = "Debe subir al menos una foto del ácaro o síntoma.";
+                    isValid = false;
+                  }
+                }
+              });
             }
           }
         }
@@ -1149,7 +1154,7 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
             planta={planta}
             caracterizacion={caracterizacion}
             onCampoChange={onCampoChange}
-            onOpenImage={(name) => setModalImage(name)}
+            onOpenImage={(name) => setModalImage(`/imgs/${name}`)}
             errores={errores}
             clearErrorsForPrefix={clearErrorsForPrefix}
             onFilesChange={updateFiles}

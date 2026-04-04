@@ -39,11 +39,10 @@ interface Lote {
     plantas_por_surco?: number | null;
 }
 
-// Cambiamos el tipo del payload: ahora es FormData para enviar archivos
 interface DiagnosticoFormProps {
     isOpen?: boolean;
     diagnostico?: DiagnosticoItem;
-    onSubmit: (data: FormData) => void;   // Ahora recibe FormData
+    onSubmit: (data: FormData) => Promise<void>;   // ✅ Ahora es asíncrono
     onCancel: () => void;
     lotes: Lote[];
     programas: Programa[];
@@ -273,6 +272,11 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        if (!currentUser?.id) {
+            toast.error('Usuario no autenticado');
+            return;
+        }
+
         if (!tipoDiagnostico) { toast.error('Selecciona un tipo de diagnóstico'); return; }
         if (!condicionesDia) { toast.error('Selecciona condiciones del día'); return; }
         if (plantas.length === 0) { toast.error('No hay plantas seleccionadas'); return; }
@@ -297,7 +301,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         formData.append('programa_id', String(programaId));
         formData.append('tipo_monitoreo_id', String(tipoMonitoreoId));
         formData.append('lote_id', String(loteId));
-        formData.append('usuario_id', String(currentUser?.id));
+        formData.append('usuario_id', String(currentUser.id));
         formData.append('tipo_diagnostico', tipoDiagnostico);
         formData.append('condiciones_dia', condicionesDia);
 
@@ -315,17 +319,20 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             const filesMap = arthropodRef.current.getFiles();
             for (const [prefix, files] of filesMap.entries()) {
                 files.forEach((file, idx) => {
-                    // Se envía como files[prefix][idx]
                     formData.append(`files[${prefix}][${idx}]`, file);
                 });
             }
         }
 
-        onSubmit(formData);
-        toast.success(esEdicion ? 'Diagnóstico actualizado' : 'Diagnóstico creado');
-
-        if (!esEdicion) resetearPaso2();
-        else onCancel();
+        try {
+            await onSubmit(formData);
+            toast.success(esEdicion ? 'Diagnóstico actualizado' : 'Diagnóstico creado');
+            if (!esEdicion) resetearPaso2();
+            else onCancel();
+        } catch (error: any) {
+            console.error('Error al guardar diagnóstico:', error);
+            toast.error(error?.message || 'Error al guardar el diagnóstico');
+        }
     };
 
     return (
@@ -473,7 +480,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                     setCaracterizacion({});
                                 }}
                                 className="w-full border rounded-lg p-3"
-                                required
                             >
                                 <option value="">Seleccionar tipo</option>
                                 {TIPOS_DIAGNOSTICO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -483,7 +489,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         {/* Condiciones del día */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Condiciones del día *</label>
-                            <select value={condicionesDia} onChange={e => setCondicionesDia(e.target.value)} className="w-full border rounded-lg p-3" required>
+                            <select value={condicionesDia} onChange={e => setCondicionesDia(e.target.value)} className="w-full border rounded-lg p-3">
                                 <option value="">Seleccionar condiciones</option>
                                 {condiciones_dia.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
