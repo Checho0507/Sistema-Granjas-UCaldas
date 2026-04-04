@@ -226,26 +226,48 @@ const DiaphorinaSection: React.FC<SectionProps> = ({
         )}
       </div>
       <div className="mb-3">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Estados del insecto observados *</label>
-        <div className="flex flex-wrap gap-4">
-          {["Huevo", "Ninfa", "Adulto", "No se observaron"].map((estado) => (
-            <label key={estado} className="inline-flex items-center">
-              <input type="checkbox" value={estado}
-                checked={caracterizacion[estadosKey]?.includes(estado) || false}
-                onChange={(e) => {
-                  const current = caracterizacion[estadosKey] || "";
-                  const values = current ? current.split(",") : [];
-                  if (e.target.checked) { if (!values.includes(estado)) values.push(estado); }
-                  else { const i = values.indexOf(estado); if (i > -1) values.splice(i, 1); }
-                  handleChange(estadosKey, values.join(","));
-                }}
-                className="mr-2" required />
-              {estado}
-            </label>
-          ))}
-        </div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Estados del insecto observados *
+        </label>
+
+        {(() => {
+          const valoresSeleccionados = caracterizacion[estadosKey]
+            ? caracterizacion[estadosKey].split(",")
+            : [];
+
+          return (
+            <div className="flex flex-wrap gap-4">
+              {["Huevo", "Ninfa", "Adulto"].map((estado) => (
+                <label key={estado} className="inline-flex items-center">
+                  <input
+                    type="checkbox"
+                    value={estado}
+                    checked={valoresSeleccionados.includes(estado)}
+                    onChange={(e) => {
+                      let values = [...valoresSeleccionados];
+
+                      if (e.target.checked) {
+                        if (!values.includes(estado)) values.push(estado);
+                      } else {
+                        values = values.filter((v) => v !== estado);
+                      }
+
+                      handleChange(estadosKey, values.join(","));
+                    }}
+                    className="mr-2"
+                  />
+                  {estado}
+                </label>
+              ))}
+            </div>
+          );
+        })()}
+
+        {/* Error */}
         {errores[`${estadosKey}_error`] && (
-          <p className="text-red-600 text-xs mt-1">{errores[`${estadosKey}_error`]}</p>
+          <p className="text-red-600 text-xs mt-1">
+            {errores[`${estadosKey}_error`]}
+          </p>
         )}
       </div>
     </div>
@@ -654,15 +676,15 @@ const CuadranteArthropod: React.FC<CuadranteProps> = ({
   };
 
   const insectoTiposDisponibles = [
-    { value: 'compsus',     label: <><em>Compsus sp.</em> – Picudo</>,                  image: 'compsussp.png' },
-    { value: 'diaphorina',  label: <><em>Diaphorina citri</em> - Psílido asiático</>,   image: 'diaphorinacitri.png' },
-    { value: 'phyllocnistis',label: <><em>Phyllocnistis sp.</em> - Minador de la hoja</>,image: 'phyllocnistissp.png' },
-    { value: 'toxoptera',   label: <><em>Toxoptera citricidus</em> - Pulgón negro</>,   image: 'toxopteracitricidus.png' },
+    { value: 'compsus', label: <><em>Compsus sp.</em> – Picudo</>, image: 'compsussp.png' },
+    { value: 'diaphorina', label: <><em>Diaphorina citri</em> - Psílido asiático</>, image: 'diaphorinacitri.png' },
+    { value: 'phyllocnistis', label: <><em>Phyllocnistis sp.</em> - Minador de la hoja</>, image: 'phyllocnistissp.png' },
+    { value: 'toxoptera', label: <><em>Toxoptera citricidus</em> - Pulgón negro</>, image: 'toxopteracitricidus.png' },
   ];
 
   const acaroTiposDisponibles = [
-    { value: 'polyphagotarsonemus', label: <><em>Polyphago- tarsonemus sp.</em> - Ácaro blanco</>,  image: 'polyphagotarsonemussp.png' },
-    { value: 'phyllocoptruta',      label: <><em>Phyllocoptruta sp.</em> - Ácaro tostador</>,     image: 'phyllocoptrutasp.png' },
+    { value: 'polyphagotarsonemus', label: <><em>Polyphago- tarsonemus sp.</em> - Ácaro blanco</>, image: 'polyphagotarsonemussp.png' },
+    { value: 'phyllocoptruta', label: <><em>Phyllocoptruta sp.</em> - Ácaro tostador</>, image: 'phyllocoptrutasp.png' },
   ];
 
   // Errores específicos
