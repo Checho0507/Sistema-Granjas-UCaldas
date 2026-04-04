@@ -310,9 +310,21 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         };
         formData.append('formulario', JSON.stringify(formulario));
 
+
         // Adjuntar archivos si es artrópodos
         if (tipoDiagnostico === 'artropodos' && arthropodRef.current) {
             const filesMap = arthropodRef.current.getFiles();
+            for (const [prefix, files] of filesMap.entries()) {
+                files.forEach((file, idx) => {
+                    // Se envía como files[prefix][idx]
+                    formData.append(`files[${prefix}][${idx}]`, file);
+                });
+            }
+        }
+
+        // Adjuntar archivos si es enfermedades
+        if (tipoDiagnostico === 'enfermedades' && enfermedadesRef.current) {
+            const filesMap = enfermedadesRef.current.getFiles();
             for (const [prefix, files] of filesMap.entries()) {
                 files.forEach((file, idx) => {
                     // Se envía como files[prefix][idx]
