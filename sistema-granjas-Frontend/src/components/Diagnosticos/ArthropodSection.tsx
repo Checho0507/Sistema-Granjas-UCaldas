@@ -957,14 +957,17 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
             const presenciaKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_presencia`;
             caracterizacion[presenciaKey] = "no";
           } else if (presencia === "si") {
-            // Verificar que al menos una clase esté seleccionada
+            // Verificar que al menos una clase esté seleccionada, a menos que "otro" esté activo
             const claseKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_clase`;
             const claseString = caracterizacion[claseKey] || "";
+            const otroActivoKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_otro_activo`;
+            const otroActivo = caracterizacion[otroActivoKey] === "true";
             const errorClaseKey = `${claseKey}_error`;
-            if (!claseString) {
+
+            if (!claseString && !otroActivo) {
               nuevosErrores[errorClaseKey] = "Debe seleccionar al menos una clase (Insecto o Arácnido).";
               isValid = false;
-            } else {
+            } else if (claseString) {
               // Validar insectos si están seleccionados
               if (claseString.includes('insecto')) {
                 const insectoTiposKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_insecto_tipos`;
@@ -1079,32 +1082,32 @@ export const ArthropodSection = forwardRef<ArthropodSectionRef, Props>(
                   });
                 }
               }
-              // Validar "Otro artrópodo" si está activo
-              const otroActivoKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_otro_activo`;
-              if (caracterizacion[otroActivoKey] === "true") {
-                const otroPrefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_otro`;
-                const sintomas = caracterizacion[`${otroPrefix}_sintomas`];
-                const clase = caracterizacion[`${otroPrefix}_clase`];
-                const nombre = caracterizacion[`${otroPrefix}_nombre`];
-                if (!sintomas) {
-                  nuevosErrores[`${otroPrefix}_sintomas_error`] = "Debe describir los síntomas observados.";
-                  isValid = false;
-                }
-                if (!clase) {
-                  nuevosErrores[`${otroPrefix}_clase_error`] = "Debe seleccionar la clase del artrópodo.";
-                  isValid = false;
-                }
-                if (!nombre) {
-                  nuevosErrores[`${otroPrefix}_nombre_error`] = "Debe indicar el nombre del artrópodo (mínimo género).";
-                  isValid = false;
-                }
-                // Validar fotos obligatorias
-                const fotosPrefix = `${otroPrefix}_fotos`;
-                const fotosFiles = filesMap.get(fotosPrefix) || [];
-                if (fotosFiles.length === 0) {
-                  nuevosErrores[`${fotosPrefix}_error`] = "Debe subir al menos una foto del artrópodo o síntoma.";
-                  isValid = false;
-                }
+            }
+            // Validar "Otro artrópodo" si está activo (independientemente de si hay clases)
+            const otroActivoKey = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_otro_activo`;
+            if (caracterizacion[otroActivoKey] === "true") {
+              const otroPrefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${cuadrante}_otro`;
+              const sintomas = caracterizacion[`${otroPrefix}_sintomas`];
+              const clase = caracterizacion[`${otroPrefix}_clase`];
+              const nombre = caracterizacion[`${otroPrefix}_nombre`];
+              if (!sintomas) {
+                nuevosErrores[`${otroPrefix}_sintomas_error`] = "Debe describir los síntomas observados.";
+                isValid = false;
+              }
+              if (!clase) {
+                nuevosErrores[`${otroPrefix}_clase_error`] = "Debe seleccionar la clase del artrópodo.";
+                isValid = false;
+              }
+              if (!nombre) {
+                nuevosErrores[`${otroPrefix}_nombre_error`] = "Debe indicar el nombre del artrópodo (mínimo género).";
+                isValid = false;
+              }
+              // Validar fotos obligatorias
+              const fotosPrefix = `${otroPrefix}_fotos`;
+              const fotosFiles = filesMap.get(fotosPrefix) || [];
+              if (fotosFiles.length === 0) {
+                nuevosErrores[`${fotosPrefix}_error`] = "Debe subir al menos una foto del artrópodo o síntoma.";
+                isValid = false;
               }
             }
           }
