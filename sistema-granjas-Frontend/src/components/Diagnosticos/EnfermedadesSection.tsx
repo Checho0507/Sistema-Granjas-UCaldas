@@ -155,12 +155,12 @@ const ENFERMEDADES_POR_AGENTE = {
 };
 
 const SINTOMAS_POR_ENFERMEDAD = {
-  antracnosis: ['Manchas necróticas en hojas', 'Lesiones oscuras en frutos', 'Caída de flores o frutos', 'Secamiento de brotes', 'Sin síntomas', 'No aplica'],
-  mancha_grasienta: ['Puntos negros en hojas', 'Manchas grasientas', 'Defoliación', 'Sin síntomas', 'No aplica'],
-  hlb: ['Amarillamiento irregular', 'Frutos deformes', 'Brotes cloróticos', 'Presencia del vector Diaphorina citri', 'Sin síntomas', 'No aplica'],
-  xylella: ['Lesiones necróticas en envés de las hojas', 'Lesiones cloróticas en el haz de las hojas', 'Marchitez', 'Reducción en el tamaño de los frutos', 'Endurecimiento de la cáscara', 'Sin síntomas', 'No aplica'],
-  phytophthora: ['Exudado de goma', 'Pudrición de cuello', 'Raíces oscuras', 'Sin síntomas', 'No aplica'],
-  ctv: ['Aclaramiento de nervaduras en hojas', 'Declive general', 'Amarillamiento', 'Sin síntomas', 'No aplica'],
+  antracnosis: ['Manchas necróticas en hojas', 'Lesiones oscuras en frutos', 'Caída de flores o frutos', 'Secamiento de brotes', 'Sin síntomas'],
+  mancha_grasienta: ['Puntos negros en hojas', 'Manchas grasientas', 'Defoliación', 'Sin síntomas'],
+  hlb: ['Amarillamiento irregular', 'Frutos deformes', 'Brotes cloróticos', 'Presencia del vector Diaphorina citri', 'Sin síntomas'],
+  xylella: ['Lesiones necróticas en envés de las hojas', 'Lesiones cloróticas en el haz de las hojas', 'Marchitez', 'Reducción en el tamaño de los frutos', 'Endurecimiento de la cáscara', 'Sin síntomas'],
+  phytophthora: ['Exudado de goma', 'Pudrición de cuello', 'Raíces oscuras', 'Sin síntomas'],
+  ctv: ['Aclaramiento de nervaduras en hojas', 'Declive general', 'Amarillamiento', 'Sin síntomas'],
 };
 
 // ── Subcomponentes para cada enfermedad (sin cambios, solo se pasan props) ──
@@ -665,10 +665,6 @@ const CuadranteEnfermedades: React.FC<CuadranteEnfermedadesProps> = ({
               </div>
             );
           })}
-          <label className="flex items-center text-sm mt-2">
-            <input type="checkbox" checked={hongoNoAplica} onChange={(e) => handleGroupNoAplica('hongo', e.target.checked)} className="mr-2" />
-            No aplica
-          </label>
           {errores[`${quadrantPrefix}_hongo_error`] && <p className="text-red-600 text-xs mt-1">{errores[`${quadrantPrefix}_hongo_error`]}</p>}
         </div>
       )}
@@ -693,10 +689,6 @@ const CuadranteEnfermedades: React.FC<CuadranteEnfermedadesProps> = ({
               </div>
             );
           })}
-          <label className="flex items-center text-sm mt-2">
-            <input type="checkbox" checked={bacteriaNoAplica} onChange={(e) => handleGroupNoAplica('bacteria', e.target.checked)} className="mr-2" />
-            No aplica
-          </label>
           {errores[`${quadrantPrefix}_bacteria_error`] && <p className="text-red-600 text-xs mt-1">{errores[`${quadrantPrefix}_bacteria_error`]}</p>}
         </div>
       )}
@@ -720,19 +712,6 @@ const CuadranteEnfermedades: React.FC<CuadranteEnfermedadesProps> = ({
               </div>
             );
           })}
-          <label className="flex items-center text-sm mt-2">
-            <input type="checkbox" checked={oomicetoNoAplica} onChange={(e) => handleGroupNoAplica('oomiceto', e.target.checked)} className="mr-2" />
-            No aplica
-          </label>
-          <label className="flex items-center text-sm mt-2">
-            <input type="checkbox" checked={caracterizacion[`${quadrantPrefix}_oomiceto_otro`] === 'true'} onChange={(e) => handleOtherToggle('oomiceto', e.target.checked)} className="mr-2" />
-            Otro
-          </label>
-          {caracterizacion[`${quadrantPrefix}_oomiceto_otro`] === 'true' && (
-            <div className="mt-2">
-              <input type="text" value={caracterizacion[`${quadrantPrefix}_oomiceto_otro_nombre`] || ''} onChange={(e) => onCampoChange(`${quadrantPrefix}_oomiceto_otro_nombre`, e.target.value)} className="border rounded px-2 py-1 w-full text-sm" placeholder="Especifique otro oomiceto" />
-            </div>
-          )}
           {errores[`${quadrantPrefix}_oomiceto_error`] && <p className="text-red-600 text-xs mt-1">{errores[`${quadrantPrefix}_oomiceto_error`]}</p>}
         </div>
       )}
@@ -756,19 +735,6 @@ const CuadranteEnfermedades: React.FC<CuadranteEnfermedadesProps> = ({
               </div>
             );
           })}
-          <label className="flex items-center text-sm mt-2">
-            <input type="checkbox" checked={virusNoAplica} onChange={(e) => handleGroupNoAplica('virus', e.target.checked)} className="mr-2" />
-            No aplica
-          </label>
-          <label className="flex items-center text-sm mt-2">
-            <input type="checkbox" checked={caracterizacion[`${quadrantPrefix}_virus_otro`] === 'true'} onChange={(e) => handleOtherToggle('virus', e.target.checked)} className="mr-2" />
-            Otro
-          </label>
-          {caracterizacion[`${quadrantPrefix}_virus_otro`] === 'true' && (
-            <div className="mt-2">
-              <input type="text" value={caracterizacion[`${quadrantPrefix}_virus_otro_nombre`] || ''} onChange={(e) => onCampoChange(`${quadrantPrefix}_virus_otro_nombre`, e.target.value)} className="border rounded px-2 py-1 w-full text-sm" placeholder="Especifique otro virus" />
-            </div>
-          )}
           {errores[`${quadrantPrefix}_virus_error`] && <p className="text-red-600 text-xs mt-1">{errores[`${quadrantPrefix}_virus_error`]}</p>}
         </div>
       )}
@@ -801,7 +767,9 @@ const CuadranteEnfermedades: React.FC<CuadranteEnfermedadesProps> = ({
                     if (e.target.value !== 'otro') onCampoChange(`${quadrantPrefix}_nematodo_otro_nombre`, '');
                   }} className="border rounded px-2 py-1 w-full text-sm">
                     <option value="">-- Seleccione --</option>
-                    <option value="meloidogyne">Meloidogyne sp. / Tylenchulus sp.</option>
+                    <option value="meloidogyne">Meloidogyne sp. - Nemátodos del nudo o agallas</option>
+                    <option value="tylenchulus">Tylenchulus sp. - Nemátodos de la raíz cítrica</option>
+                    <option value="no_diferenciable">No es posible diferenciar</option>
                     <option value="otro">Otro</option>
                   </select>
                   {errores[`${quadrantPrefix}_nematodo_tipo_error`] && <p className="text-red-600 text-xs mt-1">{errores[`${quadrantPrefix}_nematodo_tipo_error`]}</p>}
@@ -861,14 +829,6 @@ const CuadranteEnfermedades: React.FC<CuadranteEnfermedadesProps> = ({
                 </div>
               </>
             )}
-            <label className="flex items-center text-sm mt-3">
-              <input type="checkbox" checked={nematodoNoAplica} onChange={(e) => {
-                const checked = e.target.checked;
-                if (checked) clearKeysStartingWith(`${quadrantPrefix}_nematodo_`, [`${quadrantPrefix}_nematodo_no_aplica`]);
-                onCampoChange(`${quadrantPrefix}_nematodo_no_aplica`, checked ? 'true' : '');
-              }} className="mr-2" />
-              No aplica
-            </label>
           </div>
           {errores[`${quadrantPrefix}_nematodo_error`] && <p className="text-red-600 text-xs mt-1">{errores[`${quadrantPrefix}_nematodo_error`]}</p>}
         </div>
@@ -971,7 +931,7 @@ export const EnfermedadesSection = forwardRef<EnfermedadesSectionRef, Enfermedad
               const tieneAntracnosis = caracterizacion[`${quadrantPrefix}_hongo_antracnosis_activo`] === 'true';
               const tieneMancha = caracterizacion[`${quadrantPrefix}_hongo_mancha_grasienta_activo`] === 'true';
               if (!hongoNoAplica && !tieneAntracnosis && !tieneMancha) {
-                nuevosErrores[`${quadrantPrefix}_hongo_error`] = 'Debe seleccionar al menos una enfermedad de hongo o marcar "No aplica".';
+                nuevosErrores[`${quadrantPrefix}_hongo_error`] = 'Debe seleccionar al menos una enfermedad de hongo.';
                 isValid = false;
               } else {
                 if (tieneAntracnosis) {
@@ -1007,7 +967,7 @@ export const EnfermedadesSection = forwardRef<EnfermedadesSectionRef, Enfermedad
               const tieneHLB = caracterizacion[`${quadrantPrefix}_bacteria_hlb_activo`] === 'true';
               const tieneXylella = caracterizacion[`${quadrantPrefix}_bacteria_xylella_activo`] === 'true';
               if (!bacteriaNoAplica && !tieneHLB && !tieneXylella) {
-                nuevosErrores[`${quadrantPrefix}_bacteria_error`] = 'Debe seleccionar al menos una enfermedad de bacteria o marcar "No aplica".';
+                nuevosErrores[`${quadrantPrefix}_bacteria_error`] = 'Debe seleccionar al menos una enfermedad de bacteria.';
                 isValid = false;
               } else {
                 if (tieneHLB) {
@@ -1048,7 +1008,7 @@ export const EnfermedadesSection = forwardRef<EnfermedadesSectionRef, Enfermedad
               const tienePhytophthora = caracterizacion[`${quadrantPrefix}_oomiceto_phytophthora_activo`] === 'true';
               const tieneOtro = caracterizacion[`${quadrantPrefix}_oomiceto_otro`] === 'true';
               if (!oomicetoNoAplica && !tienePhytophthora && !tieneOtro) {
-                nuevosErrores[`${quadrantPrefix}_oomiceto_error`] = 'Debe seleccionar al menos una enfermedad de oomiceto, "Otro" o marcar "No aplica".';
+                nuevosErrores[`${quadrantPrefix}_oomiceto_error`] = 'Debe seleccionar al menos una enfermedad de oomiceto.';
                 isValid = false;
               }
               if (tienePhytophthora) {
@@ -1075,7 +1035,7 @@ export const EnfermedadesSection = forwardRef<EnfermedadesSectionRef, Enfermedad
               const tieneCTV = caracterizacion[`${quadrantPrefix}_virus_ctv_activo`] === 'true';
               const tieneOtro = caracterizacion[`${quadrantPrefix}_virus_otro`] === 'true';
               if (!virusNoAplica && !tieneCTV && !tieneOtro) {
-                nuevosErrores[`${quadrantPrefix}_virus_error`] = 'Debe seleccionar al menos una enfermedad de virus, "Otro" o marcar "No aplica".';
+                nuevosErrores[`${quadrantPrefix}_virus_error`] = 'Debe seleccionar al menos una enfermedad de virus.';
                 isValid = false;
               }
               if (tieneCTV) {
@@ -1111,7 +1071,7 @@ export const EnfermedadesSection = forwardRef<EnfermedadesSectionRef, Enfermedad
               const nematodoNoAplica = caracterizacion[`${quadrantPrefix}_nematodo_no_aplica`] === 'true';
               const tienePresente = caracterizacion[`${quadrantPrefix}_nematodo_presente`] === 'true';
               if (!nematodoNoAplica && !tienePresente) {
-                nuevosErrores[`${quadrantPrefix}_nematodo_error`] = 'Debe indicar presencia de nematodos o marcar "No aplica".';
+                nuevosErrores[`${quadrantPrefix}_nematodo_error`] = 'Debe indicar presencia de nematodos.';
                 isValid = false;
               }
               if (tienePresente) {
