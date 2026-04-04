@@ -119,7 +119,7 @@ const GestionDiagnosticos: React.FC = () => {
   const handleCrearDiagnostico = async (formData: FormData) => {
     try {
       if (!user?.id) throw new Error('Usuario no autenticado');
-      formData.append('usuario_id', String(user.id));
+      // ✅ NO agregar usuario_id aquí porque DiagnosticoForm ya lo incluye
       const nuevo = await diagnosticoService.crearDiagnostico(formData);
       setDiagnosticos(prev => [nuevo, ...prev]);
       toast.success('Diagnóstico creado exitosamente');
@@ -156,13 +156,10 @@ const GestionDiagnosticos: React.FC = () => {
   const handleAgregarEvidencia = async (file: File, descripcion: string, tipo: string) => {
     if (!selectedDiagnostico) return;
     try {
-      // Si el servicio tiene el método, se usa; si no, se implementa
       if (diagnosticoService.agregarEvidencia) {
         await diagnosticoService.agregarEvidencia(selectedDiagnostico.id, file, descripcion, tipo, user);
       } else {
-        // Fallback: subir evidencia por separado (implementar si es necesario)
         console.warn('Método agregarEvidencia no implementado en el servicio');
-        // Aquí podrías llamar a un endpoint de evidencias directamente
       }
       toast.success('Evidencia agregada');
       setShowEvidenciaModal(false);
@@ -236,11 +233,36 @@ const GestionDiagnosticos: React.FC = () => {
       </Modal>
 
       <Modal isOpen={showEditarModal} onClose={() => setShowEditarModal(false)} width="max-w-2xl">
-        {selectedDiagnostico && <DiagnosticoForm diagnostico={selectedDiagnostico} onSubmit={(data) => handleActualizarDiagnostico(selectedDiagnostico.id, data)} onCancel={() => setShowEditarModal(false)} lotes={lotes} programas={programas} monitoreos={monitoreos} condiciones_dia={['Soleado', 'Nublado', 'Lluvia']} currentUser={user} esEdicion />}
+        {selectedDiagnostico && (
+          <DiagnosticoForm
+            diagnostico={selectedDiagnostico}
+            onSubmit={(data) => handleActualizarDiagnostico(selectedDiagnostico.id, data)}
+            onCancel={() => setShowEditarModal(false)}
+            lotes={lotes}
+            programas={programas}
+            monitoreos={monitoreos}
+            condiciones_dia={['Soleado', 'Nublado', 'Lluvia']}
+            currentUser={user}
+            esEdicion
+          />
+        )}
       </Modal>
 
-      {showEvidenciaModal && selectedDiagnostico && <AgregarEvidenciaModal isOpen={showEvidenciaModal} onClose={() => setShowEvidenciaModal(false)} diagnostico={selectedDiagnostico} onSubmit={handleAgregarEvidencia} />}
-      {showDetallesModal && selectedDiagnostico && <DetallesDiagnosticoModal isOpen={showDetallesModal} onClose={() => setShowDetallesModal(false)} diagnostico={selectedDiagnostico} />}
+      {showEvidenciaModal && selectedDiagnostico && (
+        <AgregarEvidenciaModal
+          isOpen={showEvidenciaModal}
+          onClose={() => setShowEvidenciaModal(false)}
+          diagnostico={selectedDiagnostico}
+          onSubmit={handleAgregarEvidencia}
+        />
+      )}
+      {showDetallesModal && selectedDiagnostico && (
+        <DetallesDiagnosticoModal
+          isOpen={showDetallesModal}
+          onClose={() => setShowDetallesModal(false)}
+          diagnostico={selectedDiagnostico}
+        />
+      )}
     </div>
   );
 };
