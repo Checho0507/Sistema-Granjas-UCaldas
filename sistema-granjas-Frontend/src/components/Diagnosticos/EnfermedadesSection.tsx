@@ -1,4 +1,4 @@
-import React, { forwardRef, useImperativeHandle, useState } from 'react';
+import React, { forwardRef, useImperativeHandle, useState, useCallback } from 'react';
 import { PlantaBase } from '../types';
 import { toast } from 'react-toastify';
 
@@ -10,6 +10,7 @@ interface EnfermedadesSectionProps {
 
 export interface EnfermedadesSectionRef {
   validate: () => boolean;
+  getFiles: () => Map<string, File[]>;
 }
 
 // ── Utilidades ──────────────────────────────────────────────────────────────
@@ -49,16 +50,18 @@ const ImageModal: React.FC<{ imageUrl: string | null; onClose: () => void }> = (
   );
 };
 
-// ── Componente de subida REAL de fotos ─────────────────────────────────────
+// ── Componente de subida REAL de fotos (con manejo de archivos) ────────────
 const RealFotosSection: React.FC<{
   prefix: string;
   onCampoChange: (campo: string, valor: string) => void;
+  onFilesChange?: (prefix: string, files: File[]) => void;
   errores?: Record<string, string>;
   clearErrorsForPrefix?: (prefix: string) => void;
-}> = ({ prefix, onCampoChange, errores, clearErrorsForPrefix }) => {
+}> = ({ prefix, onCampoChange, onFilesChange, errores, clearErrorsForPrefix }) => {
   const inputRef = React.useRef<HTMLInputElement>(null);
   const MAX_FILES = 5;
   const MAX_SIZE_MB = 10;
+  const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<{ name: string; url: string }[]>([]);
   const [error, setError] = useState<string>('');
 
@@ -68,28 +71,33 @@ const RealFotosSection: React.FC<{
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setError('');
-    const files = Array.from(e.target.files || []);
-    if (files.length > MAX_FILES) {
+    const selected = Array.from(e.target.files || []);
+    if (selected.length > MAX_FILES) {
       setError(`Máximo ${MAX_FILES} fotos permitidas.`);
       return;
     }
-    const oversized = files.filter(f => f.size > MAX_SIZE_MB * 1024 * 1024);
+    const oversized = selected.filter(f => f.size > MAX_SIZE_MB * 1024 * 1024);
     if (oversized.length > 0) {
       setError(`Algunos archivos superan el límite de ${MAX_SIZE_MB} MB.`);
       return;
     }
     previews.forEach(p => URL.revokeObjectURL(p.url));
-    const newPreviews = files.map(f => ({ name: f.name, url: URL.createObjectURL(f) }));
+    const newPreviews = selected.map(f => ({ name: f.name, url: URL.createObjectURL(f) }));
     setPreviews(newPreviews);
-    onCampoChange(prefix, files.map(f => f.name).join(','));
+    setFiles(selected);
+    onCampoChange(prefix, selected.map(f => f.name).join(','));
+    if (onFilesChange) onFilesChange(prefix, selected);
     if (clearErrorsForPrefix) clearErrorsForPrefix(prefix);
   };
 
   const removePhoto = (index: number) => {
     URL.revokeObjectURL(previews[index].url);
-    const updated = previews.filter((_, i) => i !== index);
-    setPreviews(updated);
-    onCampoChange(prefix, updated.map(p => p.name).join(','));
+    const updatedPreviews = previews.filter((_, i) => i !== index);
+    const updatedFiles = files.filter((_, i) => i !== index);
+    setPreviews(updatedPreviews);
+    setFiles(updatedFiles);
+    onCampoChange(prefix, updatedFiles.map(f => f.name).join(','));
+    if (onFilesChange) onFilesChange(prefix, updatedFiles);
     if (inputRef.current) inputRef.current.value = '';
   };
 
@@ -155,7 +163,7 @@ const SINTOMAS_POR_ENFERMEDAD = {
   ctv: ['Aclaramiento de nervaduras en hojas', 'Declive general', 'Amarillamiento', 'Sin síntomas', 'No aplica'],
 };
 
-// ── Subcomponentes con validación ──────────────────────────────────────────
+// ── Subcomponentes para cada enfermedad (sin cambios, solo se pasan props) ──
 
 interface SectionProps {
   basePrefix: string;
@@ -445,7 +453,10 @@ const CTVSection: React.FC<SectionProps> = ({ basePrefix, cuadrante, rama, carac
   );
 };
 
-const OtraEnfermedadSection: React.FC<SectionProps> = ({ basePrefix, cuadrante, rama, caracterizacion, onCampoChange, errores, clearErrorsForPrefix }) => {
+// ── OtraEnfermedadSection modificada para recibir onFilesChange ────────────
+const OtraEnfermedadSection: React.FC<SectionProps & { onFilesChange?: (prefix: string, files: File[]) => void }> = ({ 
+  basePrefix, cuadrante, rama, caracterizacion, onCampoChange, errores, clearErrorsForPrefix, onFilesChange 
+}) => {
   const prefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}_otra_enfermedad`;
   const activoKey = `${prefix}_activo`;
   const sintomasKey = `${prefix}_sintomas`;
@@ -469,6 +480,9 @@ const OtraEnfermedadSection: React.FC<SectionProps> = ({ basePrefix, cuadrante, 
             handleChange(sintomasKey, '');
             handleChange(agenteKey, '');
             handleChange(fotoKey, '');
+            if (onFilesChange) onFilesChange(fotoKey, []);
+          } else {
+            clearErrorsForPrefix(prefix);
           }
         }} className="mr-2" />
         <span className="text-sm font-medium text-gray-700">Registrar otra enfermedad no listada</span>
@@ -488,7 +502,14 @@ const OtraEnfermedadSection: React.FC<SectionProps> = ({ basePrefix, cuadrante, 
               className="border rounded px-3 py-2 w-full" placeholder="Ej: Hongo, bacteria, etc." required />
             {errores[`${agenteKey}_error`] && <p className="text-red-600 text-xs mt-1">{errores[`${agenteKey}_error`]}</p>}
           </div>
-          <RealFotosSection prefix={fotoKey} onCampoChange={onCampoChange} errores={errores} clearErrorsForPrefix={clearErrorsForPrefix} />
+          <RealFotosSection 
+            prefix={fotoKey} 
+            onCampoChange={onCampoChange} 
+            onFilesChange={onFilesChange}
+            errores={errores} 
+            clearErrorsForPrefix={clearErrorsForPrefix} 
+          />
+          {errores[`${fotoKey}_error`] && <p className="text-red-600 text-xs mt-1">{errores[`${fotoKey}_error`]}</p>}
         </>
       )}
     </div>
@@ -505,10 +526,11 @@ interface CuadranteEnfermedadesProps {
   onOpenImage: (imageName: string) => void;
   errores: Record<string, string>;
   clearErrorsForPrefix: (prefix: string) => void;
+  onFilesChange?: (prefix: string, files: File[]) => void;
 }
 
 const CuadranteEnfermedades: React.FC<CuadranteEnfermedadesProps> = ({
-  plantaIdx, cuadrante, rama, caracterizacion, onCampoChange, onOpenImage, errores, clearErrorsForPrefix
+  plantaIdx, cuadrante, rama, caracterizacion, onCampoChange, onOpenImage, errores, clearErrorsForPrefix, onFilesChange
 }) => {
   const basePrefix = `enfermedades_planta_${plantaIdx + 1}`;
   const quadrantPrefix = `${basePrefix}_cuadrante_${cuadrante}_rama_${rama}`;
@@ -789,7 +811,6 @@ const CuadranteEnfermedades: React.FC<CuadranteEnfermedadesProps> = ({
                     <input type="text" value={caracterizacion[`${quadrantPrefix}_nematodo_otro_nombre`] || ''} onChange={(e) => onCampoChange(`${quadrantPrefix}_nematodo_otro_nombre`, e.target.value)} className="border rounded px-2 py-1 w-full text-sm" placeholder="Especifique el nematodo" />
                   </div>
                 )}
-                {/* Síntomas en planta */}
                 <div className="mt-3">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Síntomas observados en la planta *</label>
                   {['Clorosis general', 'Reducción de crecimiento', 'Marchitez con suelo húmedo', 'Frutos pequeños', 'Defoliación', 'Sin síntomas visibles'].map(sintoma => {
@@ -814,7 +835,6 @@ const CuadranteEnfermedades: React.FC<CuadranteEnfermedadesProps> = ({
                   )}
                   {errores[`${quadrantPrefix}_nematodo_sintomas_planta_error`] && <p className="text-red-600 text-xs mt-1">{errores[`${quadrantPrefix}_nematodo_sintomas_planta_error`]}</p>}
                 </div>
-                {/* Síntomas en raíces */}
                 <div className="mt-3">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Síntomas observados en raíces *</label>
                   {['Presencia de agallas o nudos', 'Raíces con aspecto "sucio" o necrosado', 'Pocas raíces absorbentes', 'Sin síntomas visibles'].map(sintoma => {
@@ -855,7 +875,16 @@ const CuadranteEnfermedades: React.FC<CuadranteEnfermedadesProps> = ({
       )}
 
       {/* Otra enfermedad */}
-      <OtraEnfermedadSection basePrefix={basePrefix} cuadrante={cuadrante} rama={rama} caracterizacion={caracterizacion} onCampoChange={onCampoChange} errores={errores} clearErrorsForPrefix={clearErrorsForPrefix} />
+      <OtraEnfermedadSection 
+        basePrefix={basePrefix} 
+        cuadrante={cuadrante} 
+        rama={rama} 
+        caracterizacion={caracterizacion} 
+        onCampoChange={onCampoChange} 
+        errores={errores} 
+        clearErrorsForPrefix={clearErrorsForPrefix}
+        onFilesChange={onFilesChange}
+      />
     </div>
   );
 };
@@ -869,26 +898,42 @@ interface PlantaEnfermedadesProps {
   onOpenImage: (imageName: string) => void;
   errores: Record<string, string>;
   clearErrorsForPrefix: (prefix: string) => void;
+  onFilesChange?: (prefix: string, files: File[]) => void;
 }
 
-const PlantaEnfermedades: React.FC<PlantaEnfermedadesProps> = ({ index, planta, caracterizacion, onCampoChange, onOpenImage, errores, clearErrorsForPrefix }) => {
+const PlantaEnfermedades: React.FC<PlantaEnfermedadesProps> = ({ index, planta, caracterizacion, onCampoChange, onOpenImage, errores, clearErrorsForPrefix, onFilesChange }) => {
   return (
     <div className="border rounded-lg p-4 mb-8 bg-white shadow-sm">
       <h4 className="font-semibold text-lg text-gray-800 mb-2">{planta.label} (Código: {planta.codigo})</h4>
       <p className="text-sm text-gray-500 mb-4">El árbol se divide en 4 cuadrantes. Seleccione una rama al azar de cada cuadrante y observe: daño en hojas, frutos, puntos de crecimiento, ramas, tronco y raíces.</p>
       {[1, 2, 3, 4].map(cuadrante => (
-        <CuadranteEnfermedades key={`${planta.codigo}-cuadrante-${cuadrante}`} plantaIdx={index} cuadrante={cuadrante} rama={cuadrante}
-          caracterizacion={caracterizacion} onCampoChange={onCampoChange} onOpenImage={onOpenImage} errores={errores} clearErrorsForPrefix={clearErrorsForPrefix} />
+        <CuadranteEnfermedades 
+          key={`${planta.codigo}-cuadrante-${cuadrante}`} 
+          plantaIdx={index} 
+          cuadrante={cuadrante} 
+          rama={cuadrante}
+          caracterizacion={caracterizacion} 
+          onCampoChange={onCampoChange} 
+          onOpenImage={onOpenImage} 
+          errores={errores} 
+          clearErrorsForPrefix={clearErrorsForPrefix}
+          onFilesChange={onFilesChange}
+        />
       ))}
     </div>
   );
 };
 
-// ── Componente principal con forwardRef y validación ────────────────────────
+// ── Componente principal con forwardRef y validación (modificado) ───────────
 export const EnfermedadesSection = forwardRef<EnfermedadesSectionRef, EnfermedadesSectionProps>(
   ({ plantas, caracterizacion, onCampoChange }, ref) => {
     const [modalImage, setModalImage] = useState<string | null>(null);
     const [errores, setErrores] = useState<Record<string, string>>({});
+    const [filesMap, setFilesMap] = useState<Map<string, File[]>>(new Map());
+
+    const updateFiles = useCallback((prefix: string, files: File[]) => {
+      setFilesMap(prev => new Map(prev).set(prefix, files));
+    }, []);
 
     const clearErrorsForPrefix = (prefix: string) => {
       setErrores(prev => {
@@ -912,12 +957,10 @@ export const EnfermedadesSection = forwardRef<EnfermedadesSectionRef, Enfermedad
           const agentes = splitValues(caracterizacion[agentesKey]);
           const otraActivo = caracterizacion[`${quadrantPrefix}_otra_enfermedad_activo`] === 'true';
 
-          // Validación de agentes: si no hay agentes y no hay otra enfermedad, error
+          // Validación de agentes
           if (agentes.length === 0 && !otraActivo) {
             nuevosErrores[`${agentesKey}_error`] = 'Debe seleccionar al menos un agente causal o "No aplica".';
             isValid = false;
-            // No continuamos con la validación de grupos porque no hay agentes
-            // pero sí debemos validar otra enfermedad si está activa (se hace después)
           }
 
           // Si hay agentes y no incluye "no_aplica", validamos cada grupo
@@ -931,7 +974,6 @@ export const EnfermedadesSection = forwardRef<EnfermedadesSectionRef, Enfermedad
                 nuevosErrores[`${quadrantPrefix}_hongo_error`] = 'Debe seleccionar al menos una enfermedad de hongo o marcar "No aplica".';
                 isValid = false;
               } else {
-                // Validar antracnosis
                 if (tieneAntracnosis) {
                   const hojasKey = `${quadrantPrefix}_hongo_antracnosis_hojas`;
                   const sintomasKey = `${quadrantPrefix}_hongo_antracnosis_sintomas`;
@@ -944,7 +986,6 @@ export const EnfermedadesSection = forwardRef<EnfermedadesSectionRef, Enfermedad
                     isValid = false;
                   }
                 }
-                // Validar mancha grasienta
                 if (tieneMancha) {
                   const hojasKey = `${quadrantPrefix}_hongo_mancha_grasienta_hojas`;
                   const sintomasKey = `${quadrantPrefix}_hongo_mancha_grasienta_sintomas`;
@@ -1097,12 +1138,18 @@ export const EnfermedadesSection = forwardRef<EnfermedadesSectionRef, Enfermedad
           if (otraActivo) {
             const sintomasKey = `${quadrantPrefix}_otra_enfermedad_sintomas`;
             const agenteKey = `${quadrantPrefix}_otra_enfermedad_agente`;
+            const fotosPrefix = `${quadrantPrefix}_otra_enfermedad_fotos`;
             if (!caracterizacion[sintomasKey]) {
               nuevosErrores[`${sintomasKey}_error`] = 'Debe describir los síntomas de la otra enfermedad.';
               isValid = false;
             }
             if (!caracterizacion[agenteKey]) {
               nuevosErrores[`${agenteKey}_error`] = 'Debe indicar el agente causal (aunque sea desconocido).';
+              isValid = false;
+            }
+            const fotosFiles = filesMap.get(fotosPrefix) || [];
+            if (fotosFiles.length === 0) {
+              nuevosErrores[`${fotosPrefix}_error`] = 'Debe subir al menos una foto de los síntomas.';
               isValid = false;
             }
           }
@@ -1116,7 +1163,10 @@ export const EnfermedadesSection = forwardRef<EnfermedadesSectionRef, Enfermedad
       return isValid;
     };
 
-    useImperativeHandle(ref, () => ({ validate }));
+    useImperativeHandle(ref, () => ({ 
+      validate,
+      getFiles: () => filesMap 
+    }));
 
     const openImage = (imageName: string) => setModalImage(`/imgs/${imageName}`);
     const closeModal = () => setModalImage(null);
@@ -1132,7 +1182,17 @@ export const EnfermedadesSection = forwardRef<EnfermedadesSectionRef, Enfermedad
         <h3 className="text-xl font-bold text-gray-800 mb-4">Árboles seleccionados para monitoreo</h3>
         <p className="text-sm text-gray-600 mb-6">Se han generado {plantas.length} árbol(es) para monitoreo. Para cada uno, evalúe los 4 cuadrantes de forma independiente.</p>
         {plantas.map((planta, idx) => (
-          <PlantaEnfermedades key={planta.codigo} index={idx} planta={planta} caracterizacion={caracterizacion} onCampoChange={onCampoChange} onOpenImage={openImage} errores={errores} clearErrorsForPrefix={clearErrorsForPrefix} />
+          <PlantaEnfermedades 
+            key={planta.codigo} 
+            index={idx} 
+            planta={planta} 
+            caracterizacion={caracterizacion} 
+            onCampoChange={onCampoChange} 
+            onOpenImage={openImage} 
+            errores={errores} 
+            clearErrorsForPrefix={clearErrorsForPrefix}
+            onFilesChange={updateFiles}
+          />
         ))}
         <div className="mt-6 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-sm text-gray-700">
           <p className="font-medium mb-1">📝 Umbrales de acción:</p>
