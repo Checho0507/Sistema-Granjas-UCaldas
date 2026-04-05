@@ -540,7 +540,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                 <div className="mb-3 text-sm text-gray-600">
                                     <i className="fas fa-info-circle mr-1"></i>
                                     {tipoDiagnostico === 'arvenses' 
-                                        ? `Evaluando ${metodoMuestreo === 'X' ? '5 puntos en X' : '5 puntos en W'} (árboles de referencia del lote)`
+                                        ? `Evaluando 5 árboles de referencia del lote`
                                         : `Evaluando ${plantas.length} plantas`}
                                 </div>
                                 {tipoDiagnostico === 'censo_poblacional' && <CensoSection plantas={plantas} caracterizacion={caracterizacion} onCampoChange={handleCaracterizacionChange} />}
