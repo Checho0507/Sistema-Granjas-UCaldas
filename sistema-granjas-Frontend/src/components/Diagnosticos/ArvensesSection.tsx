@@ -470,7 +470,7 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
           <p className="font-medium mb-1">📝 Nota:</p>
           <ul className="list-disc list-inside space-y-1">
             <li>Muestreo en {metodoMuestreo} con 5 puntos.</li>
-            <li>Debe registrarse al menos un % de cobertura >0 por zona seleccionada.</li>
+            <li>Debe registrarse al menos un % de cobertura &gt;0 por zona seleccionada.</li>
             <li>Si se ingresa "otra especie", deben completarse nombre y porcentaje.</li>
           </ul>
         </div>
