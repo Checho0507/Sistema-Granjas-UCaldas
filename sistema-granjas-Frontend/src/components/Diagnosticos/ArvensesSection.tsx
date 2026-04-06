@@ -14,7 +14,7 @@ interface ArvensesSectionProps {
 
 export interface ArvensesSectionRef {
   validate: () => boolean;
-  getFiles: () => Map<string, File[]>; // necesario para el FormData
+  getFiles: () => Map<string, File[]>;
 }
 
 // ==================== DATOS DE ARVENSES ====================
@@ -364,30 +364,35 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
             isValid = false;
           }
 
-          let hayCobertura = 0;
+          // --- Validación de cobertura: todos los campos deben tener un valor (puede ser 0) ---
+          const coverageFields: string[] = [];
           // nobles
-          for (const a of ARVENSES_NOBLES) {
-            const val = getValor(puntoId, `${zona}_noble_${a.id}_porcentaje`);
-            if (val && parseFloat(val) >= 0) { hayCobertura += 1;}
-          }
-          if (!hayCobertura) {
-            for (const a of ARVENSES_AGRESIVAS) {
-              const val = getValor(puntoId, `${zona}_agresiva_${a.id}_porcentaje`);
-              if (val && parseFloat(val) > 0) { hayCobertura += 1;}
+          ARVENSES_NOBLES.forEach(a => {
+            coverageFields.push(`${zona}_noble_${a.id}_porcentaje`);
+          });
+          // agresivas
+          ARVENSES_AGRESIVAS.forEach(a => {
+            coverageFields.push(`${zona}_agresiva_${a.id}_porcentaje`);
+          });
+
+          let missingCoverage = false;
+          for (const field of coverageFields) {
+            const val = getValor(puntoId, field);
+            if (val === undefined || val === null || val.trim() === '') {
+              missingCoverage = true;
+              // Guardamos el error a nivel de zona (podría ser más específico, pero así se pide en el diseño original)
+              nuevosErrores[`arvenses_punto_${puntoId}_${zona}_cobertura_error`] = `Debe llenar todos los campos de cobertura para las especies presentes. Si una especie no está presente, coloque 0.`;
+              isValid = false;
+              break; // basta con un error por zona
             }
           }
-          // otra especie noble
+
+          // Validación de "otra especie"
           const nobleNombre = getValor(puntoId, `${zona}_otra_especie_noble_nombre`);
           const noblePorc = getValor(puntoId, `${zona}_otra_especie_noble_porcentaje`);
           const agresivaNombre = getValor(puntoId, `${zona}_otra_especie_agresiva_nombre`);
           const agresivaPorc = getValor(puntoId, `${zona}_otra_especie_agresiva_porcentaje`);
 
-          //Si hayCobertura es menor que el largo del array de especies nobles + agresivas, significa que no se ha registrado completamente el monitoreo
-          if (hayCobertura < ARVENSES_NOBLES.length + ARVENSES_AGRESIVAS.length) {
-            nuevosErrores[`arvenses_punto_${puntoId}_${zona}_cobertura_error`] = `Debe llenar todos los campos de cobertura para las especies presentes. Si una especie no está presente, deje el campo en 0.`;
-            isValid = false;
-          }
-          // validar consistencia de otra especie
           if (nobleNombre.trim() !== '' && (!noblePorc || parseFloat(noblePorc) === 0)) {
             nuevosErrores[`arvenses_punto_${puntoId}_${zona}_otra_especie_noble_porcentaje_error`] = `Indique un porcentaje > 0.`;
             isValid = false;
