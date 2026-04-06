@@ -66,48 +66,62 @@ const ImageModal: React.FC<{ imageUrl: string | null; onClose: () => void }> = (
   );
 };
 
+// Componente de subida de fotos REAL – ahora almacena los archivos localmente y los reporta al padre
 const RealFotosSection: React.FC<{
   prefix: string;
   caracterizacion: Record<string, string>;
   onCampoChange: (campo: string, valor: string) => void;
-  onFilesChange?: (files: File[]) => void;
+  onFilesChange?: (prefix: string, files: File[]) => void;
 }> = ({ prefix, caracterizacion, onCampoChange, onFilesChange }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const MAX_FILES = 5;
   const MAX_SIZE_MB = 10;
 
-  const [previews, setPreviews] = useState<{ name: string; url: string; file: File }[]>([]);
+  const [files, setFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<{ name: string; url: string }[]>([]);
   const [error, setError] = useState<string>('');
 
+  // Limpiar URLs al desmontar
   useEffect(() => {
     return () => previews.forEach((p) => URL.revokeObjectURL(p.url));
   }, [previews]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setError('');
-    const files = Array.from(e.target.files || []);
-    if (files.length + previews.length > MAX_FILES) {
+    const selected = Array.from(e.target.files || []);
+    if (selected.length + files.length > MAX_FILES) {
       setError(`Máximo ${MAX_FILES} fotos permitidas.`);
       return;
     }
-    const oversized = files.filter((f) => f.size > MAX_SIZE_MB * 1024 * 1024);
+    const oversized = selected.filter((f) => f.size > MAX_SIZE_MB * 1024 * 1024);
     if (oversized.length > 0) {
       setError(`Algunos archivos superan el límite de ${MAX_SIZE_MB} MB.`);
       return;
     }
-    const newPreviews = files.map((f) => ({ name: f.name, url: URL.createObjectURL(f), file: f }));
-    const updated = [...previews, ...newPreviews];
-    setPreviews(updated);
-    onCampoChange(prefix, updated.map((p) => p.name).join(','));
-    if (onFilesChange) onFilesChange(updated.map((p) => p.file));
+
+    // Crear previsualizaciones
+    const newPreviews = selected.map((f) => ({
+      name: f.name,
+      url: URL.createObjectURL(f),
+    }));
+
+    const updatedFiles = [...files, ...selected];
+    const updatedPreviews = [...previews, ...newPreviews];
+
+    setFiles(updatedFiles);
+    setPreviews(updatedPreviews);
+    onCampoChange(prefix, updatedFiles.map((f) => f.name).join(','));
+    if (onFilesChange) onFilesChange(prefix, updatedFiles);
   };
 
   const removePhoto = (index: number) => {
     URL.revokeObjectURL(previews[index].url);
-    const updated = previews.filter((_, i) => i !== index);
-    setPreviews(updated);
-    onCampoChange(prefix, updated.map((p) => p.name).join(','));
-    if (onFilesChange) onFilesChange(updated.map((p) => p.file));
+    const updatedFiles = files.filter((_, i) => i !== index);
+    const updatedPreviews = previews.filter((_, i) => i !== index);
+    setFiles(updatedFiles);
+    setPreviews(updatedPreviews);
+    onCampoChange(prefix, updatedFiles.map((f) => f.name).join(','));
+    if (onFilesChange) onFilesChange(prefix, updatedFiles);
     if (inputRef.current) inputRef.current.value = '';
   };
 
@@ -115,15 +129,30 @@ const RealFotosSection: React.FC<{
     <div className="mt-3">
       <label className="block text-sm font-medium text-gray-700 mb-1">Fotos de la otra especie observada</label>
       <p className="text-xs text-gray-500 mb-2">Sube hasta {MAX_FILES} fotos. Tamaño máximo {MAX_SIZE_MB} MB.</p>
-      <button type="button" onClick={() => inputRef.current?.click()} className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded shadow-sm transition-colors">Seleccionar fotos</button>
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded shadow-sm transition-colors"
+      >
+        Seleccionar fotos
+      </button>
       <input ref={inputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} />
       {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
       {previews.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-3">
           {previews.map((preview, idx) => (
             <div key={idx} className="relative group w-24">
-              <div className="w-24 h-24"><img src={preview.url} alt={preview.name} className="w-full h-full object-cover rounded border border-gray-300" /></div>
-              <button type="button" onClick={() => removePhoto(idx)} className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow" title="Eliminar foto">×</button>
+              <div className="w-24 h-24">
+                <img src={preview.url} alt={preview.name} className="w-full h-full object-cover rounded border border-gray-300" />
+              </div>
+              <button
+                type="button"
+                onClick={() => removePhoto(idx)}
+                className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow"
+                title="Eliminar foto"
+              >
+                ×
+              </button>
               <p className="text-xs text-gray-500 truncate mt-1 max-w-[6rem]">{preview.name}</p>
             </div>
           ))}
@@ -151,10 +180,21 @@ const ArvenseRow: React.FC<{
     <div className="grid grid-cols-1 md:grid-cols-[1fr_160px] gap-2 items-center">
       <div className="flex items-center gap-2 flex-wrap">
         <label className="text-sm text-gray-600">{arvense.nombreCientifico}</label>
-        <button type="button" onClick={() => onOpenImage(arvense.image)} className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded">Ver imagen</button>
+        <button type="button" onClick={() => onOpenImage(arvense.image)} className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded">
+          Ver imagen
+        </button>
       </div>
       <div>
-        <input type="number" step="0.1" min="0" max="100" value={value} onChange={(e) => setValor(codigo, fieldKey, e.target.value)} className="border rounded px-2 py-1 w-full" placeholder="% cobertura" />
+        <input
+          type="number"
+          step="0.1"
+          min="0"
+          max="100"
+          value={value}
+          onChange={(e) => setValor(codigo, fieldKey, e.target.value)}
+          className="border rounded px-2 py-1 w-full"
+          placeholder="% cobertura"
+        />
         {errores && errores[errorKey] && <p className="text-red-600 text-xs mt-1">{errores[errorKey]}</p>}
       </div>
     </div>
@@ -180,23 +220,52 @@ const OtraEspecieSection: React.FC<{
 
   const handleNombreChange = (val: string) => setValor(codigo, nombreKey, val);
   const handlePorcentajeChange = (val: string) => setValor(codigo, porcentajeKey, val);
-  const handleFilesChange = (files: File[]) => { if (onFilesMap) onFilesMap(fotosKey, files); };
+  const handleFilesChange = (prefix: string, files: File[]) => {
+    if (onFilesMap) onFilesMap(prefix, files);
+  };
 
   return (
     <div className="mt-2 p-3 bg-gray-100 rounded border">
       <p className="text-sm font-medium text-gray-700 mb-2">Otra especie {tipo === 'noble' ? 'noble' : 'agresiva'}</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <div>
-          <input type="text" value={nombre} onChange={(e) => handleNombreChange(e.target.value)} className="border rounded px-2 py-1 w-full" placeholder="Otra especie (nombre)" />
-          {errores && errores[`${codigo}_${nombreKey}_error`] && <p className="text-red-600 text-xs mt-1">{errores[`${codigo}_${nombreKey}_error`]}</p>}
+          <input
+            type="text"
+            value={nombre}
+            onChange={(e) => handleNombreChange(e.target.value)}
+            className="border rounded px-2 py-1 w-full"
+            placeholder="Otra especie (nombre)"
+          />
+          {errores && errores[`${codigo}_${nombreKey}_error`] && (
+            <p className="text-red-600 text-xs mt-1">{errores[`${codigo}_${nombreKey}_error`]}</p>
+          )}
         </div>
         <div>
-          <input type="number" step="0.1" min="0" max="100" value={porcentaje} onChange={(e) => handlePorcentajeChange(e.target.value)} className="border rounded px-2 py-1 w-full" placeholder="% cobertura" />
-          {errores && errores[`${codigo}_${porcentajeKey}_error`] && <p className="text-red-600 text-xs mt-1">{errores[`${codigo}_${porcentajeKey}_error`]}</p>}
+          <input
+            type="number"
+            step="0.1"
+            min="0"
+            max="100"
+            value={porcentaje}
+            onChange={(e) => handlePorcentajeChange(e.target.value)}
+            className="border rounded px-2 py-1 w-full"
+            placeholder="% cobertura"
+          />
+          {errores && errores[`${codigo}_${porcentajeKey}_error`] && (
+            <p className="text-red-600 text-xs mt-1">{errores[`${codigo}_${porcentajeKey}_error`]}</p>
+          )}
         </div>
       </div>
       {nombre.trim() !== '' && (
-        <RealFotosSection prefix={fotosKey} caracterizacion={caracterizacion} onCampoChange={onCampoChange} onFilesChange={handleFilesChange} />
+        <RealFotosSection
+          prefix={fotosKey}
+          caracterizacion={caracterizacion}
+          onCampoChange={onCampoChange}
+          onFilesChange={handleFilesChange}
+        />
+      )}
+      {errores && errores[`${codigo}_${fotosKey}_error`] && (
+        <p className="text-red-600 text-xs mt-1">{errores[`${codigo}_${fotosKey}_error`]}</p>
       )}
     </div>
   );
@@ -229,7 +298,8 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
         const centroSurco = Math.round((minSurco + maxSurco) / 2);
         const centroPlanta = Math.round((minPlanta + maxPlanta) / 2);
         puntos.push({ id: 5, surco: centroSurco, planta: centroPlanta, label: 'Centro' });
-      } else { // W
+      } else {
+        // W
         const medioSurco = Math.round((minSurco + maxSurco) / 2);
         const medioPlanta = Math.round((minPlanta + maxPlanta) / 2);
         puntos.push({ id: 1, surco: minSurco, planta: minPlanta, label: 'Punto superior izquierdo' });
@@ -250,7 +320,10 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
       let mejorDist = Infinity;
       for (const p of todasLasPlantas) {
         const dist = Math.hypot(p.surco - surco, p.planta - planta);
-        if (dist < mejorDist) { mejorDist = dist; mejor = p; }
+        if (dist < mejorDist) {
+          mejorDist = dist;
+          mejor = p;
+        }
       }
       return mejor;
     };
@@ -268,7 +341,13 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
     const setValor = (puntoId: number, campo: string, valor: string) => {
       onCampoChange(`arvenses_punto_${puntoId}_${campo}`, valor);
       const errorKey = `arvenses_punto_${puntoId}_${campo}_error`;
-      if (errores[errorKey]) setErrores(prev => { const newErr = { ...prev }; delete newErr[errorKey]; return newErr; });
+      if (errores[errorKey]) {
+        setErrores(prev => {
+          const newErr = { ...prev };
+          delete newErr[errorKey];
+          return newErr;
+        });
+      }
     };
 
     const handleZonaMonitoreadaChange = (puntoId: number, zona: 'plato' | 'calle', checked: boolean) => {
@@ -278,10 +357,20 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
           `${zona}_altura`,
           ...ARVENSES_NOBLES.map(a => `${zona}_noble_${a.id}_porcentaje`),
           ...ARVENSES_AGRESIVAS.map(a => `${zona}_agresiva_${a.id}_porcentaje`),
-          `${zona}_otra_especie_noble_nombre`, `${zona}_otra_especie_noble_porcentaje`,
-          `${zona}_otra_especie_agresiva_nombre`, `${zona}_otra_especie_agresiva_porcentaje`,
+          `${zona}_otra_especie_noble_nombre`,
+          `${zona}_otra_especie_noble_porcentaje`,
+          `${zona}_otra_especie_agresiva_nombre`,
+          `${zona}_otra_especie_agresiva_porcentaje`,
         ];
         campos.forEach(campo => setValor(puntoId, campo, ''));
+        // También limpiar los archivos asociados a esta zona y tipo
+        const prefixesToClear = [
+          `arvenses_punto_${puntoId}_${zona}_otra_especie_noble_fotos`,
+          `arvenses_punto_${puntoId}_${zona}_otra_especie_agresiva_fotos`,
+        ];
+        prefixesToClear.forEach(prefix => {
+          if (filesMapRef.current.has(prefix)) filesMapRef.current.delete(prefix);
+        });
       }
     };
 
@@ -289,7 +378,9 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
       setValor(puntoId, `${zona}_altura`, valor);
     };
 
-    const registerFiles = (prefix: string, files: File[]) => { filesMapRef.current.set(prefix, files); };
+    const registerFiles = (prefix: string, files: File[]) => {
+      filesMapRef.current.set(prefix, files);
+    };
 
     const renderZona = (puntoId: number, zona: 'plato' | 'calle', alturaActual: string) => {
       const titulo = zona === 'plato' ? 'Evaluación en Plato' : 'Evaluación en Calle';
@@ -303,36 +394,77 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
             <div className="flex gap-4">
               {['Hasta 20cm', 'De 20 a 50 cm', 'Mayor 50cm'].map(op => (
                 <label key={op} className="flex items-center">
-                  <input type="radio" name={`punto_${puntoId}_${zona}_altura`} value={op} checked={alturaActual === op} onChange={(e) => handleAlturaChange(puntoId, zona, e.target.value)} className="mr-2" />
+                  <input
+                    type="radio"
+                    name={`punto_${puntoId}_${zona}_altura`}
+                    value={op}
+                    checked={alturaActual === op}
+                    onChange={(e) => handleAlturaChange(puntoId, zona, e.target.value)}
+                    className="mr-2"
+                  />
                   {op}
                 </label>
               ))}
             </div>
-            {errores[`arvenses_punto_${puntoId}_${zona}_altura_error`] && <p className="text-red-600 text-xs mt-1">{errores[`arvenses_punto_${puntoId}_${zona}_altura_error`]}</p>}
+            {errores[`arvenses_punto_${puntoId}_${zona}_altura_error`] && (
+              <p className="text-red-600 text-xs mt-1">{errores[`arvenses_punto_${puntoId}_${zona}_altura_error`]}</p>
+            )}
           </div>
 
           <div className="mb-5">
             <h6 className="font-medium text-sm text-gray-700 mb-2">Arvenses Nobles</h6>
             {ARVENSES_NOBLES.map(a => (
-              <ArvenseRow key={`${puntoId}-${zona}-noble-${a.id}`} codigo={`punto_${puntoId}`} zona={zona} tipo="noble" arvense={a}
-                getValor={(_, campo) => getValor(puntoId, campo)} setValor={(_, campo, val) => setValor(puntoId, campo, val)}
-                onOpenImage={(img) => setModalImage(`/imgs/${img}`)} errores={errores} />
+              <ArvenseRow
+                key={`${puntoId}-${zona}-noble-${a.id}`}
+                codigo={`punto_${puntoId}`}
+                zona={zona}
+                tipo="noble"
+                arvense={a}
+                getValor={(_, campo) => getValor(puntoId, campo)}
+                setValor={(_, campo, val) => setValor(puntoId, campo, val)}
+                onOpenImage={(img) => setModalImage(`/imgs/${img}`)}
+                errores={errores}
+              />
             ))}
-            <OtraEspecieSection codigo={`punto_${puntoId}`} zona={zona} tipo="noble"
-              getValor={(_, campo) => getValor(puntoId, campo)} setValor={(_, campo, val) => setValor(puntoId, campo, val)}
-              caracterizacion={caracterizacion} onCampoChange={onCampoChange} errores={errores} onFilesMap={registerFiles} />
+            <OtraEspecieSection
+              codigo={`punto_${puntoId}`}
+              zona={zona}
+              tipo="noble"
+              getValor={(_, campo) => getValor(puntoId, campo)}
+              setValor={(_, campo, val) => setValor(puntoId, campo, val)}
+              caracterizacion={caracterizacion}
+              onCampoChange={onCampoChange}
+              errores={errores}
+              onFilesMap={registerFiles}
+            />
           </div>
 
           <div>
             <h6 className="font-medium text-sm text-gray-700 mb-2">Arvenses Agresivas</h6>
             {ARVENSES_AGRESIVAS.map(a => (
-              <ArvenseRow key={`${puntoId}-${zona}-agresiva-${a.id}`} codigo={`punto_${puntoId}`} zona={zona} tipo="agresiva" arvense={a}
-                getValor={(_, campo) => getValor(puntoId, campo)} setValor={(_, campo, val) => setValor(puntoId, campo, val)}
-                onOpenImage={(img) => setModalImage(`/imgs/${img}`)} errores={errores} />
+              <ArvenseRow
+                key={`${puntoId}-${zona}-agresiva-${a.id}`}
+                codigo={`punto_${puntoId}`}
+                zona={zona}
+                tipo="agresiva"
+                arvense={a}
+                getValor={(_, campo) => getValor(puntoId, campo)}
+                setValor={(_, campo, val) => setValor(puntoId, campo, val)}
+                onOpenImage={(img) => setModalImage(`/imgs/${img}`)}
+                errores={errores}
+              />
             ))}
-            <OtraEspecieSection codigo={`punto_${puntoId}`} zona={zona} tipo="agresiva"
-              getValor={(_, campo) => getValor(puntoId, campo)} setValor={(_, campo, val) => setValor(puntoId, campo, val)}
-              caracterizacion={caracterizacion} onCampoChange={onCampoChange} errores={errores} onFilesMap={registerFiles} />
+            <OtraEspecieSection
+              codigo={`punto_${puntoId}`}
+              zona={zona}
+              tipo="agresiva"
+              getValor={(_, campo) => getValor(puntoId, campo)}
+              setValor={(_, campo, val) => setValor(puntoId, campo, val)}
+              caracterizacion={caracterizacion}
+              onCampoChange={onCampoChange}
+              errores={errores}
+              onFilesMap={registerFiles}
+            />
           </div>
         </div>
       );
@@ -364,26 +496,20 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
             isValid = false;
           }
 
-          // --- Validación de cobertura: todos los campos deben tener un valor (puede ser 0) ---
+          // Validación de cobertura: todos los campos deben tener un valor (puede ser 0)
           const coverageFields: string[] = [];
-          // nobles
-          ARVENSES_NOBLES.forEach(a => {
-            coverageFields.push(`${zona}_noble_${a.id}_porcentaje`);
-          });
-          // agresivas
-          ARVENSES_AGRESIVAS.forEach(a => {
-            coverageFields.push(`${zona}_agresiva_${a.id}_porcentaje`);
-          });
+          ARVENSES_NOBLES.forEach(a => coverageFields.push(`${zona}_noble_${a.id}_porcentaje`));
+          ARVENSES_AGRESIVAS.forEach(a => coverageFields.push(`${zona}_agresiva_${a.id}_porcentaje`));
 
           let missingCoverage = false;
           for (const field of coverageFields) {
             const val = getValor(puntoId, field);
             if (val === undefined || val === null || val.trim() === '') {
               missingCoverage = true;
-              // Guardamos el error a nivel de zona (podría ser más específico, pero así se pide en el diseño original)
-              nuevosErrores[`arvenses_punto_${puntoId}_${zona}_cobertura_error`] = `Debe llenar todos los campos de cobertura para las especies presentes. Si una especie no está presente, coloque 0.`;
+              nuevosErrores[`arvenses_punto_${puntoId}_${zona}_cobertura_error`] =
+                `Debe llenar todos los campos de cobertura para las especies presentes. Si una especie no está presente, coloque 0.`;
               isValid = false;
-              break; // basta con un error por zona
+              break;
             }
           }
 
@@ -393,19 +519,37 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
           const agresivaNombre = getValor(puntoId, `${zona}_otra_especie_agresiva_nombre`);
           const agresivaPorc = getValor(puntoId, `${zona}_otra_especie_agresiva_porcentaje`);
 
-          if (nobleNombre.trim() !== '' && (!noblePorc || parseFloat(noblePorc) === 0)) {
-            nuevosErrores[`arvenses_punto_${puntoId}_${zona}_otra_especie_noble_porcentaje_error`] = `Indique un porcentaje > 0.`;
-            isValid = false;
-          }
-          if (noblePorc && parseFloat(noblePorc) > 0 && nobleNombre.trim() === '') {
+          // Validar especie noble
+          if (nobleNombre.trim() !== '') {
+            if (!noblePorc || parseFloat(noblePorc) === 0) {
+              nuevosErrores[`arvenses_punto_${puntoId}_${zona}_otra_especie_noble_porcentaje_error`] = `Indique un porcentaje > 0.`;
+              isValid = false;
+            }
+            // Validar que haya al menos una foto subida
+            const nobleFotosPrefix = `arvenses_punto_${puntoId}_${zona}_otra_especie_noble_fotos`;
+            const nobleFiles = filesMapRef.current.get(nobleFotosPrefix) || [];
+            if (nobleFiles.length === 0) {
+              nuevosErrores[`arvenses_punto_${puntoId}_${nobleFotosPrefix}_error`] = `Debe subir al menos una foto de la especie noble.`;
+              isValid = false;
+            }
+          } else if (noblePorc && parseFloat(noblePorc) > 0) {
             nuevosErrores[`arvenses_punto_${puntoId}_${zona}_otra_especie_noble_nombre_error`] = `Indique el nombre.`;
             isValid = false;
           }
-          if (agresivaNombre.trim() !== '' && (!agresivaPorc || parseFloat(agresivaPorc) === 0)) {
-            nuevosErrores[`arvenses_punto_${puntoId}_${zona}_otra_especie_agresiva_porcentaje_error`] = `Indique un porcentaje > 0.`;
-            isValid = false;
-          }
-          if (agresivaPorc && parseFloat(agresivaPorc) > 0 && agresivaNombre.trim() === '') {
+
+          // Validar especie agresiva
+          if (agresivaNombre.trim() !== '') {
+            if (!agresivaPorc || parseFloat(agresivaPorc) === 0) {
+              nuevosErrores[`arvenses_punto_${puntoId}_${zona}_otra_especie_agresiva_porcentaje_error`] = `Indique un porcentaje > 0.`;
+              isValid = false;
+            }
+            const agresivaFotosPrefix = `arvenses_punto_${puntoId}_${zona}_otra_especie_agresiva_fotos`;
+            const agresivaFiles = filesMapRef.current.get(agresivaFotosPrefix) || [];
+            if (agresivaFiles.length === 0) {
+              nuevosErrores[`arvenses_punto_${puntoId}_${agresivaFotosPrefix}_error`] = `Debe subir al menos una foto de la especie agresiva.`;
+              isValid = false;
+            }
+          } else if (agresivaPorc && parseFloat(agresivaPorc) > 0) {
             nuevosErrores[`arvenses_punto_${puntoId}_${zona}_otra_especie_agresiva_nombre_error`] = `Indique el nombre.`;
             isValid = false;
           }
@@ -416,7 +560,7 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
       });
 
       setErrores(nuevosErrores);
-      if (!isValid) toast.error('Complete los campos obligatorios en arvenses.');
+      if (!isValid) toast.error('Complete los campos obligatorios en arvenses (incluyendo fotos para otras especies).');
       return isValid;
     };
 
@@ -451,8 +595,14 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
 
               <div className="mb-4 p-3 bg-gray-100 rounded">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Árbol de referencia *</label>
-                {errores[`arvenses_punto_${puntoId}_arbol_referencia_error`] && <p className="text-red-600 text-xs mb-2">{errores[`arvenses_punto_${puntoId}_arbol_referencia_error`]}</p>}
-                <select value={arbolSeleccionado} onChange={(e) => setValor(puntoId, 'arbol_referencia', e.target.value)} className="w-full border rounded px-3 py-2">
+                {errores[`arvenses_punto_${puntoId}_arbol_referencia_error`] && (
+                  <p className="text-red-600 text-xs mb-2">{errores[`arvenses_punto_${puntoId}_arbol_referencia_error`]}</p>
+                )}
+                <select
+                  value={arbolSeleccionado}
+                  onChange={(e) => setValor(puntoId, 'arbol_referencia', e.target.value)}
+                  className="w-full border rounded px-3 py-2"
+                >
                   <option value="">-- Seleccione --</option>
                   {arbolesDisponibles.map(a => <option key={a.codigo} value={a.codigo}>{a.label} ({a.codigo})</option>)}
                 </select>
@@ -460,10 +610,26 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
 
               <div className="mb-4 p-3 bg-gray-100 rounded">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Zonas monitoreadas *</label>
-                {errores[`arvenses_punto_${puntoId}_zona_monitoreada_error`] && <p className="text-red-600 text-xs mb-2">{errores[`arvenses_punto_${puntoId}_zona_monitoreada_error`]}</p>}
+                {errores[`arvenses_punto_${puntoId}_zona_monitoreada_error`] && (
+                  <p className="text-red-600 text-xs mb-2">{errores[`arvenses_punto_${puntoId}_zona_monitoreada_error`]}</p>
+                )}
                 <div className="flex space-x-6">
-                  <label className="flex items-center"><input type="checkbox" checked={zonaPlato} onChange={(e) => handleZonaMonitoreadaChange(puntoId, 'plato', e.target.checked)} className="mr-2" /> Platos</label>
-                  <label className="flex items-center"><input type="checkbox" checked={zonaCalle} onChange={(e) => handleZonaMonitoreadaChange(puntoId, 'calle', e.target.checked)} className="mr-2" /> Calles</label>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={zonaPlato}
+                      onChange={(e) => handleZonaMonitoreadaChange(puntoId, 'plato', e.target.checked)}
+                      className="mr-2"
+                    /> Platos
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={zonaCalle}
+                      onChange={(e) => handleZonaMonitoreadaChange(puntoId, 'calle', e.target.checked)}
+                      className="mr-2"
+                    /> Calles
+                  </label>
                 </div>
               </div>
 
@@ -478,7 +644,7 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
           <ul className="list-disc list-inside space-y-1">
             <li>Muestreo en {metodoMuestreo} con 5 puntos.</li>
             <li>Debe registrarse al menos un % de cobertura &gt;0 por zona seleccionada.</li>
-            <li>Si se ingresa "otra especie", deben completarse nombre y porcentaje.</li>
+            <li>Si se ingresa "otra especie", deben completarse nombre, porcentaje y <strong>subir al menos una foto</strong>.</li>
           </ul>
         </div>
 
