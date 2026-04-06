@@ -66,7 +66,7 @@ const ImageModal: React.FC<{ imageUrl: string | null; onClose: () => void }> = (
   );
 };
 
-// Componente de subida de fotos REAL – ahora almacena los archivos localmente y los reporta al padre
+// Componente de subida de fotos REAL – idéntico al usado en ArthropodSection
 const RealFotosSection: React.FC<{
   prefix: string;
   caracterizacion: Record<string, string>;
@@ -81,7 +81,6 @@ const RealFotosSection: React.FC<{
   const [previews, setPreviews] = useState<{ name: string; url: string }[]>([]);
   const [error, setError] = useState<string>('');
 
-  // Limpiar URLs al desmontar
   useEffect(() => {
     return () => previews.forEach((p) => URL.revokeObjectURL(p.url));
   }, [previews]);
@@ -99,12 +98,7 @@ const RealFotosSection: React.FC<{
       return;
     }
 
-    // Crear previsualizaciones
-    const newPreviews = selected.map((f) => ({
-      name: f.name,
-      url: URL.createObjectURL(f),
-    }));
-
+    const newPreviews = selected.map((f) => ({ name: f.name, url: URL.createObjectURL(f) }));
     const updatedFiles = [...files, ...selected];
     const updatedPreviews = [...previews, ...newPreviews];
 
@@ -264,8 +258,9 @@ const OtraEspecieSection: React.FC<{
           onFilesChange={handleFilesChange}
         />
       )}
+      {/* Mostrar error de fotos si existe */}
       {errores && errores[`${codigo}_${fotosKey}_error`] && (
-        <p className="text-red-600 text-xs mt-1">{errores[`${codigo}_${fotosKey}_error`]}</p>
+        <p className="text-red-600 text-xs mt-2">{errores[`${codigo}_${fotosKey}_error`]}</p>
       )}
     </div>
   );
@@ -274,10 +269,11 @@ const OtraEspecieSection: React.FC<{
 // ==================== COMPONENTE PRINCIPAL ====================
 export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionProps>(
   ({ todasLasPlantas, metodoMuestreo, surcos, plantasPorSurco, caracterizacion, onCampoChange }, ref) => {
-    // Si la multiplicación de surcos por plantas por surco es mayor a 100 usar W y no X
+    // Ajuste automático si el total de plantas supera 100
     if (surcos * plantasPorSurco > 100 && metodoMuestreo === 'X') {
       metodoMuestreo = 'W';
     }
+
     const [modalImage, setModalImage] = useState<string | null>(null);
     const [errores, setErrores] = useState<Record<string, string>>({});
     const filesMapRef = useRef<Map<string, File[]>>(new Map());
@@ -363,7 +359,7 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
           `${zona}_otra_especie_agresiva_porcentaje`,
         ];
         campos.forEach(campo => setValor(puntoId, campo, ''));
-        // También limpiar los archivos asociados a esta zona y tipo
+        // Limpiar archivos asociados
         const prefixesToClear = [
           `arvenses_punto_${puntoId}_${zona}_otra_especie_noble_fotos`,
           `arvenses_punto_${puntoId}_${zona}_otra_especie_agresiva_fotos`,
@@ -501,11 +497,9 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
           ARVENSES_NOBLES.forEach(a => coverageFields.push(`${zona}_noble_${a.id}_porcentaje`));
           ARVENSES_AGRESIVAS.forEach(a => coverageFields.push(`${zona}_agresiva_${a.id}_porcentaje`));
 
-          let missingCoverage = false;
           for (const field of coverageFields) {
             const val = getValor(puntoId, field);
             if (val === undefined || val === null || val.trim() === '') {
-              missingCoverage = true;
               nuevosErrores[`arvenses_punto_${puntoId}_${zona}_cobertura_error`] =
                 `Debe llenar todos los campos de cobertura para las especies presentes. Si una especie no está presente, coloque 0.`;
               isValid = false;
@@ -513,23 +507,25 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
             }
           }
 
-          // Validación de "otra especie"
+          // Validación de "otra especie" noble
           const nobleNombre = getValor(puntoId, `${zona}_otra_especie_noble_nombre`);
           const noblePorc = getValor(puntoId, `${zona}_otra_especie_noble_porcentaje`);
-          const agresivaNombre = getValor(puntoId, `${zona}_otra_especie_agresiva_nombre`);
-          const agresivaPorc = getValor(puntoId, `${zona}_otra_especie_agresiva_porcentaje`);
 
-          // Validar especie noble
           if (nobleNombre.trim() !== '') {
             if (!noblePorc || parseFloat(noblePorc) === 0) {
               nuevosErrores[`arvenses_punto_${puntoId}_${zona}_otra_especie_noble_porcentaje_error`] = `Indique un porcentaje > 0.`;
               isValid = false;
             }
-            // Validar que haya al menos una foto subida
             const nobleFotosPrefix = `arvenses_punto_${puntoId}_${zona}_otra_especie_noble_fotos`;
             const nobleFiles = filesMapRef.current.get(nobleFotosPrefix) || [];
             if (nobleFiles.length === 0) {
-              nuevosErrores[`arvenses_punto_${puntoId}_${nobleFotosPrefix}_error`] = `Debe subir al menos una foto de la especie noble.`;
+              // Clave de error que espera OtraEspecieSection: `${codigo}_${fotosKey}_error`
+              // codigo = `punto_${puntoId}`, fotosKey = `arvenses_${codigo}_${zona}_otra_especie_noble_fotos`
+              // Pero en validate usamos directamente el prefijo real que se guarda en el mapa.
+              // OtraEspecieSection usa: `${codigo}_${fotosKey}_error` donde fotosKey es `arvenses_${codigo}_${zona}_otra_especie_${tipo}_fotos`
+              // Es decir: `punto_${puntoId}_arvenses_punto_${puntoId}_${zona}_otra_especie_noble_fotos_error`
+              const errorKey = `punto_${puntoId}_${nobleFotosPrefix}_error`;
+              nuevosErrores[errorKey] = `Debe subir al menos una foto de la especie noble.`;
               isValid = false;
             }
           } else if (noblePorc && parseFloat(noblePorc) > 0) {
@@ -537,7 +533,10 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
             isValid = false;
           }
 
-          // Validar especie agresiva
+          // Validación de "otra especie" agresiva
+          const agresivaNombre = getValor(puntoId, `${zona}_otra_especie_agresiva_nombre`);
+          const agresivaPorc = getValor(puntoId, `${zona}_otra_especie_agresiva_porcentaje`);
+
           if (agresivaNombre.trim() !== '') {
             if (!agresivaPorc || parseFloat(agresivaPorc) === 0) {
               nuevosErrores[`arvenses_punto_${puntoId}_${zona}_otra_especie_agresiva_porcentaje_error`] = `Indique un porcentaje > 0.`;
@@ -546,7 +545,8 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
             const agresivaFotosPrefix = `arvenses_punto_${puntoId}_${zona}_otra_especie_agresiva_fotos`;
             const agresivaFiles = filesMapRef.current.get(agresivaFotosPrefix) || [];
             if (agresivaFiles.length === 0) {
-              nuevosErrores[`arvenses_punto_${puntoId}_${agresivaFotosPrefix}_error`] = `Debe subir al menos una foto de la especie agresiva.`;
+              const errorKey = `punto_${puntoId}_${agresivaFotosPrefix}_error`;
+              nuevosErrores[errorKey] = `Debe subir al menos una foto de la especie agresiva.`;
               isValid = false;
             }
           } else if (agresivaPorc && parseFloat(agresivaPorc) > 0) {
