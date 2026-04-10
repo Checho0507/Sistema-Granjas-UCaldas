@@ -3,7 +3,15 @@ from sqlalchemy.orm import relationship
 from datetime import datetime, timedelta
 from app.db.database import Base
 
-# Tablas pivote existentes
+# ──────────────────────────────────────────────────────────────────────────────
+# FUNCIÓN DE ZONA HORARIA COLOMBIA (UTC-5)
+# ──────────────────────────────────────────────────────────────────────────────
+def colombia_now():
+    return datetime.utcnow() - timedelta(hours=5)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# TABLAS PIVOTE EXISTENTES
+# ──────────────────────────────────────────────────────────────────────────────
 usuario_granja = Table(
     'usuario_granja',
     Base.metadata,
@@ -30,7 +38,21 @@ class LoteCultivo(Base):
     lote = relationship("Lote", back_populates="cultivos_asignados")
     cultivo = relationship("CultivoEspecie", back_populates="lotes_asignados")
 
+# ──────────────────────────────────────────────────────────────────────────────
+# NUEVA TABLA INTERMEDIA DIAGNOSTICO-PLANTA (MUCHOS A MUCHOS)
+# ──────────────────────────────────────────────────────────────────────────────
+diagnostico_planta = Table(
+    "diagnostico_planta",
+    Base.metadata,
+    Column("id", Integer, primary_key=True, index=True),
+    Column("diagnostico_id", Integer, ForeignKey("diagnosticos.id", ondelete="CASCADE")),
+    Column("planta_id", Integer, ForeignKey("plantas.id", ondelete="CASCADE")),
+    Column("created_at", DateTime, default=colombia_now),
+)
 
+# ──────────────────────────────────────────────────────────────────────────────
+# MODELOS EXISTENTES (CON LAS ADAPTACIONES NECESARIAS)
+# ──────────────────────────────────────────────────────────────────────────────
 class Rol(Base):
     __tablename__ = "roles"
     id = Column(Integer, primary_key=True, index=True)
@@ -39,7 +61,6 @@ class Rol(Base):
     nivel_permiso = Column(Integer, default=0)
     activo = Column(Boolean, default=True)
     usuarios = relationship("Usuario", back_populates="rol")
-
 
 class Usuario(Base):
     __tablename__ = "usuarios"
@@ -50,14 +71,13 @@ class Usuario(Base):
     activo = Column(Boolean, default=True)
     password_hash = Column(String(255))
     auth_provider = Column(String(50), default="traditional")
-    fecha_creacion = Column(DateTime, default=(datetime.utcnow() - timedelta(hours=5)))
+    fecha_creacion = Column(DateTime, default=colombia_now)
     rol = relationship("Rol", back_populates="usuarios")
     granjas = relationship("Granja", secondary=usuario_granja, back_populates="usuarios")
     programas = relationship("Programa", secondary=usuario_programa, back_populates="usuarios")
     labores_asignadas = relationship("Labor", back_populates="trabajador")
     recomendaciones_generadas = relationship("Recomendacion", back_populates="docente")
     diagnosticos = relationship("Diagnostico", back_populates="usuario")
-
 
 class Programa(Base):
     __tablename__ = "programas"
@@ -66,7 +86,7 @@ class Programa(Base):
     descripcion = Column(String(255))
     tipo = Column(String(50), nullable=False)
     activo = Column(Boolean, default=True)
-    fecha_creacion = Column(DateTime, default=(datetime.utcnow() - timedelta(hours=5)))
+    fecha_creacion = Column(DateTime, default=colombia_now)
     granjas = relationship("Granja", secondary="granja_programa", back_populates="programas")
     usuarios = relationship("Usuario", secondary=usuario_programa, back_populates="programas")
     lotes = relationship("Lote", back_populates="programa")
@@ -74,26 +94,23 @@ class Programa(Base):
     monitoreos = relationship("Monitoreo", back_populates="programa", cascade="all, delete-orphan")
     diagnosticos = relationship("Diagnostico", back_populates="programa")
 
-
 class Granja(Base):
     __tablename__ = "granjas"
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(100), nullable=False)
     ubicacion = Column(String(150), nullable=False)
     activo = Column(Boolean, default=True)
-    fecha_creacion = Column(DateTime, default=(datetime.utcnow() - timedelta(hours=5)))
+    fecha_creacion = Column(DateTime, default=colombia_now)
     cultivos = relationship("CultivoEspecie", back_populates="granja")
     usuarios = relationship("Usuario", secondary=usuario_granja, back_populates="granjas")
     programas = relationship("Programa", secondary="granja_programa", back_populates="granjas")
     lotes = relationship("Lote", back_populates="granja")
-
 
 class TipoLote(Base):
     __tablename__ = "tipos_lote"
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(50), nullable=False)
     descripcion = Column(String(255))
-
 
 class Lote(Base):
     __tablename__ = "lotes"
@@ -104,11 +121,10 @@ class Lote(Base):
     programa_id = Column(Integer, ForeignKey("programas.id"))
     fecha_inicio = Column(DateTime)
     estado = Column(String(50), default="activo")
-
-    # 👇 NUEVOS CAMPOS
     surcos = Column(Integer, nullable=False, default=0)
     plantas_por_surco = Column(Integer, nullable=False, default=0)
 
+    # Relaciones existentes
     cultivos_asignados = relationship("LoteCultivo", back_populates="lote", cascade="all, delete-orphan")
     tipo_lote = relationship("TipoLote")
     granja = relationship("Granja", back_populates="lotes")
@@ -116,13 +132,15 @@ class Lote(Base):
     labores = relationship("Labor", back_populates="lote")
     diagnosticos = relationship("Diagnostico", back_populates="lote")
     recomendaciones = relationship("Recomendacion", back_populates="lote")
+    
+    # NUEVA relación uno a muchos con Planta
+    plantas = relationship("Planta", back_populates="lote", cascade="all, delete-orphan")
 
 class CategoriaInventario(Base):
     __tablename__ = "categorias_inventario"
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(50), nullable=False)
     descripcion = Column(String(255))
-
 
 class Herramienta(Base):
     __tablename__ = "herramientas"
@@ -136,7 +154,6 @@ class Herramienta(Base):
     categoria = relationship("CategoriaInventario")
     movimientos = relationship("MovimientoHerramienta", back_populates="herramienta")
     asignaciones = relationship("AsignacionHerramienta", back_populates="herramienta")
-
 
 class Insumo(Base):
     __tablename__ = "insumos"
@@ -153,13 +170,11 @@ class Insumo(Base):
     programa = relationship("Programa", back_populates="insumos")
     movimientos = relationship("MovimientoInsumo", back_populates="insumo")
 
-
 class TipoLabor(Base):
     __tablename__ = "tipos_labor"
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(100), nullable=False)
     descripcion = Column(String(255))
-
 
 class Recomendacion(Base):
     __tablename__ = "recomendaciones"
@@ -171,14 +186,13 @@ class Recomendacion(Base):
     docente_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     lote_id = Column(Integer, ForeignKey("lotes.id"), nullable=False)
     diagnostico_id = Column(Integer, ForeignKey("diagnosticos.id"), nullable=True)
-    fecha_creacion = Column(DateTime, default=(datetime.utcnow() - timedelta(hours=5)))
+    fecha_creacion = Column(DateTime, default=colombia_now)
     fecha_aprobacion = Column(DateTime, nullable=True)
     evidencias = relationship("Evidencia", back_populates="recomendacion")
     docente = relationship("Usuario", back_populates="recomendaciones_generadas")
     lote = relationship("Lote", back_populates="recomendaciones")
     labores = relationship("Labor", back_populates="recomendacion")
     diagnostico = relationship("Diagnostico", back_populates="recomendaciones", foreign_keys=[diagnostico_id])
-
 
 class Evidencia(Base):
     __tablename__ = "evidencias"
@@ -190,12 +204,11 @@ class Evidencia(Base):
     diagnostico_id = Column(Integer, ForeignKey("diagnosticos.id"), nullable=True)
     recomendacion_id = Column(Integer, ForeignKey("recomendaciones.id"), nullable=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
-    fecha_creacion = Column(DateTime, default=(datetime.utcnow() - timedelta(hours=5)))
+    fecha_creacion = Column(DateTime, default=colombia_now)
     labor = relationship("Labor", back_populates="evidencias")
     diagnostico = relationship("Diagnostico", back_populates="evidencias")
     recomendacion = relationship("Recomendacion", back_populates="evidencias")
     usuario = relationship("Usuario")
-
 
 class Labor(Base):
     __tablename__ = "labores"
@@ -204,7 +217,7 @@ class Labor(Base):
     tipo_labor_id = Column(Integer, ForeignKey("tipos_labor.id"), nullable=False)
     avance_porcentaje = Column(Integer, default=0)
     comentario = Column(Text, nullable=True)
-    fecha_asignacion = Column(DateTime, default=(datetime.utcnow() - timedelta(hours=5)))
+    fecha_asignacion = Column(DateTime, default=colombia_now)
     fecha_finalizacion = Column(DateTime, nullable=True)
     recomendacion_id = Column(Integer, ForeignKey("recomendaciones.id"), nullable=False)
     trabajador_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
@@ -217,36 +230,28 @@ class Labor(Base):
     uso_herramientas = relationship("MovimientoHerramienta", back_populates="labor")
     uso_insumos = relationship("MovimientoInsumo", back_populates="labor")
 
-
-# ── MODELO PRINCIPAL ACTUALIZADO ─────────────────────────────────────────────
 class Diagnostico(Base):
-    def ColombiaNow():
-        return datetime.utcnow() - timedelta(hours=5)
-    
     __tablename__ = "diagnosticos"
-
     id = Column(Integer, primary_key=True, index=True)
-
-    # Claves foráneas de contexto
-    programa_id       = Column(Integer, ForeignKey("programas.id"), nullable=False)
+    programa_id = Column(Integer, ForeignKey("programas.id"), nullable=False)
     tipo_monitoreo_id = Column(Integer, ForeignKey("monitoreos.id"), nullable=False)
-    lote_id           = Column(Integer, ForeignKey("lotes.id"), nullable=False)
-    usuario_id        = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
-
-    # Campos propios
+    lote_id = Column(Integer, ForeignKey("lotes.id"), nullable=False)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     tipo_diagnostico = Column(String(100), nullable=False)
-    condiciones_dia  = Column(String(50), nullable=False)
-    formulario       = Column(JSON, nullable=True)
-    fecha_creacion = Column(DateTime, default=(ColombiaNow()))
+    condiciones_dia = Column(String(50), nullable=False)
+    formulario = Column(JSON, nullable=True)
+    fecha_creacion = Column(DateTime, default=colombia_now)
 
-    # Relaciones
-    programa       = relationship("Programa", back_populates="diagnosticos")
+    # Relaciones existentes
+    programa = relationship("Programa", back_populates="diagnosticos")
     tipo_monitoreo = relationship("Monitoreo", back_populates="diagnosticos")
-    lote           = relationship("Lote", back_populates="diagnosticos")
-    usuario        = relationship("Usuario", back_populates="diagnosticos")
+    lote = relationship("Lote", back_populates="diagnosticos")
+    usuario = relationship("Usuario", back_populates="diagnosticos")
     recomendaciones = relationship("Recomendacion", back_populates="diagnostico")
-    evidencias      = relationship("Evidencia", back_populates="diagnostico")
+    evidencias = relationship("Evidencia", back_populates="diagnostico")
 
+    # NUEVA relación muchos a muchos con Planta
+    plantas = relationship("Planta", secondary=diagnostico_planta, back_populates="diagnosticos")
 
 class MovimientoHerramienta(Base):
     __tablename__ = "movimientos_herramientas"
@@ -255,11 +260,10 @@ class MovimientoHerramienta(Base):
     labor_id = Column(Integer, ForeignKey("labores.id"))
     cantidad = Column(Integer, nullable=False)
     tipo_movimiento = Column(String(50), nullable=False)
-    fecha_movimiento = Column(DateTime, default=(datetime.utcnow() - timedelta(hours=5)))
+    fecha_movimiento = Column(DateTime, default=colombia_now)
     observaciones = Column(Text)
     herramienta = relationship("Herramienta", back_populates="movimientos")
     labor = relationship("Labor", back_populates="uso_herramientas")
-
 
 class MovimientoInsumo(Base):
     __tablename__ = "movimientos_insumos"
@@ -268,11 +272,10 @@ class MovimientoInsumo(Base):
     labor_id = Column(Integer, ForeignKey("labores.id"))
     cantidad = Column(Float, nullable=False)
     tipo_movimiento = Column(String(50), nullable=False)
-    fecha_movimiento = Column(DateTime, default=(datetime.utcnow() - timedelta(hours=5)))
+    fecha_movimiento = Column(DateTime, default=colombia_now)
     observaciones = Column(Text)
     insumo = relationship("Insumo", back_populates="movimientos")
     labor = relationship("Labor", back_populates="uso_insumos")
-
 
 class AsignacionHerramienta(Base):
     __tablename__ = "asignaciones_herramientas"
@@ -280,19 +283,17 @@ class AsignacionHerramienta(Base):
     herramienta_id = Column(Integer, ForeignKey("herramientas.id"))
     labor_id = Column(Integer, ForeignKey("labores.id"))
     cantidad = Column(Integer, default=1)
-    fecha_asignacion = Column(DateTime, default=(datetime.utcnow() - timedelta(hours=5)))
+    fecha_asignacion = Column(DateTime, default=colombia_now)
     herramienta = relationship("Herramienta", back_populates="asignaciones")
-
 
 class Monitoreo(Base):
     __tablename__ = "monitoreos"
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(100), nullable=False)
     programa_id = Column(Integer, ForeignKey("programas.id", ondelete="CASCADE"), nullable=False)
-    created_at = Column(Date, default=(datetime.utcnow()-timedelta(hours=5)).date())
+    created_at = Column(Date, default=colombia_now().date())
     programa = relationship("Programa", back_populates="monitoreos")
     diagnosticos = relationship("Diagnostico", back_populates="tipo_monitoreo")
-
 
 class CultivoEspecie(Base):
     __tablename__ = "cultivos_especies"
@@ -304,3 +305,21 @@ class CultivoEspecie(Base):
     granja_id = Column(Integer, ForeignKey("granjas.id"), nullable=False)
     granja = relationship("Granja", back_populates="cultivos")
     lotes_asignados = relationship("LoteCultivo", back_populates="cultivo", cascade="all, delete-orphan")
+
+# ──────────────────────────────────────────────────────────────────────────────
+# NUEVO MODELO: PLANTA (con relación muchos a uno con Lote)
+# ──────────────────────────────────────────────────────────────────────────────
+class Planta(Base):
+    __tablename__ = "plantas"
+    id = Column(Integer, primary_key=True, index=True)
+    lote_id = Column(Integer, ForeignKey("lotes.id", ondelete="CASCADE"), nullable=False)
+    surco = Column(Integer, nullable=False)
+    numero = Column(Integer, nullable=False)
+    codigo = Column(String(50), unique=True, nullable=False, index=True)   # Ej: "CITRICO1-S01P02"
+    estado = Column(String(20), default="activa")   # activa, eliminada
+    created_at = Column(DateTime, default=colombia_now)
+    updated_at = Column(DateTime, default=colombia_now, onupdate=colombia_now)
+
+    # Relaciones
+    lote = relationship("Lote", back_populates="plantas")
+    diagnosticos = relationship("Diagnostico", secondary=diagnostico_planta, back_populates="plantas")

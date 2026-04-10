@@ -95,7 +95,6 @@ class LoteBase(BaseModel):
                 raise ValueError('La fecha no puede ser muy futura')
         return self
 
-
 class LoteCreate(LoteBase):
     cultivos_ids: List[int]
 

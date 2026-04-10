@@ -39,7 +39,9 @@ def get_diagnosticos_por_lote(db: Session, lote_id: int):
 
 
 def create_diagnostico(db: Session, data: DiagnosticoCreate) -> Diagnostico:
-    nuevo = Diagnostico(**data.dict())
+    # Excluir 'plantas_ids' porque no es un campo del modelo Diagnostico
+    datos_modelo = data.dict(exclude={"plantas_ids"})
+    nuevo = Diagnostico(**datos_modelo)
     db.add(nuevo)
     db.commit()
     db.refresh(nuevo)
@@ -47,7 +49,9 @@ def create_diagnostico(db: Session, data: DiagnosticoCreate) -> Diagnostico:
 
 
 def update_diagnostico(db: Session, diagnostico: Diagnostico, data: DiagnosticoUpdate) -> Diagnostico:
-    for field, value in data.dict(exclude_unset=True).items():
+    # Excluir 'plantas_ids' al actualizar el modelo (la relación se maneja aparte)
+    datos_actualizacion = data.dict(exclude_unset=True, exclude={"plantas_ids"})
+    for field, value in datos_actualizacion.items():
         setattr(diagnostico, field, value)
     db.commit()
     db.refresh(diagnostico)
