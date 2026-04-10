@@ -21,6 +21,7 @@ import GestionUsuariosPage from './pages/GestionUsuarios';
 import GestionInventarioPage from './pages/GestionInventarios';
 import GestionDiagnosticosPage from './pages/GestionDiagnosticos';
 import GestionRecomendacionesPage from './pages/GestionRecomendaciones';
+import GestionEstadisticasPage from './pages/GestionEstadisticas';
 
 function AppContent() {
   const { token } = useAuthValue();
@@ -198,6 +199,15 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <GestionRecomendacionesPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/gestion/estadisticas"
+          element={
+            <ProtectedRoute>
+              <GestionEstadisticasPage />
             </ProtectedRoute>
           }
         />

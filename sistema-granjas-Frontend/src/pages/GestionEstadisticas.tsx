@@ -175,7 +175,7 @@ const generateMockPlantas = (): PlantaCompleta[] => {
 };
 
 // ----------------------------- COMPONENTES DE ESTADÍSTICAS -----------------------------
-const Estadisticas: React.FC = () => {
+const GestionEstadisticasPage: React.FC = () => {
   const plantas = useMemo(() => generateMockPlantas(), []);
   const [selectedMetric, setSelectedMetric] = useState<string>('general');
 
@@ -525,4 +525,4 @@ const Estadisticas: React.FC = () => {
   );
 };
 
-export default Estadisticas;
+export default GestionEstadisticasPage;
