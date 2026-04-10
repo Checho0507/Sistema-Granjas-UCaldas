@@ -53,7 +53,8 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 { name: 'Inventario', path: '/gestion/inventario', icon: 'fa-boxes', description: 'Control de inventario' },
                 { name: 'Diagnósticos', path: '/gestion/diagnosticos', icon: 'fa-stethoscope', description: 'Diagnósticos agrícolas' },
                 { name: 'Recomendaciones', path: '/gestion/recomendaciones', icon: 'fa-lightbulb', description: 'Recomendaciones' },
-                { name: 'Labores', path: '/gestion/labores', icon: 'fa-calendar-check', description: 'Planificación de labores' }
+                { name: 'Labores', path: '/gestion/labores', icon: 'fa-calendar-check', description: 'Planificación de labores' },
+                { name: 'Estadísticas', path: '/gestion/estadisticas', icon: 'fa-chart-bar', description: 'Ver estadísticas' }
             ],
             asesor: [
                 { name: 'Diagnósticos', path: '/gestion/diagnosticos', icon: 'fa-stethoscope', description: 'Crear diagnósticos' },
