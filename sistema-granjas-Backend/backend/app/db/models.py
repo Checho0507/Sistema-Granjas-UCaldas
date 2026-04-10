@@ -220,6 +220,9 @@ class Labor(Base):
 
 # ── MODELO PRINCIPAL ACTUALIZADO ─────────────────────────────────────────────
 class Diagnostico(Base):
+    def ColombiaNow():
+        return datetime.utcnow() - timedelta(hours=5)
+    
     __tablename__ = "diagnosticos"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -234,7 +237,7 @@ class Diagnostico(Base):
     tipo_diagnostico = Column(String(100), nullable=False)
     condiciones_dia  = Column(String(50), nullable=False)
     formulario       = Column(JSON, nullable=True)
-    fecha_creacion = Column(DateTime, default=(datetime.utcnow() - timedelta(hours=5)))
+    fecha_creacion = Column(DateTime, default=(ColombiaNow()))
 
     # Relaciones
     programa       = relationship("Programa", back_populates="diagnosticos")

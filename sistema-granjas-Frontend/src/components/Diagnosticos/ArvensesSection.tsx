@@ -301,9 +301,10 @@ export const ArvensesSection = forwardRef<ArvensesSectionRef, ArvensesSectionPro
         puntos.push({ id: 1, surco: minSurco, planta: minPlanta, label: 'Punto superior izquierdo' });
         puntos.push({ id: 2, surco: minSurco, planta: medioPlanta, label: 'Punto superior central' });
         puntos.push({ id: 3, surco: minSurco, planta: maxPlanta, label: 'Punto superior derecho' });
-        puntos.push({ id: 4, surco: medioSurco, planta: minPlanta, label: 'Punto medio izquierdo' });
+        puntos.push({ id: 4, surco: medioSurco, planta: minPlanta, label: 'Punto inferior izquierdo' });
         puntos.push({ id: 5, surco: maxSurco, planta: maxPlanta, label: 'Punto inferior derecho' });
       }
+      caracterizacion['arvenses_metodo_muestreo'] = metodoMuestreo;
       return puntos;
     };
 

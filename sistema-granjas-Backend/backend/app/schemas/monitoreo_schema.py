@@ -53,7 +53,7 @@ class MonitoreoUpdate(BaseModel):
 
 class MonitoreoResponse(MonitoreoBase):
     id: int
-    created_at: date
+    created_at: datetime
 
     class Config:
         from_attributes = True
