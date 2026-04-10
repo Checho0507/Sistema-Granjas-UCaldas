@@ -23,7 +23,8 @@ from app.api import (
     roles,
     exportRoutes,
     asignaciones,
-    monitoreos
+    monitoreos,
+    plantas,                     # 👈 NUEVO ROUTER PARA PLANTAS
 )
 from app.db.database import engine, Base
 from app.db.models import Usuario, Granja, Programa, Lote, Labor, Rol
@@ -34,6 +35,7 @@ import ssl
 import os
 from starlette.middleware.base import BaseHTTPMiddleware
 
+
 class ForceHTTPSRedirectMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)
@@ -43,6 +45,7 @@ class ForceHTTPSRedirectMiddleware(BaseHTTPMiddleware):
             if location and location.startswith("http://"):
                 response.headers["location"] = location.replace("http://", "https://", 1)
         return response
+
 
 # Configurar logging detallado para Render
 logging.basicConfig(
@@ -267,7 +270,7 @@ async def debug_auth_check(token: str = None):
     except Exception as e:
         return {"error": str(e)}
 
-# Incluir routers
+# ========== INCLUIR ROUTERS ==========
 app.include_router(oauth_google.router, prefix="/api")
 app.include_router(auth_tradicional.router, prefix="/api")
 app.include_router(usuarios.router, prefix="/api")
@@ -291,7 +294,9 @@ app.include_router(roles.router, prefix="/api")
 app.include_router(exportRoutes.router, prefix="/api")
 app.include_router(asignaciones.router, prefix="/api")
 app.include_router(monitoreos.router, prefix="/api")
+app.include_router(plantas.router, prefix="/api")               # 👈 NUEVO ROUTER
 
+# ========== ENDPOINTS PÚBLICOS ==========
 @app.get("/")
 def root():
     return {
@@ -322,6 +327,7 @@ def api_info():
             "granjas": "/api/granjas",
             "programas": "/api/programas",
             "lotes": "/api/lotes",
+            "plantas": "/api/plantas",              # 👈 NUEVO ENDPOINT EN LA LISTA
             "sync": "/api/sync",
             "evidencias": "/api/evidencias",
             "debug_r2": "/debug/r2",
