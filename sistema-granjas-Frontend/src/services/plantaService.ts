@@ -1,43 +1,98 @@
 // src/services/plantaService.ts
-import api from './api';
-import { PlantaCreate, PlantaUpdate, PlantaResponse, GenerarPlantasResponse } from '../types/plantaTypes';
+import type { PlantaCreate, PlantaUpdate, PlantaResponse, GenerarPlantasResponse } from '../types/plantaTypes';
+import loteService from './loteService'; // si lo necesitas
 
-const plantaService = {
-  // Obtener todas las plantas (opcional: filtrar por lote)
-  obtenerPlantas: async (loteId?: number): Promise<PlantaResponse[]> => {
-    const params = loteId ? { lote_id: loteId } : {};
-    const response = await api.get('/plantas', { params });
-    return response.data;
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
+const getHeaders = (): HeadersInit => {
+  const token = localStorage.getItem('token');
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json'
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+};
+
+const handleResponse = async (response: Response) => {
+  if (!response.ok) {
+    let errorData: any = {};
+    try {
+      errorData = await response.json();
+    } catch {
+      throw new Error(`Error ${response.status}`);
+    }
+
+    // Manejo de errores de validación de FastAPI
+    if (errorData.detail && Array.isArray(errorData.detail)) {
+      const erroresPorCampo: Record<string, string> = {};
+      errorData.detail.forEach((err: any) => {
+        const campo = Array.isArray(err.loc) ? err.loc.slice(-1)[0] : 'general';
+        let mensaje = err.msg || 'Error de validación';
+        mensaje = mensaje.replace('Value error, ', '');
+        erroresPorCampo[campo] = mensaje;
+      });
+      const error = new Error('Error de validación');
+      (error as any).erroresValidacion = erroresPorCampo;
+      throw error;
+    }
+
+    throw new Error(errorData.detail || errorData.message || `Error ${response.status}`);
+  }
+  return response.json();
+};
+
+export const plantaService = {
+  // Obtener plantas (opcional: filtrar por lote)
+  async obtenerPlantas(loteId?: number): Promise<PlantaResponse[]> {
+    const url = loteId ? `${API_BASE_URL}/plantas?lote_id=${loteId}` : `${API_BASE_URL}/plantas`;
+    const response = await fetch(url, { headers: getHeaders() });
+    return handleResponse(response);
   },
 
-  // Obtener una planta por ID
-  obtenerPlantaPorId: async (id: number): Promise<PlantaResponse> => {
-    const response = await api.get(`/plantas/${id}`);
-    return response.data;
+  async obtenerPlantaPorId(id: number): Promise<PlantaResponse> {
+    const response = await fetch(`${API_BASE_URL}/plantas/${id}`, { headers: getHeaders() });
+    return handleResponse(response);
   },
 
-  // Crear una planta individual
-  crearPlanta: async (data: PlantaCreate): Promise<PlantaResponse> => {
-    const response = await api.post('/plantas', data);
-    return response.data;
+  async crearPlanta(data: PlantaCreate): Promise<PlantaResponse> {
+    const response = await fetch(`${API_BASE_URL}/plantas`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    return handleResponse(response);
   },
 
-  // Actualizar una planta
-  actualizarPlanta: async (id: number, data: PlantaUpdate): Promise<PlantaResponse> => {
-    const response = await api.put(`/plantas/${id}`, data);
-    return response.data;
+  async actualizarPlanta(id: number, data: PlantaUpdate): Promise<PlantaResponse> {
+    const response = await fetch(`${API_BASE_URL}/plantas/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    return handleResponse(response);
   },
 
-  // Eliminar (cambiar estado a eliminada)
-  eliminarPlanta: async (id: number): Promise<void> => {
-    await api.delete(`/plantas/${id}`);
+  async eliminarPlanta(id: number): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/plantas/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    if (!response.ok) {
+      let errorData: any = {};
+      try { errorData = await response.json(); } catch { throw new Error('Error al eliminar'); }
+      throw new Error(errorData.detail || 'Error al eliminar');
+    }
   },
 
-  // Generar plantas masivas para un lote
-  generarPlantasParaLote: async (loteId: number): Promise<GenerarPlantasResponse> => {
-    const response = await api.post(`/plantas/generar-para-lote/${loteId}`);
-    return response.data;
-  },
+  async generarPlantasParaLote(loteId: number): Promise<GenerarPlantasResponse> {
+    const response = await fetch(`${API_BASE_URL}/plantas/generar-para-lote/${loteId}`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+    return handleResponse(response);
+  }
 };
 
 export default plantaService;
