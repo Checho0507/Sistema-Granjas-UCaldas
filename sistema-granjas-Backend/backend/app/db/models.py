@@ -316,7 +316,7 @@ class Planta(Base):
     surco = Column(Integer, nullable=False)
     numero = Column(Integer, nullable=False)
     codigo = Column(String(50), unique=True, nullable=False, index=True)   # Ej: "CITRICO1-S01P02"
-    estado = Column(String(20), default="activa")   # activa, eliminada
+    estado = Column(String(20), default="productivo")   # activa, eliminada
     created_at = Column(DateTime, default=colombia_now)
     updated_at = Column(DateTime, default=colombia_now, onupdate=colombia_now)
 

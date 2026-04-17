@@ -6,8 +6,7 @@ from app.db.database import get_db
 from app.core.dependencies import require_any_role
 from app.CRUD import plantas as crud
 from app.schemas.planta_schema import PlantaCreate, PlantaUpdate, PlantaResponse, GenerarPlantasResponse
-
-from app.db.models import Lote  # 👈 IMPORTACIÓN FALTANTE
+from app.db.models import Lote
 
 router = APIRouter(prefix="/plantas", tags=["Plantas"])
 role_required = Depends(require_any_role(["admin", "docente", "asesor"]))
@@ -37,7 +36,12 @@ def crear_planta(data: PlantaCreate, db: Session = Depends(get_db), _=role_requi
         raise HTTPException(400, str(e))
 
 @router.put("/{planta_id}", response_model=PlantaResponse)
-def actualizar_planta(planta_id: int, data: PlantaUpdate, db: Session = Depends(get_db), _=role_required):
+def actualizar_planta(
+    planta_id: int,
+    data: PlantaUpdate,
+    db: Session = Depends(get_db),
+    _=role_required
+):
     planta = crud.get_planta(db, planta_id)
     if not planta:
         raise HTTPException(404, "Planta no encontrada")
@@ -49,7 +53,7 @@ def eliminar_planta(planta_id: int, db: Session = Depends(get_db), _=role_requir
     if not planta:
         raise HTTPException(404, "Planta no encontrada")
     crud.delete_planta(db, planta)
-    return {"message": "Planta eliminada correctamente"}
+    return {"message": "Planta marcada como 'para_eliminar' correctamente"}
 
 @router.post("/generar-para-lote/{lote_id}", response_model=GenerarPlantasResponse)
 def generar_plantas_lote(lote_id: int, db: Session = Depends(get_db), _=role_required):
