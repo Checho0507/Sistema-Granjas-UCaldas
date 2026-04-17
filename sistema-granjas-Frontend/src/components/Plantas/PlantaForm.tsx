@@ -21,6 +21,12 @@ interface PlantaFormProps {
   erroresValidacion?: Record<string, string>;
 }
 
+const ESTADOS = [
+  { value: "productivo", label: "Productivo", color: "green" },
+  { value: "para_eliminar", label: "Para Eliminar", color: "red" },
+  { value: "punto_vacio", label: "Punto Vacío", color: "gray" },
+];
+
 const PlantaForm: React.FC<PlantaFormProps> = ({
   isOpen,
   onClose,
@@ -37,13 +43,12 @@ const PlantaForm: React.FC<PlantaFormProps> = ({
     const { name, value } = e.target;
     setDatosFormulario((prev) => ({
       ...prev,
-      [name]: name === "lote_id" ? Number(value) : Number(value),
+      [name]: name === "lote_id" ? Number(value) : value,
     }));
   };
 
   const getError = (campo: string) => erroresValidacion[campo] || "";
 
-  // Obtener el lote seleccionado para mostrar surcos máximos
   const loteSeleccionado = lotes.find((l) => l.id === datosFormulario.lote_id);
 
   return (
@@ -140,7 +145,33 @@ const PlantaForm: React.FC<PlantaFormProps> = ({
               </div>
             </div>
 
-            {/* Código (solo lectura, se genera automáticamente) */}
+            {/* 👇 NUEVO: Estado de la planta */}
+            <div>
+              <label className="block mb-1">Estado *</label>
+              <select
+                name="estado"
+                value={datosFormulario.estado || "productivo"}
+                onChange={handleChange}
+                className={`w-full p-2 border rounded ${
+                  getError("estado") ? "border-red-500" : "border-gray-300"
+                }`}
+                required
+              >
+                {ESTADOS.map((est) => (
+                  <option key={est.value} value={est.value}>
+                    {est.label}
+                  </option>
+                ))}
+              </select>
+              {getError("estado") && (
+                <p className="text-red-500 text-sm mt-1">{getError("estado")}</p>
+              )}
+              <p className="text-xs text-gray-500 mt-1">
+                Productivo: planta sana. Para Eliminar: planta enferma o muerta. Punto Vacío: espacio sin planta.
+              </p>
+            </div>
+
+            {/* Código (solo lectura) */}
             {editando && datosFormulario.codigo && (
               <div>
                 <label className="block mb-1">Código</label>

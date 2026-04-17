@@ -15,17 +15,32 @@ const PlantasTable: React.FC<PlantasTableProps> = ({
   onEliminar,
   loteNombre,
 }) => {
-  // Ordenar por surco y número
   const plantasOrdenadas = [...plantas].sort((a, b) => {
     if (a.surco !== b.surco) return a.surco - b.surco;
     return a.numero - b.numero;
   });
 
+  // 👇 NUEVA FUNCIÓN DE COLORES SEGÚN ESTADO
   const getEstadoColor = (estado: string) => {
     switch (estado?.toLowerCase()) {
-      case 'activa': return 'bg-green-100 text-green-800';
-      case 'eliminada': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'productivo':
+        return 'bg-green-100 text-green-800';
+      case 'para_eliminar':
+        return 'bg-red-100 text-red-800';
+      case 'punto_vacio':
+        return 'bg-gray-300 text-gray-700';  // Gris claro
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  // 👇 TEXTO LEGIBLE PARA EL USUARIO
+  const getEstadoTexto = (estado: string) => {
+    switch (estado?.toLowerCase()) {
+      case 'productivo': return 'Productivo';
+      case 'para_eliminar': return 'Para Eliminar';
+      case 'punto_vacio': return 'Punto Vacío';
+      default: return estado || 'Desconocido';
     }
   };
 
@@ -82,7 +97,7 @@ const PlantasTable: React.FC<PlantasTableProps> = ({
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getEstadoColor(planta.estado)}`}>
-                    {planta.estado?.charAt(0).toUpperCase() + planta.estado?.slice(1) || 'N/A'}
+                    {getEstadoTexto(planta.estado)}
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

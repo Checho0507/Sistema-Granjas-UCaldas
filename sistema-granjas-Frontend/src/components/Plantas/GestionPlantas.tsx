@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import plantaService from "../../services/plantaService";
-import loteService from "../../services/loteService"; // Asume que existe
+import loteService from "../../services/loteService";
 import { StatsCard } from "../Common/StatsCard";
 import PlantasTable from "./PlantasTable";
 import PlantaForm from "./PlantaForm";
@@ -27,10 +27,12 @@ export default function GestionPlantas() {
   const [error, setError] = useState<string | null>(null);
   const [erroresValidacion, setErroresValidacion] = useState<Record<string, string>>({});
 
+  // Estadísticas ajustadas a los nuevos estados
   const [estadisticas, setEstadisticas] = useState({
     total: 0,
-    activas: 0,
-    eliminadas: 0,
+    productivo: 0,
+    para_eliminar: 0,
+    punto_vacio: 0,
   });
 
   const [modalCrear, setModalCrear] = useState(false);
@@ -42,13 +44,14 @@ export default function GestionPlantas() {
     lote_id: loteIdParam ? Number(loteIdParam) : 0,
     surco: 1,
     numero: 1,
+    estado: "productivo", // 👈 estado por defecto
   });
 
   // Cargar lotes disponibles
   useEffect(() => {
     const cargarLotes = async () => {
       try {
-        const data = await loteService.obtenerLotes(); // Asume método que trae todos los lotes
+        const data = await loteService.obtenerLotes();
         setLotes(data);
         if (loteIdParam) {
           const lote = data.find((l: LoteSimple) => l.id === Number(loteIdParam));
@@ -67,7 +70,6 @@ export default function GestionPlantas() {
     if (loteIdParam) {
       cargarPlantas(Number(loteIdParam));
     } else if (lotes.length > 0 && !loteSeleccionado) {
-      // Si no hay filtro, cargar todas las plantas (opcional)
       cargarPlantas();
     }
   }, [loteIdParam, lotes]);
@@ -79,10 +81,12 @@ export default function GestionPlantas() {
       const datos = await plantaService.obtenerPlantas(loteId);
       setPlantas(datos);
 
+      // Calcular estadísticas según los nuevos estados
       setEstadisticas({
         total: datos.length,
-        activas: datos.filter((p) => p.estado === "activa").length,
-        eliminadas: datos.filter((p) => p.estado === "eliminada").length,
+        productivo: datos.filter((p) => p.estado === "productivo").length,
+        para_eliminar: datos.filter((p) => p.estado === "para_eliminar").length,
+        punto_vacio: datos.filter((p) => p.estado === "punto_vacio").length,
       });
     } catch (err: any) {
       const mensaje = err?.message || "Error al cargar plantas";
@@ -100,12 +104,15 @@ export default function GestionPlantas() {
 
     try {
       if (editando && plantaSeleccionada) {
+        // Actualizar: se puede actualizar surco, numero y estado
         await plantaService.actualizarPlanta(plantaSeleccionada.id, {
           surco: datosFormulario.surco,
           numero: datosFormulario.numero,
+          estado: datosFormulario.estado,
         });
         toast.success("Planta actualizada");
       } else {
+        // Crear nueva planta (con estado incluido)
         await plantaService.crearPlanta(datosFormulario);
         toast.success("Planta creada");
       }
@@ -135,7 +142,7 @@ export default function GestionPlantas() {
       surco: planta.surco,
       numero: planta.numero,
       codigo: planta.codigo,
-      estado: planta.estado,
+      estado: planta.estado, // 👈 cargar estado actual
     });
     setPlantaSeleccionada(planta);
     setEditando(true);
@@ -179,6 +186,7 @@ export default function GestionPlantas() {
       lote_id: loteSeleccionado?.id || 0,
       surco: 1,
       numero: 1,
+      estado: "productivo", // 👈 restablecer estado por defecto
     });
     setErroresValidacion({});
   };
@@ -245,11 +253,12 @@ export default function GestionPlantas() {
         )}
       </div>
 
-      {/* Tarjetas de estadísticas */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      {/* Tarjetas de estadísticas actualizadas */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
         <StatsCard icon="fas fa-seedling" color="bg-green-600" value={estadisticas.total} label="Total Plantas" />
-        <StatsCard icon="fas fa-check-circle" color="bg-blue-600" value={estadisticas.activas} label="Activas" />
-        <StatsCard icon="fas fa-trash-alt" color="bg-red-600" value={estadisticas.eliminadas} label="Eliminadas" />
+        <StatsCard icon="fas fa-check-circle" color="bg-green-600" value={estadisticas.productivo} label="Productivo" />
+        <StatsCard icon="fas fa-exclamation-triangle" color="bg-red-600" value={estadisticas.para_eliminar} label="Para Eliminar" />
+        <StatsCard icon="fas fa-ban" color="bg-gray-500" value={estadisticas.punto_vacio} label="Punto Vacío" />
       </div>
 
       {/* Botón nuevo (solo si hay lote seleccionado) */}
