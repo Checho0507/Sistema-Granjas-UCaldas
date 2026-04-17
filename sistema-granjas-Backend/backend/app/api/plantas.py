@@ -16,7 +16,7 @@ role_required = Depends(require_any_role(["admin", "docente", "asesor"]))
 def listar_plantas(
     lote_id: Optional[int] = Query(None),
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 500,
     db: Session = Depends(get_db),
     _=role_required
 ):
