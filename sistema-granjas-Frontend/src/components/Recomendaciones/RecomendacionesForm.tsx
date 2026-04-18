@@ -124,7 +124,7 @@ const ENMIENDAS = [
 
 const UNIDADES_MEDIDA = ["cc/L", "g/L", "L/Caneca", "Kg/Caneca", "g/Planta"];
 
-const RecomendacionForm: React.FC<RecomendacionFormFCCProps> = ({
+const RecomendacionFormFCC: React.FC<RecomendacionFormFCCProps> = ({
     recomendacion,
     onSubmit,
     onCancel,
@@ -219,11 +219,6 @@ const RecomendacionForm: React.FC<RecomendacionFormFCCProps> = ({
     const [loadingDiagnosticos, setLoadingDiagnosticos] = useState(false);
     const [diagnosticosFiltrados, setDiagnosticosFiltrados] = useState<any[]>([]);
 
-    // Estados para evidencias
-    const [archivos, setArchivos] = useState<File[]>([]);
-    const [descripcionesEvidencias, setDescripcionesEvidencias] = useState<string[]>([]);
-    const [tiposEvidencia, setTiposEvidencia] = useState<string[]>([]);
-
     const esAdmin = currentUser?.rol_id === 1;
     const esDocente = currentUser?.rol_id === 2 || currentUser?.rol_id === 5;
 
@@ -305,51 +300,13 @@ const RecomendacionForm: React.FC<RecomendacionFormFCCProps> = ({
         }));
     };
 
-    // Handlers para evidencias
-    const agregarEvidencia = () => {
-        setArchivos(prev => [...prev, null as any]);
-        setDescripcionesEvidencias(prev => [...prev, '']);
-        setTiposEvidencia(prev => [...prev, 'imagen']);
-    };
-
-    const eliminarEvidencia = (index: number) => {
-        setArchivos(prev => prev.filter((_, i) => i !== index));
-        setDescripcionesEvidencias(prev => prev.filter((_, i) => i !== index));
-        setTiposEvidencia(prev => prev.filter((_, i) => i !== index));
-    };
-
-    const handleFileChange = (index: number, file: File | null) => {
-        const copia = [...archivos];
-        copia[index] = file as any;
-        setArchivos(copia);
-    };
-
-    const handleDescripcionChange = (index: number, value: string) => {
-        const copia = [...descripcionesEvidencias];
-        copia[index] = value;
-        setDescripcionesEvidencias(copia);
-    };
-
-    const handleTipoEvidenciaChange = (index: number, value: string) => {
-        const copia = [...tiposEvidencia];
-        copia[index] = value;
-        setTiposEvidencia(copia);
-    };
-
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        const evidencias = archivos.map((file, index) => ({
-            file,
-            descripcion: descripcionesEvidencias[index],
-            tipo: tiposEvidencia[index]
-        })).filter(ev => ev.file);
-
         const datosSubmit = {
             ...formData,
             lote_id: parseInt(formData.lote_id as string),
             docente_id: formData.docente_id ? parseInt(formData.docente_id as string) : undefined,
             diagnostico_id: formData.diagnostico_id ? parseInt(formData.diagnostico_id as string) : undefined,
-            evidencias
         };
         onSubmit(datosSubmit);
     };
@@ -837,28 +794,6 @@ const RecomendacionForm: React.FC<RecomendacionFormFCCProps> = ({
                         </div>
                     </div>
 
-                    {/* Evidencias */}
-                    <div>
-                        <div className="flex justify-between mb-2">
-                            <label className="font-medium text-gray-700">Evidencias</label>
-                            <button type="button" onClick={agregarEvidencia} className="text-blue-600 text-sm">+ Agregar evidencia</button>
-                        </div>
-                        {archivos.map((_, idx) => (
-                            <div key={idx} className="border rounded-lg p-4 mb-3">
-                                <div className="flex justify-between"><span>Evidencia {idx+1}</span><button type="button" onClick={() => eliminarEvidencia(idx)} className="text-red-500">✕</button></div>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
-                                    <select value={tiposEvidencia[idx]} onChange={(e) => handleTipoEvidenciaChange(idx, e.target.value)} className="border rounded p-2">
-                                        <option value="imagen">Imagen</option>
-                                        <option value="video">Video</option>
-                                        <option value="documento">Documento</option>
-                                    </select>
-                                    <input type="text" placeholder="Descripción" value={descripcionesEvidencias[idx]} onChange={(e) => handleDescripcionChange(idx, e.target.value)} className="border rounded p-2" />
-                                    <input type="file" onChange={(e) => handleFileChange(idx, e.target.files?.[0] || null)} className="border rounded p-2" />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
                     {/* Botones */}
                     <div className="flex justify-end gap-3 pt-5 border-t">
                         <button type="button" onClick={onCancel} className="px-5 py-2.5 border rounded-lg">Cancelar</button>
@@ -870,4 +805,4 @@ const RecomendacionForm: React.FC<RecomendacionFormFCCProps> = ({
     );
 };
 
-export default RecomendacionForm;
+export default RecomendacionFormFCC;
