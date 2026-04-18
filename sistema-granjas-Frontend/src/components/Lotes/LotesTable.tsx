@@ -22,7 +22,7 @@ const LotesTable: React.FC<LotesTableProps> = ({
     const [cultivosMap, setCultivosMap] = useState<Record<number, any>>({});
     const [granjasMap, setGranjasMap] = useState<Record<number, any>>({});
     const [cultivosPorLote, setCultivosPorLote] = useState<Record<number, any[]>>({});
-    
+
     const [cargando, setCargando] = useState(false);
 
     // 👇 ORDENAR LOTES POR ID (de menor a mayor)
@@ -33,14 +33,14 @@ const LotesTable: React.FC<LotesTableProps> = ({
     useEffect(() => {
         const cargarDatosRelacionados = async () => {
             if (lotes.length === 0) return;
-            
+
             setCargando(true);
-            
+
             try {
                 // IDs únicos
                 const programasIds = Array.from(new Set(lotes.map(l => l.programa_id).filter(Boolean)));
                 const cultivosIdsSet = new Set<number>();
-                
+
                 // Recolectar todos los cultivos de todos los lotes
                 lotes.forEach(lote => {
                     if (lote.cultivos_ids && Array.isArray(lote.cultivos_ids)) {
@@ -49,7 +49,7 @@ const LotesTable: React.FC<LotesTableProps> = ({
                         });
                     }
                 });
-                
+
                 const granjasIds = Array.from(new Set(lotes.map(l => l.granja_id).filter(Boolean)));
                 const cultivosIds = Array.from(cultivosIdsSet);
 
@@ -67,14 +67,14 @@ const LotesTable: React.FC<LotesTableProps> = ({
                 const cultivosPromises = cultivosIds.map(async (id) => {
                     try {
                         const res = await cultivoService.obtenerCultivoPorId(id);
-                        return { 
-                            id, 
+                        return {
+                            id,
                             nombre: res.nombre,
-                            tipo: res.tipo 
+                            tipo: res.tipo
                         };
                     } catch {
-                        return { 
-                            id, 
+                        return {
+                            id,
                             nombre: 'No encontrado',
                             tipo: 'desconocido'
                         };
@@ -110,7 +110,7 @@ const LotesTable: React.FC<LotesTableProps> = ({
 
                 // Construir mapa de cultivos por lote
                 const nuevosCultivosPorLote: Record<number, any[]> = {};
-                
+
                 lotes.forEach(lote => {
                     if (lote.cultivos_ids && Array.isArray(lote.cultivos_ids)) {
                         nuevosCultivosPorLote[lote.id] = lote.cultivos_ids
@@ -125,9 +125,9 @@ const LotesTable: React.FC<LotesTableProps> = ({
                 setCultivosMap(cultMap);
                 setGranjasMap(granMap);
                 setCultivosPorLote(nuevosCultivosPorLote);
-                
+
                 console.log('📊 Cultivos por lote:', nuevosCultivosPorLote);
-                
+
             } catch (error) {
                 console.error('Error cargando datos relacionados:', error);
             } finally {
@@ -174,7 +174,7 @@ const LotesTable: React.FC<LotesTableProps> = ({
 
     const renderCultivos = (loteId: number) => {
         const cultivosLote = cultivosPorLote[loteId] || [];
-        
+
         if (cultivosLote.length === 0) {
             return <span className="text-gray-400 text-sm italic">—</span>;
         }
@@ -188,9 +188,8 @@ const LotesTable: React.FC<LotesTableProps> = ({
                         key={cultivo.id}
                         className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getTipoColor(cultivo.tipo)}`}
                     >
-                        <i className={`fas ${
-                            cultivo.tipo === 'agricola' ? 'fa-seedling' : 'fa-paw'
-                        } mr-1 text-xs`}></i>
+                        <i className={`fas ${cultivo.tipo === 'agricola' ? 'fa-seedling' : 'fa-paw'
+                            } mr-1 text-xs`}></i>
                         {cultivo.nombre}
                     </span>
                 ))}
@@ -233,10 +232,10 @@ const LotesTable: React.FC<LotesTableProps> = ({
                     <tbody className="bg-white divide-y divide-gray-200">
                         {lotesOrdenados.map((lote) => {
                             const granja = granjasMap[lote.granja_id];
-                            const totalPlantas = lote.surcos && lote.plantas_por_surco 
-                                ? lote.surcos * lote.plantas_por_surco 
+                            const totalPlantas = lote.surcos && lote.plantas_por_surco
+                                ? lote.surcos * lote.plantas_por_surco
                                 : null;
-                            
+
                             return (
                                 <tr key={lote.id} className="hover:bg-gray-50 transition-colors">
                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -289,6 +288,16 @@ const LotesTable: React.FC<LotesTableProps> = ({
 
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                         <div className="flex space-x-3">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    navigate(`/lotes/${lote.id}/mapa`);
+                                                }}
+                                                className="text-blue-600 hover:text-blue-900 transition-colors p-2 hover:bg-blue-50 rounded"
+                                                title="Ver mapa del lote"
+                                            >
+                                                <i className="fas fa-map"></i>
+                                            </button>
                                             {/* 👇 NUEVO BOTÓN PLANTAS */}
                                             <button
                                                 onClick={(e) => verPlantasDelLote(e, lote.id, lote.nombre)}

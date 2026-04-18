@@ -433,9 +433,9 @@ export const loteService = {
     async tieneEstructuraConfigurada(id: number): Promise<boolean> {
         try {
             const estructura = await this.obtenerEstructuraLote(id);
-            return estructura.surcos !== null && 
-                   estructura.plantas_por_surco !== null && 
-                   estructura.total_plantas > 0;
+            return estructura.surcos !== null &&
+                estructura.plantas_por_surco !== null &&
+                estructura.total_plantas > 0;
         } catch (error) {
             console.error('Error al validar estructura del lote:', error);
             return false;
@@ -463,6 +463,13 @@ export const loteService = {
             console.error('Error al obtener resumen para diagnóstico:', error);
             throw error;
         }
+    },
+
+    async obtenerLotePorId(id: number): Promise<any> {
+        const response = await fetch(`${API_BASE_URL}/lotes/${id}`, {
+            headers: getHeaders()
+        });
+        return handleResponse(response);
     }
 };
 

@@ -23,6 +23,8 @@ import GestionInventarioPage from './pages/GestionInventarios';
 import GestionDiagnosticosPage from './pages/GestionDiagnosticos';
 import GestionRecomendacionesPage from './pages/GestionRecomendaciones';
 import GestionEstadisticasPage from './pages/GestionEstadisticas';
+import LoteMapa from './components/Lotes/LoteMapa';
+
 
 function AppContent() {
   const { token } = useAuthValue();
@@ -76,7 +78,7 @@ function AppContent() {
           },
         }}
       />
-      
+
       {/* Banners de estado de conexión */}
       {!navigator.onLine && (
         <div className="bg-yellow-600 text-white text-center py-2 px-4">
@@ -128,6 +130,15 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <GestionGranjasPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/lotes/:loteId/mapa"
+          element={
+            <ProtectedRoute>
+              <LoteMapa />
             </ProtectedRoute>
           }
         />
