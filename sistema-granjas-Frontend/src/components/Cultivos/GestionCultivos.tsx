@@ -176,25 +176,6 @@ export default function GestionCultivos() {
 
     return (
         <div className="p-6">
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold">
-                    {programaId ? "Cultivos del Programa" : "Gestión de Cultivos"}
-                </h1>
-            </div>
-
-            {error && (
-                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                    <strong>Error:</strong> {error}
-                </div>
-            )}
-
-            <div className="grid grid-cols-4 gap-4 mb-6">
-                <StatsCard icon="fas fa-leaf" color="bg-green-600" value={estadisticas.total} label="Total" />
-                <StatsCard icon="fas fa-seedling" color="bg-emerald-600" value={estadisticas.agricolas} label="Agrícolas" />
-                <StatsCard icon="fas fa-paw" color="bg-amber-600" value={estadisticas.pecuarios} label="Pecuarios" />
-                <StatsCard icon="fas fa-check-circle" color="bg-blue-600" value={estadisticas.activos} label="Activos" />
-            </div>
-
             <button
                 onClick={() => {
                     resetFormulario();
