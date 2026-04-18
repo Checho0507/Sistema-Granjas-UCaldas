@@ -253,14 +253,6 @@ export default function GestionPlantas() {
         )}
       </div>
 
-      {/* Tarjetas de estadísticas actualizadas */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <StatsCard icon="fas fa-seedling" color="bg-green-600" value={estadisticas.total} label="Total Plantas" />
-        <StatsCard icon="fas fa-check-circle" color="bg-green-600" value={estadisticas.productivo} label="Productivo" />
-        <StatsCard icon="fas fa-exclamation-triangle" color="bg-red-600" value={estadisticas.para_eliminar} label="Para Eliminar" />
-        <StatsCard icon="fas fa-ban" color="bg-gray-500" value={estadisticas.punto_vacio} label="Punto Vacío" />
-      </div>
-
       {/* Botón nuevo (solo si hay lote seleccionado) */}
       {loteSeleccionado && (
         <button
