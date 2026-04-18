@@ -25,6 +25,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     const navigate = useNavigate();
     const location = useLocation();
     const [currentTime, setCurrentTime] = useState(new Date());
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     // Guardar usuario en localStorage cuando cambia
     useEffect(() => {
@@ -38,6 +39,11 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         const timer = setInterval(() => setCurrentTime(new Date()), 60000);
         return () => clearInterval(timer);
     }, []);
+
+    // Cerrar menú al cambiar de ruta
+    useEffect(() => {
+        setMobileMenuOpen(false);
+    }, [location.pathname]);
 
     // Definir qué módulos puede ver cada rol (con iconos y descripciones)
     const getModulesByRole = (rol: string | undefined): ModuleInfo[] => {
@@ -133,35 +139,48 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         return location.pathname === path;
     };
 
+    // Cerrar menú al hacer clic fuera
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+            if (mobileMenuOpen && !target.closest('.mobile-menu-container')) {
+                setMobileMenuOpen(false);
+            }
+        };
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, [mobileMenuOpen]);
+
     return (
         <header className="bg-white shadow-lg sticky top-0 z-50 border-b">
             {/* Primera fila: Logo y usuario */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                    {/* Logo */}
+                <div className="flex justify-between items-center gap-3">
+                    {/* Logo y título (responsive) */}
                     <div 
-                        className="flex items-center space-x-4 cursor-pointer group" 
+                        className="flex items-center space-x-2 sm:space-x-4 cursor-pointer group flex-1" 
                         onClick={() => navigate('/dashboard')}
                     >
-                        <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-full bg-white text-green-700 transition-transform group-hover:scale-105">
+                        <div className="flex h-10 w-10 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-white text-green-700 transition-transform group-hover:scale-105">
                             <img
                                 src="/icons/icon-512.png"
                                 alt="Sistema de granjas"
-                                className="h-14 w-14 sm:h-18 sm:w-18"
+                                className="h-8 w-8 sm:h-14 sm:w-14"
                             />
                         </div>
                         <div>
-                            <h1 className="text-xl sm:text-2xl font-bold text-green-700">Sistema Granjas</h1>
-                            <p className="text-gray-500 text-xs sm:text-sm">Gestión Agrícola y Pecuario</p>
+                            <h1 className="text-base sm:text-2xl font-bold text-green-700">Sistema Granjas</h1>
+                            <p className="hidden sm:block text-gray-500 text-xs">Gestión Agrícola y Pecuario</p>
                         </div>
                     </div>
 
-                    {/* Información de usuario */}
+                    {/* Información de usuario (compacta en móvil) */}
                     {user ? (
                         <div className="flex items-center space-x-2">
-                            <div className="hidden sm:block text-right">
-                                <div className="text-sm text-gray-500">{greeting},</div>
-                                <div className="font-semibold text-gray-800">
+                            {/* Datos de usuario - ocultar en móvil muy pequeño */}
+                            <div className="hidden md:block text-right">
+                                <div className="text-xs text-gray-500">{greeting},</div>
+                                <div className="font-semibold text-gray-800 text-sm">
                                     {user.nombre}
                                 </div>
                                 <div className="text-xs text-gray-500 capitalize flex items-center justify-end">
@@ -169,13 +188,13 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                                     {user.rol?.replace('_', ' ')}
                                 </div>
                             </div>
-                            <div className="flex items-center space-x-2">
-                                <div className={`w-10 h-10 sm:w-12 sm:h-12 ${roleColor} rounded-full flex items-center justify-center shadow-md`}>
-                                    <i className={`fas ${roleIcon} text-white text-lg sm:text-xl`}></i>
+                            <div className="flex items-center space-x-1 sm:space-x-2">
+                                <div className={`w-8 h-8 sm:w-12 sm:h-12 ${roleColor} rounded-full flex items-center justify-center shadow-md`}>
+                                    <i className={`fas ${roleIcon} text-white text-xs sm:text-xl`}></i>
                                 </div>
                                 <LogoutButton
                                     variant="minimal"
-                                    className="px-2 sm:px-4 py-2 text-sm"
+                                    className="px-2 sm:px-4 py-1 sm:py-2 text-xs sm:text-sm"
                                 />
                             </div>
                         </div>
@@ -183,7 +202,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                         <div className="flex items-center space-x-4">
                             <a
                                 href="/login"
-                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:shadow-lg transform hover:-translate-y-0.5"
+                                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium transition-all duration-200 hover:shadow-lg transform hover:-translate-y-0.5 text-sm sm:text-base"
                             >
                                 Iniciar Sesión
                             </a>
@@ -192,16 +211,28 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 </div>
             </div>
 
-            {/* Navegación por roles */}
+            {/* Navegación por roles - Versión móvil con menú hamburguesa */}
             {user && !selectedModule && userModules.length > 0 && (
                 <div className="bg-gray-50 border-t border-gray-200">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6">
-                        <div className="relative">
-                            {/* Indicador de scroll (opcional) */}
-                            <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-gray-50 to-transparent pointer-events-none sm:hidden"></div>
-                            <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-gray-50 to-transparent pointer-events-none sm:hidden"></div>
-                            
-                            {/* Menú horizontal con scroll en móvil */}
+                        {/* Botón hamburguesa para móvil */}
+                        <div className="sm:hidden py-2 flex justify-between items-center">
+                            <button
+                                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                                className="flex items-center space-x-2 text-gray-700 hover:text-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 rounded-lg px-3 py-2 transition"
+                                aria-label="Menú de navegación"
+                            >
+                                <i className={`fas ${mobileMenuOpen ? 'fa-times' : 'fa-bars'} text-xl`}></i>
+                                <span className="text-sm font-medium">Módulos</span>
+                            </button>
+                            {/* Indicador de módulo activo (opcional) */}
+                            <div className="text-xs text-gray-500">
+                                {location.pathname.split('/').pop() || 'Inicio'}
+                            </div>
+                        </div>
+
+                        {/* Menú desktop (horizontal) */}
+                        <div className="hidden sm:block relative">
                             <nav className="flex overflow-x-auto py-2 sm:py-3 space-x-1 sm:space-x-2 scrollbar-hide">
                                 {userModules.map((module) => {
                                     const active = isActive(module.path);
@@ -223,9 +254,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                                                 active ? 'text-green-600' : 'text-gray-500 group-hover:text-green-500'
                                             }`}></i>
                                             <span>{module.name}</span>
-                                            
-                                            {/* Tooltip para móvil (opcional) */}
-                                            <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden sm:block whitespace-nowrap">
+                                            <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden lg:block whitespace-nowrap">
                                                 {module.description}
                                             </span>
                                         </a>
@@ -233,28 +262,70 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                                 })}
                             </nav>
                         </div>
+
+                        {/* Menú móvil desplegable (drawer lateral desde arriba) */}
+                        {mobileMenuOpen && (
+                            <div className="sm:hidden mobile-menu-container fixed inset-0 z-50 bg-black bg-opacity-50 transition-opacity" onClick={() => setMobileMenuOpen(false)}>
+                                <div className="absolute top-0 left-0 right-0 bg-white shadow-xl rounded-b-2xl max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                                    <div className="sticky top-0 bg-white border-b px-4 py-3 flex justify-between items-center">
+                                        <h3 className="font-semibold text-gray-800">Módulos disponibles</h3>
+                                        <button onClick={() => setMobileMenuOpen(false)} className="p-2 rounded-full hover:bg-gray-100">
+                                            <i className="fas fa-times text-gray-500"></i>
+                                        </button>
+                                    </div>
+                                    <div className="p-3 space-y-1">
+                                        {userModules.map((module) => {
+                                            const active = isActive(module.path);
+                                            return (
+                                                <a
+                                                    key={module.path}
+                                                    href={module.path}
+                                                    className={`
+                                                        flex items-center space-x-3 px-4 py-3 rounded-xl
+                                                        transition-all duration-150
+                                                        ${active 
+                                                            ? 'bg-green-50 text-green-700 font-medium' 
+                                                            : 'text-gray-700 hover:bg-gray-50'
+                                                        }
+                                                    `}
+                                                    onClick={() => setMobileMenuOpen(false)}
+                                                >
+                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${active ? 'bg-green-100' : 'bg-gray-100'}`}>
+                                                        <i className={`fas ${module.icon} ${active ? 'text-green-600' : 'text-gray-500'}`}></i>
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <div className="text-sm font-medium">{module.name}</div>
+                                                        <div className="text-xs text-gray-500">{module.description}</div>
+                                                    </div>
+                                                    {active && <i className="fas fa-check-circle text-green-500"></i>}
+                                                </a>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
 
-            {/* Título del módulo seleccionado */}
+            {/* Título del módulo seleccionado (mejorado para móvil) */}
             {selectedModule && (
                 <div className="border-t border-gray-200 bg-gray-50/50">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                            <div className="flex items-center space-x-4">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div className="flex items-center space-x-3">
                                 {onBack && (
                                     <button
                                         onClick={onBack}
-                                        className="flex items-center p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-white transition-all duration-200"
-                                        title="Volver"
+                                        className="flex items-center justify-center p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-white transition-all duration-200 touch-manipulation"
+                                        aria-label="Volver"
                                     >
-                                        <i className="fas fa-arrow-left mr-2"></i>
-                                        <span className="hidden sm:inline">Volver</span>
+                                        <i className="fas fa-arrow-left text-base sm:text-lg"></i>
                                     </button>
                                 )}
                                 <div>
-                                    <h2 className="text-xl sm:text-2xl font-semibold text-gray-800">{title}</h2>
+                                    <h2 className="text-lg sm:text-2xl font-semibold text-gray-800 line-clamp-1">{title}</h2>
                                     <p className="text-xs sm:text-sm text-gray-600 capitalize flex items-center">
                                         <span className={`w-2 h-2 rounded-full ${roleColor} mr-2`}></span>
                                         Módulo: {selectedModule}
@@ -262,21 +333,21 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                                 </div>
                             </div>
                             
-                            {/* Acciones rápidas del módulo (opcional) */}
-                            <div className="flex space-x-2">
+                            {/* Acciones rápidas - mejoradas para táctil */}
+                            <div className="flex space-x-3 justify-end">
                                 <button 
                                     onClick={() => window.location.reload()}
-                                    className="p-2 text-gray-500 hover:text-green-600 rounded-lg hover:bg-white transition-all"
-                                    title="Actualizar"
+                                    className="p-2 text-gray-500 hover:text-green-600 rounded-full hover:bg-white transition-all touch-manipulation"
+                                    aria-label="Actualizar página"
                                 >
-                                    <i className="fas fa-sync-alt"></i>
+                                    <i className="fas fa-sync-alt text-sm sm:text-base"></i>
                                 </button>
                                 <button 
                                     onClick={() => navigate('/dashboard')}
-                                    className="p-2 text-gray-500 hover:text-green-600 rounded-lg hover:bg-white transition-all"
-                                    title="Ir al dashboard"
+                                    className="p-2 text-gray-500 hover:text-green-600 rounded-full hover:bg-white transition-all touch-manipulation"
+                                    aria-label="Ir al dashboard"
                                 >
-                                    <i className="fas fa-home"></i>
+                                    <i className="fas fa-home text-sm sm:text-base"></i>
                                 </button>
                             </div>
                         </div>
