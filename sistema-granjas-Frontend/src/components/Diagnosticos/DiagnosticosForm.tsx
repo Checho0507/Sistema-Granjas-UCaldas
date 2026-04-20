@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { DiagnosticoItem } from '../../types/diagnosticoTypes';
 import { monitoreoService, type Monitoreo } from '../../services/monitoreoService';
 import { loteService, type EstructuraLote } from '../../services/loteService';
@@ -89,6 +89,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     const [plantasOriginales, setPlantasOriginales] = useState<PlantaBase[]>([]);
     const [plantas, setPlantas] = useState<PlantaBase[]>([]);
     const [cargandoPlantas, setCargandoPlantas] = useState(false);
+    const [errorPlantas, setErrorPlantas] = useState<string | null>(null);
     const loadingPlantsRef = useRef(false);
 
     // Paso 2
@@ -130,14 +131,19 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         return parsed;
     };
 
-    // ── Función para obtener plantas elegibles (independiente, sin useCallback para evitar bucles)
+    // ── Función para obtener plantas elegibles (independiente) ────────────────
     const cargarPlantasElegibles = async () => {
-        if (!loteId || !tipoDiagnostico || tipoDiagnostico === 'arvenses') return;
+        if (!loteId || !tipoDiagnostico || tipoDiagnostico === 'arvenses') {
+            setPlantas([]);
+            setErrorPlantas(null);
+            return;
+        }
         if (!estructuraLote?.total_plantas) return;
         if (loadingPlantsRef.current) return;
 
         loadingPlantsRef.current = true;
         setCargandoPlantas(true);
+        setErrorPlantas(null);
 
         const cantidad = Math.max(1, Math.floor(estructuraLote.total_plantas * porcentajeMuestreo / 100));
         try {
@@ -162,10 +168,13 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                 }
             } else {
                 setPlantas([]);
-                toast.error('No se encontraron plantas que cumplan los criterios (productivas y sin diagnóstico reciente)');
+                const msg = data.advertencias?.[0] || 'No se encontraron plantas que cumplan los criterios (productivas y sin diagnóstico reciente)';
+                setErrorPlantas(msg);
+                toast.error(msg);
             }
         } catch (error) {
             console.error('Error generando plantas:', error);
+            setErrorPlantas('Error al conectar con el servidor');
             toast.error('Error al generar plantas elegibles');
             setPlantas([]);
         } finally {
@@ -215,14 +224,16 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         cargar();
     }, [loteId]);
 
-    // ── Cargar plantas elegibles cuando lote, tipoDiagnostico y estructura estén listos ──
+    // ── Cargar plantas elegibles cuando cambia tipoDiagnostico (en paso 2) ────
     useEffect(() => {
-        if (loteId && tipoDiagnostico && tipoDiagnostico !== 'arvenses' && estructuraLote?.total_plantas) {
+        // Solo ejecutar si estamos en paso 2 (o si es edición)
+        if (paso === 2 && loteId && tipoDiagnostico && tipoDiagnostico !== 'arvenses' && estructuraLote?.total_plantas) {
             cargarPlantasElegibles();
         } else if (tipoDiagnostico === 'arvenses') {
             setPlantas([]);
+            setErrorPlantas(null);
         }
-    }, [loteId, tipoDiagnostico, estructuraLote]);
+    }, [tipoDiagnostico, paso, loteId, estructuraLote]);
 
     // ── Regenerar manual (botón) ──────────────────────────────────────────────
     const regenerarSeleccionPlantas = () => {
@@ -238,6 +249,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         setCondicionesDia('');
         setCaracterizacion({});
         setPlantas([]);
+        setErrorPlantas(null);
     };
 
     const lotesFiltrados = useMemo(
@@ -302,10 +314,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             toast.error('Lote sin plantas configuradas');
             return;
         }
-        if (tipoDiagnostico !== 'arvenses' && plantas.length === 0 && !cargandoPlantas) {
-            toast.error('No hay plantas elegibles. Verifica que el lote tenga plantas productivas y sin diagnóstico reciente.');
-            return;
-        }
+        // Avanzar al paso 2 sin verificar plantas elegibles (aún no se ha seleccionado tipo)
         setPaso(2);
     };
 
@@ -341,6 +350,12 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         formData.append('usuario_id', String(currentUser?.id));
         formData.append('tipo_diagnostico', tipoDiagnostico);
         formData.append('condiciones_dia', condicionesDia);
+
+        // Incluir plantas_ids en el formulario
+        if (tipoDiagnostico !== 'arvenses' && plantas.length > 0) {
+            const plantasIds = plantas.map(p => p.planta); // o p.id? Depende de la estructura real
+            formData.append('plantas_ids', JSON.stringify(plantasIds));
+        }
 
         const formulario = {
             plantas: tipoDiagnostico !== 'arvenses' ? plantas : [],
@@ -463,25 +478,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                                         <div>
                                                             <p className="text-sm text-gray-700"><strong>Configuración:</strong> {estructuraLote.surcos} surcos × {estructuraLote.plantas_por_surco} plantas/surco</p>
                                                             <p className="text-sm text-green-600"><strong>Total plantas:</strong> {estructuraLote.total_plantas.toLocaleString()}</p>
-                                                            {tipoDiagnostico !== 'arvenses' && (
-                                                                <>
-                                                                    {cargandoPlantas ? (
-                                                                        <p className="text-sm text-blue-600"><i className="fas fa-spinner fa-spin mr-1"></i>Generando plantas elegibles...</p>
-                                                                    ) : (
-                                                                        <p className="text-sm text-blue-600"><strong>Plantas elegibles:</strong> {plantas.length} ({porcentajeMuestreo}% del total)</p>
-                                                                    )}
-                                                                </>
-                                                            )}
-                                                            {tipoDiagnostico === 'arvenses' && (
-                                                                <p className="text-sm text-green-600">Muestreo por puntos fijos (no aleatorio)</p>
-                                                            )}
                                                         </div>
-                                                        {tipoDiagnostico !== 'arvenses' && plantasOriginales.length > 0 && (
-                                                            <button type="button" onClick={regenerarSeleccionPlantas} disabled={cargandoPlantas}
-                                                                className="text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded-lg disabled:opacity-50">
-                                                                <i className="fas fa-random"></i> Regenerar muestra
-                                                            </button>
-                                                        )}
                                                     </div>
                                                     {!estructuraLote.muestra_completa && <p className="text-xs text-amber-600">Muestra representativa (total {estructuraLote.total_plantas.toLocaleString()} plantas)</p>}
                                                 </div>
@@ -497,7 +494,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
 
                     <div className="flex justify-end">
                         <button type="button" onClick={handleSiguiente}
-                            disabled={!programaId || !tipoMonitoreoId || !loteId || !estructuraLote?.total_plantas || (tipoDiagnostico !== 'arvenses' && plantas.length === 0 && !cargandoPlantas)}
+                            disabled={!programaId || !tipoMonitoreoId || !loteId || !estructuraLote?.total_plantas}
                             className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400">
                             Siguiente <i className="fas fa-arrow-right ml-2"></i>
                         </button>
@@ -574,10 +571,25 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         {/* Secciones específicas */}
                         {tipoDiagnostico && (
                             <div>
-                                {tipoDiagnostico !== 'arvenses' && plantas.length === 0 && !cargandoPlantas && (
-                                    <div className="bg-red-50 p-4 rounded-lg text-red-700 mb-4">
-                                        No hay plantas elegibles. El lote no tiene plantas productivas o todas ya fueron evaluadas con este diagnóstico en el último mes.
-                                    </div>
+                                {tipoDiagnostico !== 'arvenses' && (
+                                    <>
+                                        {cargandoPlantas && (
+                                            <div className="bg-blue-50 p-4 rounded-lg text-blue-700 mb-4 flex items-center">
+                                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                                                Cargando plantas elegibles...
+                                            </div>
+                                        )}
+                                        {errorPlantas && !cargandoPlantas && (
+                                            <div className="bg-red-50 p-4 rounded-lg text-red-700 mb-4">
+                                                {errorPlantas}
+                                            </div>
+                                        )}
+                                        {!cargandoPlantas && plantas.length === 0 && !errorPlantas && tipoDiagnostico !== 'arvenses' && (
+                                            <div className="bg-yellow-50 p-4 rounded-lg text-yellow-700 mb-4">
+                                                No hay plantas elegibles para este diagnóstico.
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                                 <div className="mb-3 text-sm text-gray-600">
                                     <i className="fas fa-info-circle mr-1"></i>
@@ -615,7 +627,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                     <div className="flex justify-end gap-3 mt-8 pt-5 border-t">
                         <button type="button" onClick={onCancel} className="px-5 py-2.5 border rounded-lg hover:bg-gray-100">Cancelar</button>
                         <button type="submit"
-                            disabled={!tipoDiagnostico || !condicionesDia || (tipoDiagnostico !== 'arvenses' && plantas.length === 0)}
+                            disabled={!tipoDiagnostico || !condicionesDia || (tipoDiagnostico !== 'arvenses' && (cargandoPlantas || plantas.length === 0))}
                             className="bg-green-600 text-white px-5 py-2.5 rounded-lg hover:bg-green-700 disabled:bg-gray-400">
                             <i className="fas fa-save"></i> {esEdicion ? 'Actualizar' : 'Crear'} Diagnóstico
                         </button>
