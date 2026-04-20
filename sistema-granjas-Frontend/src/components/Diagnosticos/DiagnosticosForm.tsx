@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { DiagnosticoItem } from '../../types/diagnosticoTypes';
 import { monitoreoService, type Monitoreo } from '../../services/monitoreoService';
 import { loteService, type EstructuraLote } from '../../services/loteService';
-import api from '../../services/api'; // Asegurar que api está importado correctamente
+import { api } from '../../services/api';
 import { CensoSection } from './CensoSection';
 import { FenologicoSection, type FenologicoSectionRef } from './FenologicoSection';
 import { ArthropodSection, type ArthropodSectionRef } from './ArthropodSection';
