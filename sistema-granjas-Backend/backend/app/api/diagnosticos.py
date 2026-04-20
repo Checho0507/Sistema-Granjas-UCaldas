@@ -4,7 +4,9 @@ import re
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import func
 from typing import Optional, List, Dict, Any
+from datetime import datetime, timedelta
 
 from app.db.database import get_db
 from app.db.models import (
@@ -15,7 +17,8 @@ from app.schemas.diagnostico_schema import (
     DiagnosticoCreate, DiagnosticoUpdate,
     DiagnosticoResponse, DiagnosticoWithRecomendacionesResponse,
     DiagnosticoListResponse, EstadisticasDiagnosticosResponse,
-    PlantaSimpleResponse,
+    PlantaSimpleResponse, GenerarPlantasRequest, GenerarPlantasResponse,
+    PlantaGenerada
 )
 from app.core.dependencies import get_current_user, require_any_role
 from app.core.r2_storage import upload_file_to_r2, delete_file_from_r2
@@ -27,11 +30,6 @@ router = APIRouter(prefix="/diagnosticos", tags=["diagnosticos"])
 
 # ── Procesamiento de archivos con R2 ───────────────────────────────────────────
 def procesar_archivos_r2(form_data) -> Dict[str, List[str]]:
-    """
-    Extrae archivos del form_data, los sube a Cloudflare R2 y devuelve
-    un diccionario { prefix: [url_pública1, url_pública2, ...] }.
-    Las claves deben tener el formato: files[prefix][indice]
-    """
     fotos_por_prefix: Dict[str, List[str]] = {}
     for key, value in form_data.items():
         if key.startswith("files[") and hasattr(value, "filename"):
@@ -61,13 +59,12 @@ def _enriquecer(obj: Diagnostico) -> None:
 
 
 def _cargar_plantas(db: Session, diagnostico: Diagnostico) -> List[PlantaSimpleResponse]:
-    """Carga las plantas asociadas a un diagnóstico y las convierte en el schema de respuesta."""
+    """Carga las plantas asociadas a un diagnóstico (sin filtrar por estado)."""
     plantas = db.query(Planta).join(
         diagnostico_planta,
         diagnostico_planta.c.planta_id == Planta.id
     ).filter(
-        diagnostico_planta.c.diagnostico_id == diagnostico.id,
-        Planta.estado == "activa"
+        diagnostico_planta.c.diagnostico_id == diagnostico.id
     ).all()
     return [PlantaSimpleResponse(
         id=p.id,
@@ -78,7 +75,59 @@ def _cargar_plantas(db: Session, diagnostico: Diagnostico) -> List[PlantaSimpleR
     ) for p in plantas]
 
 
-# ── ENDPOINTS ──────────────────────────────────────────────────────────────────
+# ── NUEVO ENDPOINT: GENERAR PLANTAS ALEATORIAS PARA UN DIAGNÓSTICO ──────────────
+@router.post("/generar-plantas", response_model=GenerarPlantasResponse)
+def generar_plantas_aleatorias(
+    data: GenerarPlantasRequest,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_any_role(["admin", "docente", "asesor", "estudiante"]))
+):
+    lote = db.query(Lote).filter(Lote.id == data.lote_id).first()
+    if not lote:
+        raise HTTPException(404, "Lote no encontrado")
+
+    hace_un_mes = datetime.utcnow() - timedelta(days=30)
+
+    # Subconsulta: plantas que ya tuvieron este diagnóstico en el último mes
+    subquery = db.query(diagnostico_planta.c.planta_id).join(
+        Diagnostico, Diagnostico.id == diagnostico_planta.c.diagnostico_id
+    ).filter(
+        Diagnostico.tipo_diagnostico == data.tipo_diagnostico,
+        Diagnostico.fecha_creacion >= hace_un_mes
+    ).subquery()
+
+    # Plantas elegibles: productivas y no repetidas
+    query = db.query(Planta).filter(
+        Planta.lote_id == data.lote_id,
+        Planta.estado == "productivo",
+        ~Planta.id.in_(subquery)
+    )
+
+    total_plantas_lote = db.query(Planta).filter(Planta.lote_id == data.lote_id).count()
+    productivas = db.query(Planta).filter(Planta.lote_id == data.lote_id, Planta.estado == "productivo").count()
+    elegibles = query.count()
+
+    # Selección aleatoria
+    plantas_elegibles = query.order_by(func.random()).limit(data.cantidad).all()
+
+    advertencias = []
+    if elegibles < data.cantidad:
+        advertencias.append(f"Solo se encontraron {elegibles} plantas que cumplen los criterios. Se generarán {len(plantas_elegibles)}.")
+    if productivas == 0:
+        advertencias.append("No hay plantas productivas en este lote.")
+    elif elegibles == 0 and productivas > 0:
+        advertencias.append("Todas las plantas productivas ya han sido evaluadas con este diagnóstico en el último mes.")
+
+    return GenerarPlantasResponse(
+        plantas=[PlantaGenerada(id=p.id, codigo=p.codigo, surco=p.surco, numero=p.numero, lote_id=p.lote_id) for p in plantas_elegibles],
+        total_plantas_lote=total_plantas_lote,
+        productivas=productivas,
+        elegibles=elegibles,
+        advertencias=advertencias
+    )
+
+
+# ── ENDPOINTS CRUD ──────────────────────────────────────────────────────────────
 @router.get("/", response_model=DiagnosticoListResponse)
 def listar_diagnosticos(
     skip: int = 0, limit: int = 100,
@@ -108,8 +157,6 @@ def listar_diagnosticos(
     items = query.order_by(Diagnostico.fecha_creacion.desc()).offset(skip).limit(limit).all()
     for d in items:
         _enriquecer(d)
-        # Cargar plantas para cada diagnóstico (opcional, puede ser costoso)
-        # d.plantas = _cargar_plantas(db, d)  # si se desea mostrar en listado
     return DiagnosticoListResponse(items=items, total=total, paginas=(total + limit - 1) // limit)
 
 
@@ -171,15 +218,30 @@ async def crear_diagnostico(
     lote = get_or_404(db, Lote, lote_id, "Lote no encontrado")
     get_or_404(db, Usuario, usuario_id, "Usuario no encontrado")
 
-    # Validar que las plantas pertenezcan al lote
+    # Validar que las plantas enviadas cumplan los criterios (productivo y no repetido en último mes)
     if plantas_ids:
+        hace_un_mes = datetime.utcnow() - timedelta(days=30)
+        subquery = db.query(diagnostico_planta.c.planta_id).join(
+            Diagnostico, Diagnostico.id == diagnostico_planta.c.diagnostico_id
+        ).filter(
+            Diagnostico.tipo_diagnostico == tipo_diagnostico,
+            Diagnostico.fecha_creacion >= hace_un_mes
+        ).subquery()
+
         plantas = db.query(Planta).filter(
             Planta.id.in_(plantas_ids),
             Planta.lote_id == lote_id,
-            Planta.estado == "activa"
+            Planta.estado == "productivo",
+            ~Planta.id.in_(subquery)
         ).all()
+
         if len(plantas) != len(plantas_ids):
-            raise HTTPException(400, "Alguna planta no existe o no pertenece al lote indicado")
+            raise HTTPException(
+                400,
+                "Alguna planta no existe, no pertenece al lote, no está productiva o ya fue evaluada con este diagnóstico en el último mes"
+            )
+    else:
+        plantas = []
 
     data = DiagnosticoCreate(
         programa_id=programa_id,
@@ -193,14 +255,12 @@ async def crear_diagnostico(
     )
     obj = crud.create_diagnostico(db, data)
 
-    # Asociar plantas si se enviaron
     if plantas_ids:
         obj.plantas = plantas
         db.commit()
         db.refresh(obj)
 
     _enriquecer(obj)
-    # Cargar plantas para la respuesta
     obj.plantas = _cargar_plantas(db, obj)
     return obj
 
@@ -245,7 +305,6 @@ async def actualizar_diagnostico(
         except json.JSONDecodeError:
             raise HTTPException(400, "El campo 'formulario' debe ser JSON válido")
 
-    # Extraer plantas_ids para actualizar
     plantas_ids_raw = form_data.get("plantas_ids")
     plantas_ids = None
     if plantas_ids_raw:
@@ -257,7 +316,7 @@ async def actualizar_diagnostico(
         except json.JSONDecodeError:
             raise HTTPException(400, "plantas_ids debe ser un JSON válido")
 
-    # Subir nuevos archivos (si los hay) y añadirlos a los existentes
+    # Subir nuevos archivos
     fotos_por_prefix = procesar_archivos_r2(form_data)
     if fotos_por_prefix:
         formulario_actual = update_data.get("formulario", obj.formulario or {})
@@ -268,23 +327,37 @@ async def actualizar_diagnostico(
         update_data["formulario"] = formulario_actual
         logger.info(f"Nuevos archivos añadidos en actualización: {list(fotos_por_prefix.keys())}")
 
-    # Validar que las nuevas plantas pertenezcan al lote del diagnóstico
+    # Validar plantas nuevas
     if plantas_ids:
+        hace_un_mes = datetime.utcnow() - timedelta(days=30)
+        subquery = db.query(diagnostico_planta.c.planta_id).join(
+            Diagnostico, Diagnostico.id == diagnostico_planta.c.diagnostico_id
+        ).filter(
+            Diagnostico.tipo_diagnostico == obj.tipo_diagnostico,
+            Diagnostico.fecha_creacion >= hace_un_mes,
+            Diagnostico.id != id  # excluir el mismo diagnóstico en actualización
+        ).subquery()
+
         plantas = db.query(Planta).filter(
             Planta.id.in_(plantas_ids),
             Planta.lote_id == obj.lote_id,
-            Planta.estado == "activa"
+            Planta.estado == "productivo",
+            ~Planta.id.in_(subquery)
         ).all()
+
         if len(plantas) != len(plantas_ids):
-            raise HTTPException(400, "Alguna planta no existe o no pertenece al lote del diagnóstico")
+            raise HTTPException(
+                400,
+                "Alguna planta no existe, no pertenece al lote, no está productiva o ya fue evaluada con este diagnóstico en el último mes"
+            )
+    else:
+        plantas = []
 
     if update_data:
         data_update = DiagnosticoUpdate(**update_data)
         obj = crud.update_diagnostico(db, obj, data_update)
 
-        # Actualizar la relación muchos a muchos si se enviaron plantas_ids
         if plantas_ids is not None:
-            # Reemplazar la lista completa de plantas asociadas
             obj.plantas = plantas
             db.commit()
             db.refresh(obj)
@@ -304,7 +377,6 @@ def eliminar_diagnostico(
     if obj.recomendaciones:
         raise HTTPException(400, "No se puede eliminar un diagnóstico con recomendaciones asociadas")
 
-    # Eliminar archivos de R2
     if obj.formulario and "fotos_subidas" in obj.formulario:
         for urls in obj.formulario["fotos_subidas"].values():
             for url in urls:

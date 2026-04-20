@@ -165,3 +165,26 @@ class EstadisticasDiagnosticosResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+# Añadir al final del archivo
+class GenerarPlantasRequest(BaseModel):
+    lote_id: int
+    tipo_diagnostico: str
+    cantidad: int = Field(10, ge=1, le=100)
+
+class PlantaGenerada(BaseModel):
+    id: int
+    codigo: str
+    surco: int
+    numero: int
+    lote_id: int
+
+    class Config:
+        from_attributes = True
+
+class GenerarPlantasResponse(BaseModel):
+    plantas: List[PlantaGenerada]
+    total_plantas_lote: int
+    productivas: int
+    elegibles: int
+    advertencias: List[str] = []

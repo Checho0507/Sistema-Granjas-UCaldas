@@ -138,3 +138,11 @@ export interface CrearEvidenciaDTO {
   entidad_id: number;
   usuario_id: number;
 }
+
+export interface PlantaGenerada {
+    id: number;
+    codigo: string;
+    surco: number;
+    numero: number;
+    lote_id: number;
+}
