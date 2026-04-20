@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { DiagnosticoItem } from '../../types/diagnosticoTypes';
 import { monitoreoService, type Monitoreo } from '../../services/monitoreoService';
 import { loteService, type EstructuraLote } from '../../services/loteService';
-import { api } from '../../services/api'; // 👈 nuevo: para llamar al endpoint
+import api from '../../services/api'; // Asegurar que api está importado correctamente
 import { CensoSection } from './CensoSection';
 import { FenologicoSection, type FenologicoSectionRef } from './FenologicoSection';
 import { ArthropodSection, type ArthropodSectionRef } from './ArthropodSection';
@@ -86,11 +86,10 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     const [estructuraLote, setEstructuraLote] = useState<EstructuraLote | null>(null);
     const [cargandoEstructura, setCargandoEstructura] = useState(false);
 
-    // Lista completa de plantas (original) – usada para arvenses y como respaldo
     const [plantasOriginales, setPlantasOriginales] = useState<PlantaBase[]>([]);
-    // Plantas elegibles (productivas y no repetidas) para los tipos de diagnóstico que no son arvenses
     const [plantas, setPlantas] = useState<PlantaBase[]>([]);
     const [cargandoPlantas, setCargandoPlantas] = useState(false);
+    const loadingPlantsRef = useRef(false);
 
     // Paso 2
     const [tipoDiagnostico, setTipoDiagnostico] = useState('');
@@ -131,13 +130,16 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         return parsed;
     };
 
-    // ── Llamada al backend para obtener plantas elegibles ─────────────────────
-    const fetchEligiblePlants = useCallback(async () => {
+    // ── Función para obtener plantas elegibles (independiente, sin useCallback para evitar bucles)
+    const cargarPlantasElegibles = async () => {
         if (!loteId || !tipoDiagnostico || tipoDiagnostico === 'arvenses') return;
         if (!estructuraLote?.total_plantas) return;
+        if (loadingPlantsRef.current) return;
+
+        loadingPlantsRef.current = true;
+        setCargandoPlantas(true);
 
         const cantidad = Math.max(1, Math.floor(estructuraLote.total_plantas * porcentajeMuestreo / 100));
-        setCargandoPlantas(true);
         try {
             const response = await api.post('/diagnosticos/generar-plantas', {
                 lote_id: loteId,
@@ -146,7 +148,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             });
             const data = response.data;
             if (data.plantas && data.plantas.length > 0) {
-                // Convertir al formato esperado por las secciones
                 const plantasFormateadas: PlantaBase[] = data.plantas.map((p: any) => ({
                     codigo: p.codigo,
                     label: `Surco ${p.surco}, Planta ${p.numero}`,
@@ -169,8 +170,9 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             setPlantas([]);
         } finally {
             setCargandoPlantas(false);
+            loadingPlantsRef.current = false;
         }
-    }, [loteId, tipoDiagnostico, estructuraLote, porcentajeMuestreo]);
+    };
 
     // ── Cargar monitoreos ────────────────────────────────────────────────────
     useEffect(() => {
@@ -180,7 +182,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             .catch(() => toast.error('Error al cargar tipos de monitoreo'));
     }, [programaId]);
 
-    // ── Cargar estructura del lote (sin selección aleatoria) ─────────────────
+    // ── Cargar estructura del lote (solo cuando cambia loteId) ─────────────────
     useEffect(() => {
         const cargar = async () => {
             if (!loteId) {
@@ -195,13 +197,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                 setEstructuraLote(estructura);
                 if (estructura.plantas?.length) {
                     setPlantasOriginales(estructura.plantas);
-                    // La selección de plantas elegibles se hará cuando también esté el tipoDiagnostico
-                    if (tipoDiagnostico && tipoDiagnostico !== 'arvenses') {
-                        await fetchEligiblePlants();
-                    } else if (tipoDiagnostico === 'arvenses') {
-                        // Arvenses no necesita plantas aleatorias, se usan todas
-                        setPlantas([]);
-                    }
                     toast.success(`Lote cargado: ${estructura.total_plantas.toLocaleString()} plantas.`);
                 } else {
                     toast.warning('Lote sin surcos/plantas configurados');
@@ -218,25 +213,25 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             }
         };
         cargar();
-    }, [loteId, fetchEligiblePlants, tipoDiagnostico]); // Dependencia de tipoDiagnostico para regenerar al cambiar
+    }, [loteId]);
 
-    // ── Regenerar plantas elegibles cuando cambie tipoDiagnostico (si ya hay lote) ──
+    // ── Cargar plantas elegibles cuando lote, tipoDiagnostico y estructura estén listos ──
     useEffect(() => {
-        if (loteId && estructuraLote && tipoDiagnostico && tipoDiagnostico !== 'arvenses') {
-            fetchEligiblePlants();
+        if (loteId && tipoDiagnostico && tipoDiagnostico !== 'arvenses' && estructuraLote?.total_plantas) {
+            cargarPlantasElegibles();
         } else if (tipoDiagnostico === 'arvenses') {
-            setPlantas([]); // arvenses no usa plantas aleatorias
+            setPlantas([]);
         }
-    }, [tipoDiagnostico, loteId, estructuraLote, fetchEligiblePlants]);
+    }, [loteId, tipoDiagnostico, estructuraLote]);
 
-    // ── Regenerar manual (botón "Regenerar muestra") ─────────────────────────
-    const regenerarSeleccionPlantas = useCallback(() => {
+    // ── Regenerar manual (botón) ──────────────────────────────────────────────
+    const regenerarSeleccionPlantas = () => {
         if (tipoDiagnostico === 'arvenses') {
             toast.info('Arvenses usa puntos fijos, no se regeneran plantas aleatorias');
             return;
         }
-        fetchEligiblePlants();
-    }, [tipoDiagnostico, fetchEligiblePlants]);
+        cargarPlantasElegibles();
+    };
 
     const resetearPaso2 = () => {
         setTipoDiagnostico('');
@@ -586,7 +581,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                 )}
                                 <div className="mb-3 text-sm text-gray-600">
                                     <i className="fas fa-info-circle mr-1"></i>
-                                    {tipoDiagnostico === 'arvenses' 
+                                    {tipoDiagnostico === 'arvenses'
                                         ? `Evaluando 5 árboles de referencia del lote`
                                         : `Evaluando ${plantas.length} plantas (productivas y sin diagnóstico reciente)`}
                                 </div>
