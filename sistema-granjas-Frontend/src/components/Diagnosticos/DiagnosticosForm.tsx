@@ -14,7 +14,7 @@ import { toast } from 'react-toastify';
 
 // ── Tipos locales ─────────────────────────────────────────────────────────────
 interface PlantaBase {
-    id: number;          // 👈 AGREGADO: ID real de la planta
+    id: number;
     codigo: string;
     label: string;
     surco: number;
@@ -43,7 +43,7 @@ interface Lote {
 interface DiagnosticoFormProps {
     isOpen?: boolean;
     diagnostico?: DiagnosticoItem;
-    onSubmit: (data: FormData) => void;
+    onSubmit: (data: FormData) => Promise<void>; // 👈 Cambiado a Promise para esperar
     onCancel: () => void;
     lotes: Lote[];
     programas: Programa[];
@@ -92,6 +92,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     const [cargandoPlantas, setCargandoPlantas] = useState(false);
     const [errorPlantas, setErrorPlantas] = useState<string | null>(null);
     const loadingPlantsRef = useRef(false);
+    const [submitting, setSubmitting] = useState(false); // 👈 Prevenir envíos múltiples
 
     // Paso 2
     const [tipoDiagnostico, setTipoDiagnostico] = useState('');
@@ -132,7 +133,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         return parsed;
     };
 
-    // ── Función para obtener plantas elegibles (independiente) ────────────────
+    // ── Función para obtener plantas elegibles ────────────────────────────────
     const cargarPlantasElegibles = async () => {
         if (!loteId || !tipoDiagnostico || tipoDiagnostico === 'arvenses') {
             setPlantas([]);
@@ -156,7 +157,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             const data = response.data;
             if (data.plantas && data.plantas.length > 0) {
                 const plantasFormateadas: PlantaBase[] = data.plantas.map((p: any) => ({
-                    id: p.id,          // 👈 GUARDAR EL ID REAL
+                    id: p.id,
                     codigo: p.codigo,
                     label: `Surco ${p.surco}, Planta ${p.numero}`,
                     surco: p.surco,
@@ -170,7 +171,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                 }
             } else {
                 setPlantas([]);
-                const msg = data.advertencias?.[0] || 'No se encontraron plantas que cumplan los criterios (productivas y sin diagnóstico reciente)';
+                const msg = data.advertencias?.[0] || 'No se encontraron plantas que cumplan los criterios';
                 setErrorPlantas(msg);
                 toast.error(msg);
             }
@@ -193,7 +194,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             .catch(() => toast.error('Error al cargar tipos de monitoreo'));
     }, [programaId]);
 
-    // ── Cargar estructura del lote (solo cuando cambia loteId) ─────────────────
+    // ── Cargar estructura del lote ───────────────────────────────────────────
     useEffect(() => {
         const cargar = async () => {
             if (!loteId) {
@@ -226,7 +227,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         cargar();
     }, [loteId]);
 
-    // ── Cargar plantas elegibles cuando cambia tipoDiagnostico (en paso 2) ────
+    // ── Cargar plantas elegibles cuando cambia tipoDiagnostico ────────────────
     useEffect(() => {
         if (paso === 2 && loteId && tipoDiagnostico && tipoDiagnostico !== 'arvenses' && estructuraLote?.total_plantas) {
             cargarPlantasElegibles();
@@ -236,7 +237,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         }
     }, [tipoDiagnostico, paso, loteId, estructuraLote]);
 
-    // ── Regenerar manual (botón) ──────────────────────────────────────────────
+    // ── Regenerar manual ─────────────────────────────────────────────────────
     const regenerarSeleccionPlantas = () => {
         if (tipoDiagnostico === 'arvenses') {
             toast.info('Arvenses usa puntos fijos, no se regeneran plantas aleatorias');
@@ -320,7 +321,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-
+        if (submitting) return; // Evitar doble envío
         if (!tipoDiagnostico) { toast.error('Selecciona un tipo de diagnóstico'); return; }
         if (!condicionesDia) { toast.error('Selecciona condiciones del día'); return; }
         if (tipoDiagnostico !== 'arvenses' && plantas.length === 0) {
@@ -342,6 +343,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             if (!enfermedadesRef.current.validate()) return;
         }
 
+        setSubmitting(true);
         const formData = new FormData();
 
         formData.append('programa_id', String(programaId));
@@ -351,7 +353,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         formData.append('tipo_diagnostico', tipoDiagnostico);
         formData.append('condiciones_dia', condicionesDia);
 
-        // ✅ ENVIAR LOS IDS REALES DE LAS PLANTAS
         if (tipoDiagnostico !== 'arvenses' && plantas.length > 0) {
             const plantasIds = plantas.map(p => p.id);
             formData.append('plantas_ids', JSON.stringify(plantasIds));
@@ -392,11 +393,17 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             }
         }
 
-        onSubmit(formData);
-        toast.success(esEdicion ? 'Diagnóstico actualizado' : 'Diagnóstico creado');
-
-        if (!esEdicion) resetearPaso2();
-        else onCancel();
+        try {
+            await onSubmit(formData);
+            toast.success(esEdicion ? 'Diagnóstico actualizado' : 'Diagnóstico creado');
+            if (!esEdicion) resetearPaso2();
+            else onCancel();
+        } catch (err: any) {
+            console.error('Error en submit:', err);
+            toast.error(err?.message || 'Error al guardar el diagnóstico');
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     const metodoMuestreo = useMemo(() => {
@@ -627,9 +634,9 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                     <div className="flex justify-end gap-3 mt-8 pt-5 border-t">
                         <button type="button" onClick={onCancel} className="px-5 py-2.5 border rounded-lg hover:bg-gray-100">Cancelar</button>
                         <button type="submit"
-                            disabled={!tipoDiagnostico || !condicionesDia || (tipoDiagnostico !== 'arvenses' && (cargandoPlantas || plantas.length === 0))}
+                            disabled={!tipoDiagnostico || !condicionesDia || (tipoDiagnostico !== 'arvenses' && (cargandoPlantas || plantas.length === 0)) || submitting}
                             className="bg-green-600 text-white px-5 py-2.5 rounded-lg hover:bg-green-700 disabled:bg-gray-400">
-                            <i className="fas fa-save"></i> {esEdicion ? 'Actualizar' : 'Crear'} Diagnóstico
+                            {submitting ? 'Guardando...' : (esEdicion ? 'Actualizar' : 'Crear')}
                         </button>
                     </div>
                 </form>
