@@ -256,3 +256,48 @@ class Planta(Base):
     # Relaciones
     lote = relationship("Lote", back_populates="plantas")
     diagnosticos = relationship("Diagnostico", secondary=diagnostico_planta, back_populates="plantas")
+
+# ===================== INVENTARIO DINÁMICO POR PROGRAMA =====================
+
+class ProgramaInventarioTipo(Base):
+    __tablename__ = "programas_inventario_tipos"
+    id = Column(Integer, primary_key=True, index=True)
+    programa_id = Column(Integer, ForeignKey("programas.id", ondelete="CASCADE"), nullable=False)
+    nombre = Column(String(100), nullable=False)          # ej: "Fertilizantes sólidos"
+    descripcion = Column(Text)
+    orden = Column(Integer, default=0)
+    activo = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=colombia_now)
+    updated_at = Column(DateTime, default=colombia_now, onupdate=colombia_now)
+
+    programa = relationship("Programa", back_populates="tipos_inventario")
+    campos = relationship("InventarioCampo", back_populates="tipo", cascade="all, delete-orphan")
+    items = relationship("ItemInventarioPrograma", back_populates="tipo", cascade="all, delete-orphan")
+
+class InventarioCampo(Base):
+    __tablename__ = "inventario_campos"
+    id = Column(Integer, primary_key=True, index=True)
+    tipo_id = Column(Integer, ForeignKey("programas_inventario_tipos.id", ondelete="CASCADE"), nullable=False)
+    nombre_campo = Column(String(100), nullable=False)    # "COMPOSICIÓN", "NOMBRE COMERCIAL", etc.
+    tipo_dato = Column(String(20), nullable=False)       # "text", "number", "date", "select", "boolean"
+    requerido = Column(Boolean, default=False)
+    opciones = Column(JSON, nullable=True)               # para "select": ["op1", "op2"]
+    orden = Column(Integer, default=0)
+    ancho = Column(String(10), default="auto")           # sugerencia para frontend
+    created_at = Column(DateTime, default=colombia_now)
+
+    tipo = relationship("ProgramaInventarioTipo", back_populates="campos")
+
+class ItemInventarioPrograma(Base):
+    __tablename__ = "items_inventario_programa"
+    id = Column(Integer, primary_key=True, index=True)
+    tipo_id = Column(Integer, ForeignKey("programas_inventario_tipos.id", ondelete="CASCADE"), nullable=False)
+    fecha_inventario = Column(Date, default=colombia_now().date())
+    cantidad_disponible = Column(Float, default=0.0)
+    unidad_medida = Column(String(50), nullable=True)     # kg, L, bultos, etc.
+    valores = Column(JSON, nullable=False, default={})    # todos los campos personalizados
+    observaciones = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=colombia_now)
+    updated_at = Column(DateTime, default=colombia_now, onupdate=colombia_now)
+
+    tipo = relationship("ProgramaInventarioTipo", back_populates="items")
