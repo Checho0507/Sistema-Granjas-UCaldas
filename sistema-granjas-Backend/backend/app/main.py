@@ -11,9 +11,6 @@ from app.api import (
     tipo_lotes,
     cultivos_especies,
     tipo_labores,
-    categorias_inventario,
-    insumos,
-    herramientas,
     diagnosticos,
     recomendaciones,
     labores,
@@ -24,6 +21,7 @@ from app.api import (
     exportRoutes,
     asignaciones,
     monitoreos,
+    inventario_dinamico,   # 👈 NUEVO ROUTER PARA INVENTARIO DINÁMICO
     plantas,                     # 👈 NUEVO ROUTER PARA PLANTAS
 )
 from app.db.database import engine, Base
@@ -281,9 +279,6 @@ app.include_router(lotes.router, prefix="/api")
 app.include_router(tipo_lotes.router, prefix="/api")
 app.include_router(cultivos_especies.router, prefix="/api")
 app.include_router(tipo_labores.router, prefix="/api")
-app.include_router(categorias_inventario.router, prefix="/api")
-app.include_router(insumos.router, prefix="/api")
-app.include_router(herramientas.router, prefix="/api")
 app.include_router(diagnosticos.router, prefix="/api")
 app.include_router(recomendaciones.router, prefix="/api")
 app.include_router(labores.router, prefix="/api")
@@ -294,6 +289,7 @@ app.include_router(roles.router, prefix="/api")
 app.include_router(exportRoutes.router, prefix="/api")
 app.include_router(asignaciones.router, prefix="/api")
 app.include_router(monitoreos.router, prefix="/api")
+app.include_router(inventario_dinamico.router, prefix="/api")   # 👈 NUEVO ROUTER PARA INVENTARIO DINÁMICO
 app.include_router(plantas.router, prefix="/api")               # 👈 NUEVO ROUTER
 
 # ========== ENDPOINTS PÚBLICOS ==========
