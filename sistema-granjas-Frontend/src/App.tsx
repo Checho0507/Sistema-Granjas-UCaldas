@@ -19,7 +19,7 @@ import GestionCultivosPage from './pages/GestionCultivos';
 import GestionPlantasPage from './pages/GestionPlantas';
 import GestionLaboresPage from './pages/GestionLabores';
 import GestionUsuariosPage from './pages/GestionUsuarios';
-import GestionInventarioPage from './pages/GestionInventarios';
+import GestionInventarioPage from './pages/GestionInventarioDinamico';
 import GestionDiagnosticosPage from './pages/GestionDiagnosticos';
 import GestionRecomendacionesPage from './pages/GestionRecomendaciones';
 import GestionEstadisticasPage from './pages/GestionEstadisticas';
