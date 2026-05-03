@@ -3,15 +3,10 @@ from sqlalchemy.orm import relationship
 from datetime import datetime, timedelta
 from app.db.database import Base
 
-# ──────────────────────────────────────────────────────────────────────────────
-# FUNCIÓN DE ZONA HORARIA COLOMBIA (UTC-5)
-# ──────────────────────────────────────────────────────────────────────────────
 def colombia_now():
     return datetime.utcnow() - timedelta(hours=5)
 
-# ──────────────────────────────────────────────────────────────────────────────
-# TABLAS PIVOTE EXISTENTES
-# ──────────────────────────────────────────────────────────────────────────────
+# ---------- Tablas pivote ----------
 usuario_granja = Table(
     'usuario_granja',
     Base.metadata,
@@ -38,9 +33,6 @@ class LoteCultivo(Base):
     lote = relationship("Lote", back_populates="cultivos_asignados")
     cultivo = relationship("CultivoEspecie", back_populates="lotes_asignados")
 
-# ──────────────────────────────────────────────────────────────────────────────
-# TABLA INTERMEDIA DIAGNOSTICO-PLANTA (MUCHOS A MUCHOS)
-# ──────────────────────────────────────────────────────────────────────────────
 diagnostico_planta = Table(
     "diagnostico_planta",
     Base.metadata,
@@ -50,9 +42,7 @@ diagnostico_planta = Table(
     Column("created_at", DateTime, default=colombia_now),
 )
 
-# ──────────────────────────────────────────────────────────────────────────────
-# MODELOS EXISTENTES (SIN REFERENCIAS A INVENTARIO ANTIGUO)
-# ──────────────────────────────────────────────────────────────────────────────
+# ---------- Modelos ----------
 class Rol(Base):
     __tablename__ = "roles"
     id = Column(Integer, primary_key=True, index=True)
@@ -74,7 +64,7 @@ class Usuario(Base):
     fecha_creacion = Column(DateTime, default=colombia_now)
     rol = relationship("Rol", back_populates="usuarios")
     granjas = relationship("Granja", secondary=usuario_granja, back_populates="usuarios")
-    programas = relationship("Programa", secondary=usuario_programa, back_populates="programas")
+    programas = relationship("Programa", secondary=usuario_programa, back_populates="usuarios")
     labores_asignadas = relationship("Labor", back_populates="trabajador")
     recomendaciones_generadas = relationship("Recomendacion", back_populates="docente")
     diagnosticos = relationship("Diagnostico", back_populates="usuario")
@@ -123,8 +113,6 @@ class Lote(Base):
     estado = Column(String(50), default="activo")
     surcos = Column(Integer, nullable=False, default=0)
     plantas_por_surco = Column(Integer, nullable=False, default=0)
-
-    # Relaciones existentes
     cultivos_asignados = relationship("LoteCultivo", back_populates="lote", cascade="all, delete-orphan")
     tipo_lote = relationship("TipoLote")
     granja = relationship("Granja", back_populates="lotes")
@@ -192,9 +180,6 @@ class Labor(Base):
     lote = relationship("Lote", back_populates="labores")
     evidencias = relationship("Evidencia", back_populates="labor")
     tipo_labor = relationship("TipoLabor", back_populates="labores")
-    # ⚠️ Se han eliminado las relaciones uso_herramientas y uso_insumos porque los modelos
-    # MovimientoHerramienta y MovimientoInsumo fueron eliminados. La gestión de recursos
-    # se realizará mediante el nuevo inventario dinámico.
 
 class Diagnostico(Base):
     __tablename__ = "diagnosticos"
@@ -207,8 +192,6 @@ class Diagnostico(Base):
     condiciones_dia = Column(String(50), nullable=False)
     formulario = Column(JSON, nullable=True)
     fecha_creacion = Column(DateTime, default=colombia_now)
-
-    # Relaciones existentes
     programa = relationship("Programa", back_populates="diagnosticos")
     tipo_monitoreo = relationship("Monitoreo", back_populates="diagnosticos")
     lote = relationship("Lote", back_populates="diagnosticos")
@@ -250,8 +233,7 @@ class Planta(Base):
     lote = relationship("Lote", back_populates="plantas")
     diagnosticos = relationship("Diagnostico", secondary=diagnostico_planta, back_populates="diagnosticos")
 
-# ===================== INVENTARIO DINÁMICO POR PROGRAMA =====================
-
+# ---------- Inventario dinámico ----------
 class ProgramaInventarioTipo(Base):
     __tablename__ = "programas_inventario_tipos"
     id = Column(Integer, primary_key=True, index=True)
@@ -271,9 +253,9 @@ class InventarioCampo(Base):
     id = Column(Integer, primary_key=True, index=True)
     tipo_id = Column(Integer, ForeignKey("programas_inventario_tipos.id", ondelete="CASCADE"), nullable=False)
     nombre_campo = Column(String(100), nullable=False)
-    tipo_dato = Column(String(20), nullable=False)       # "text", "number", "date", "select", "boolean"
+    tipo_dato = Column(String(20), nullable=False)
     requerido = Column(Boolean, default=False)
-    opciones = Column(JSON, nullable=True)               # para "select": ["op1", "op2"]
+    opciones = Column(JSON, nullable=True)
     orden = Column(Integer, default=0)
     ancho = Column(String(10), default="auto")
     created_at = Column(DateTime, default=colombia_now)
