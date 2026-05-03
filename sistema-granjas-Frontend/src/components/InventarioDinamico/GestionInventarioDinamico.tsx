@@ -1,6 +1,5 @@
 // src/components/InventarioDinamico/GestionInventarioDinamico.tsx
 import React, { useState, useEffect } from 'react';
-import DashboardHeader from '../Common/DashboardHeader';
 import SelectorPrograma from './SelectorPrograma';
 import TiposInventarioList from './TiposInventarioList';
 import TipoInventarioForm from './TipoInventarioForm';
@@ -164,7 +163,6 @@ const GestionInventarioDinamico: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <DashboardHeader title="Inventario Dinámico" selectedModule="inventario" onBack={() => window.history.back()} />
       <div className="container mx-auto px-4 py-8">
         <SelectorPrograma
           programas={programas}
