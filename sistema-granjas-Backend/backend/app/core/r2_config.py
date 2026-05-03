@@ -1,13 +1,10 @@
-# app/core/r2_config.py
+from botocore.client import Config
 from app.core.config import settings
 
-def get_r2_client():
-    """Retorna el cliente R2 desde settings."""
-    if not hasattr(settings, 'r2_client') or settings.r2_client is None:
-        # Intentar inicializar si no lo está
-        settings.init_storage()
-    return settings.r2_client
+s3 = settings.r2_client  # reutiliza el cliente inicializado
 
 def get_r2_bucket():
-    """Retorna el nombre del bucket R2."""
     return settings.R2_BUCKET_NAME
+
+def get_r2_client():
+    return s3

@@ -7,25 +7,43 @@ export default defineConfig({
     tailwindcss(),
     react()
   ],
-  
-  // Configuración SEGURA para producción:
+
+  server: {
+    host: '0.0.0.0',
+    port: 5000,
+    allowedHosts: true,
+    hmr: {
+      clientPort: 443,
+      protocol: 'wss'
+    },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false
+      },
+      '/debug': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false
+      }
+    }
+  },
+
   build: {
     outDir: 'dist',
     sourcemap: false,
-    // Deja que Vite maneje el chunking automáticamente
     rollupOptions: {
       output: {
-        // Solo configura naming si quieres, pero no manualChunks
         chunkFileNames: 'assets/[name]-[hash].js',
         entryFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash].[ext]'
       }
     }
   },
-  
+
   base: '/',
-  
-  // OPTIONAL: Si quieres optimizaciones
+
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom']
   }

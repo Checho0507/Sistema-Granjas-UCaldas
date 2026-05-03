@@ -1,36 +1,40 @@
 import axios from "axios";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = '/api';
 
 export const api = axios.create({
     baseURL: API_BASE_URL,
-    // No definas 'Content-Type' aquí; se establecerá automáticamente
+    headers: {
+        "Content-Type": "application/json",
+    },
 });
 
-// Interceptor para agregar el token
+// Interceptor para agregar el token a cada request
 api.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('authToken');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
-        // Si el cuerpo es FormData, eliminar Content-Type para que el navegador lo establezca con el boundary
-        if (config.data instanceof FormData) {
-            delete config.headers['Content-Type'];
-        }
         return config;
     },
-    (error) => Promise.reject(error)
+    (error) => {
+        return Promise.reject(error);
+    }
 );
 
 // Interceptor para manejar errores de respuesta
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        console.error('Error de API:', error.response?.data || error.message);
+        console.error('Error de API:', error.response?.data);
+        
+        // Si el error es 401 (no autenticado), podrías redirigir al login
         if (error.response?.status === 401) {
-            localStorage.removeItem('token');
+            localStorage.removeItem('authToken');
+            // window.location.href = '/login'; // Descomenta si quieres redirigir
         }
+        
         return Promise.reject(error);
     }
 );

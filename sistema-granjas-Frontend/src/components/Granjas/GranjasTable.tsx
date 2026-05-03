@@ -21,6 +21,9 @@ const GranjasTable: React.FC<GranjasTableProps> = ({
                     <thead className="bg-gray-50">
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                ID
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Nombre
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -40,6 +43,9 @@ const GranjasTable: React.FC<GranjasTableProps> = ({
                     <tbody className="bg-white divide-y divide-gray-200">
                         {granjas.map((granja) => (
                             <tr key={granja.id} className="hover:bg-gray-50 transition-colors">
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    {granja.id}
+                                </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                     {granja.nombre}
                                 </td>

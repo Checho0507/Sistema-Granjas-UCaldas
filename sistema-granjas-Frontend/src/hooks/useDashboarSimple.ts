@@ -34,16 +34,16 @@ export const useDashboardSimple = () => {
 
         // Hacer las peticiones una por una para debug
         try {
-          const granjasRes = await fetch('http://localhost:8000/api/granjas', { headers });
+          const granjasRes = await fetch('/api/granjas', { headers });
           console.log('Granjas status:', granjasRes.status);
           
-          const usuariosRes = await fetch('http://localhost:8000/api/usuarios', { headers });
+          const usuariosRes = await fetch('/api/usuarios', { headers });
           console.log('Usuarios status:', usuariosRes.status);
           
-          const programasRes = await fetch('http://localhost:8000/api/programas', { headers });
+          const programasRes = await fetch('/api/programas', { headers });
           console.log('Programas status:', programasRes.status);
           
-          const laboresRes = await fetch('http://localhost:8000/api/labores', { headers });
+          const laboresRes = await fetch('/api/labores', { headers });
           console.log('Labores status:', laboresRes.status);
 
           // Si todas las peticiones son exitosas, procesar datos

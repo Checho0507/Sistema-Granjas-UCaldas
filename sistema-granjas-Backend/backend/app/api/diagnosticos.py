@@ -1,261 +1,109 @@
-import os
-import json
-import re
-import logging
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from sqlalchemy.sql import func
-from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta
-
+from typing import Optional
+from datetime import datetime
 from app.db.database import get_db
-from app.db.models import (
-    Diagnostico, Usuario, Lote, Programa, Monitoreo, Recomendacion,
-    Planta, diagnostico_planta
-)
+from app.db.models import Diagnostico, Usuario, Lote, Recomendacion
 from app.schemas.diagnostico_schema import (
-    DiagnosticoCreate, DiagnosticoUpdate,
-    DiagnosticoResponse, DiagnosticoWithRecomendacionesResponse,
-    DiagnosticoListResponse, EstadisticasDiagnosticosResponse,
-    PlantaSimpleResponse, GenerarPlantasRequest, GenerarPlantasResponse,
-    PlantaGenerada
+    DiagnosticoCreate, DiagnosticoUpdate, DiagnosticoResponse,
+    DiagnosticoWithRecomendacionesResponse, DiagnosticoListResponse,
+    AsignacionDocenteRequest, CierreDiagnosticoRequest,
+    EstadisticasDiagnosticosResponse
 )
 from app.core.dependencies import get_current_user, require_any_role
-from app.core.r2_storage import upload_file_to_r2, delete_file_from_r2
-from app.CRUD import diagnosticos as crud
 
-logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/diagnosticos", tags=["diagnosticos"])
 
 
-# ── Procesamiento de archivos con R2 ───────────────────────────────────────────
-def procesar_archivos_r2(form_data) -> Dict[str, List[str]]:
-    fotos_por_prefix: Dict[str, List[str]] = {}
-    for key, value in form_data.items():
-        if key.startswith("files[") and hasattr(value, "filename"):
-            match = re.search(r'files\[(.*?)\]', key)
-            if match:
-                prefix = match.group(1)
-                url = upload_file_to_r2(value, prefix)
-                fotos_por_prefix.setdefault(prefix, []).append(url)
-                logger.info(f"Archivo subido: {url}")
-    return fotos_por_prefix
-
-
-# ── Helpers ────────────────────────────────────────────────────────────────────
-def get_or_404(db: Session, model, id: int, msg: str = "Recurso no encontrado"):
+# === Helper ===
+def get_or_404(db, model, id, msg="Recurso no encontrado"):
     obj = db.get(model, id)
     if not obj:
         raise HTTPException(404, msg)
     return obj
 
 
-def _enriquecer(obj: Diagnostico) -> None:
-    obj.programa_nombre = obj.programa.nombre if obj.programa else None
-    obj.tipo_monitoreo_nombre = obj.tipo_monitoreo.nombre if obj.tipo_monitoreo else None
-    obj.lote_nombre = obj.lote.nombre if obj.lote else None
-    obj.granja_nombre = getattr(obj.lote.granja, "nombre", None) if obj.lote else None
-    obj.usuario_nombre = obj.usuario.nombre if obj.usuario else None
-
-
-def _cargar_plantas(db: Session, diagnostico: Diagnostico) -> List[PlantaSimpleResponse]:
-    plantas = db.query(Planta).join(
-        diagnostico_planta,
-        diagnostico_planta.c.planta_id == Planta.id
-    ).filter(
-        diagnostico_planta.c.diagnostico_id == diagnostico.id
-    ).all()
-    return [PlantaSimpleResponse(
-        id=p.id,
-        codigo=p.codigo,
-        surco=p.surco,
-        numero=p.numero,
-        lote_id=p.lote_id
-    ) for p in plantas]
-
-
-# ── NUEVO ENDPOINT: GENERAR PLANTAS ALEATORIAS ──────────────────────────────
-@router.post("/generar-plantas", response_model=GenerarPlantasResponse)
-def generar_plantas_aleatorias(
-    data: GenerarPlantasRequest,
-    db: Session = Depends(get_db),
-    user: Usuario = Depends(require_any_role(["admin", "docente", "asesor", "estudiante"]))
-):
-    lote = db.query(Lote).filter(Lote.id == data.lote_id).first()
-    if not lote:
-        raise HTTPException(404, "Lote no encontrado")
-
-    hace_un_mes = datetime.utcnow() - timedelta(days=30)
-
-    subquery = db.query(diagnostico_planta.c.planta_id).join(
-        Diagnostico, Diagnostico.id == diagnostico_planta.c.diagnostico_id
-    ).filter(
-        Diagnostico.tipo_diagnostico == data.tipo_diagnostico,
-        Diagnostico.fecha_creacion >= hace_un_mes
-    ).subquery()
-
-    query = db.query(Planta).filter(
-        Planta.lote_id == data.lote_id,
-        Planta.estado == "productivo",
-        ~Planta.id.in_(subquery)
-    )
-
-    total_plantas_lote = db.query(Planta).filter(Planta.lote_id == data.lote_id).count()
-    productivas = db.query(Planta).filter(Planta.lote_id == data.lote_id, Planta.estado == "productivo").count()
-    elegibles = query.count()
-
-    plantas_elegibles = query.order_by(func.random()).limit(data.cantidad).all()
-
-    advertencias = []
-    if elegibles < data.cantidad:
-        advertencias.append(f"Solo se encontraron {elegibles} plantas que cumplen los criterios. Se generarán {len(plantas_elegibles)}.")
-    if productivas == 0:
-        advertencias.append("No hay plantas productivas en este lote.")
-    elif elegibles == 0 and productivas > 0:
-        advertencias.append("Todas las plantas productivas ya han sido evaluadas con este diagnóstico en el último mes.")
-
-    return GenerarPlantasResponse(
-        plantas=[PlantaGenerada(id=p.id, codigo=p.codigo, surco=p.surco, numero=p.numero, lote_id=p.lote_id) for p in plantas_elegibles],
-        total_plantas_lote=total_plantas_lote,
-        productivas=productivas,
-        elegibles=elegibles,
-        advertencias=advertencias
-    )
-
-
-# ── ENDPOINTS CRUD ──────────────────────────────────────────────────────────────
+# === LISTAR ===
 @router.get("/", response_model=DiagnosticoListResponse)
 def listar_diagnosticos(
-    skip: int = 0, limit: int = 100,
-    programa_id: Optional[int] = None,
-    tipo_monitoreo_id: Optional[int] = None,
+    skip: int = 0,
+    limit: int = 100,
+    estado: Optional[str] = None,
+    tipo: Optional[str] = None,
     lote_id: Optional[int] = None,
-    usuario_id: Optional[int] = None,
-    tipo_diagnostico: Optional[str] = None,
+    estudiante_id: Optional[int] = None,
+    docente_id: Optional[int] = None,
     db: Session = Depends(get_db),
     user: Usuario = Depends(require_any_role(["admin", "docente", "asesor", "estudiante"]))
 ):
     query = db.query(Diagnostico)
-    if user.rol.nombre == "estudiante":
-        query = query.filter(Diagnostico.usuario_id == user.id)
-    if programa_id:
-        query = query.filter(Diagnostico.programa_id == programa_id)
-    if tipo_monitoreo_id:
-        query = query.filter(Diagnostico.tipo_monitoreo_id == tipo_monitoreo_id)
+
+    # Permisos por rol
+    rol = user.rol.nombre
+    if rol == "estudiante":
+        query = query.filter(Diagnostico.estudiante_id == user.id)
+    elif rol == "docente":
+        query = query.filter(
+            (Diagnostico.docente_id == user.id) |
+            (Diagnostico.estado == "abierto")
+        )
+
+    # Filtros opcionales
+    if estado:
+        query = query.filter(Diagnostico.estado == estado)
+    if tipo:
+        query = query.filter(Diagnostico.tipo == tipo)
     if lote_id:
         query = query.filter(Diagnostico.lote_id == lote_id)
-    if usuario_id and user.rol.nombre in ["admin", "docente", "asesor"]:
-        query = query.filter(Diagnostico.usuario_id == usuario_id)
-    if tipo_diagnostico:
-        query = query.filter(Diagnostico.tipo_diagnostico == tipo_diagnostico)
+    if estudiante_id and rol in ["docente", "admin"]:
+        query = query.filter(Diagnostico.estudiante_id == estudiante_id)
+    if docente_id and rol in ["docente", "admin"]:
+        query = query.filter(Diagnostico.docente_id == docente_id)
 
     total = query.count()
-    items = query.order_by(Diagnostico.fecha_creacion.desc()).offset(skip).limit(limit).all()
+    items = query.offset(skip).limit(limit).all()
+
     for d in items:
-        _enriquecer(d)
-    return DiagnosticoListResponse(items=items, total=total, paginas=(total + limit - 1) // limit)
+        _cargar_relaciones(d)
+
+    return DiagnosticoListResponse(
+        items=items,
+        total=total,
+        paginas=(total + limit - 1) // limit
+    )
 
 
+# === CREAR ===
 @router.post("/", response_model=DiagnosticoResponse, status_code=201)
-async def crear_diagnostico(
-    request: Request,
+def crear_diagnostico(
+    data: DiagnosticoCreate,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(require_any_role(["admin", "docente", "asesor", "estudiante"]))
+    user: Usuario = Depends(require_any_role(["estudiante", "docente", "admin", "asesor"]))
 ):
-    form_data = await request.form()
-    logger.info(f"Creando diagnóstico. Campos recibidos: {list(form_data.keys())}")
-
-    def get_required(nombre: str) -> str:
-        valor = form_data.get(nombre)
-        if valor is None:
-            raise HTTPException(400, f"Campo requerido '{nombre}' no enviado")
-        return valor
-
-    try:
-        programa_id = int(get_required("programa_id"))
-        tipo_monitoreo_id = int(get_required("tipo_monitoreo_id"))
-        lote_id = int(get_required("lote_id"))
-        usuario_id = int(get_required("usuario_id"))
-        tipo_diagnostico = get_required("tipo_diagnostico")
-        condiciones_dia = get_required("condiciones_dia")
-        formulario_json = get_required("formulario")
-    except ValueError as e:
-        raise HTTPException(400, f"Error en tipo de dato: {str(e)}")
-
-    plantas_ids_raw = form_data.get("plantas_ids")
-    plantas_ids = None
-    if plantas_ids_raw:
-        try:
-            plantas_ids = json.loads(plantas_ids_raw)
-            if not isinstance(plantas_ids, list):
-                raise HTTPException(400, "plantas_ids debe ser una lista de enteros")
-        except json.JSONDecodeError:
-            raise HTTPException(400, "plantas_ids debe ser un JSON válido")
-
-    try:
-        formulario = json.loads(formulario_json)
-    except json.JSONDecodeError:
-        raise HTTPException(400, "El campo 'formulario' debe ser un JSON válido")
-
-    fotos_por_prefix = procesar_archivos_r2(form_data)
-    if fotos_por_prefix:
-        formulario["fotos_subidas"] = fotos_por_prefix
-        logger.info(f"Archivos subidos: {list(fotos_por_prefix.keys())}")
-
-    if user.rol.nombre == "estudiante" and usuario_id != user.id:
+    # Estudiante solo puede crearse diagnósticos a si mismo
+    if user.rol.nombre == "estudiante" and data.estudiante_id != user.id:
         raise HTTPException(403, "Solo puede crear diagnósticos para su propio usuario")
 
-    get_or_404(db, Programa, programa_id, "Programa no encontrado")
-    get_or_404(db, Monitoreo, tipo_monitoreo_id, "Tipo de monitoreo no encontrado")
-    lote = get_or_404(db, Lote, lote_id, "Lote no encontrado")
-    get_or_404(db, Usuario, usuario_id, "Usuario no encontrado")
+    get_or_404(db, Usuario, data.estudiante_id, "Estudiante no encontrado")
+    get_or_404(db, Lote, data.lote_id, "Lote no encontrado")
 
-    if plantas_ids:
-        hace_un_mes = datetime.utcnow() - timedelta(days=30)
-        subquery = db.query(diagnostico_planta.c.planta_id).join(
-            Diagnostico, Diagnostico.id == diagnostico_planta.c.diagnostico_id
-        ).filter(
-            Diagnostico.tipo_diagnostico == tipo_diagnostico,
-            Diagnostico.fecha_creacion >= hace_un_mes
-        ).subquery()
+    # Validación del docente (si lo envían)
+    if data.docente_id:
+        docente = get_or_404(db, Usuario, data.docente_id, "Docente no encontrado")
+        if docente.rol.nombre not in ["docente", "asesor"]:
+            raise HTTPException(400, "El usuario asignado no es docente ó asesor")
 
-        plantas = db.query(Planta).filter(
-            Planta.id.in_(plantas_ids),
-            Planta.lote_id == lote_id,
-            Planta.estado == "productivo",
-            ~Planta.id.in_(subquery)
-        ).all()
+    # Crear
+    obj = Diagnostico(**data.dict())
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
 
-        if len(plantas) != len(plantas_ids):
-            raise HTTPException(
-                400,
-                "Alguna planta no existe, no pertenece al lote, no está productiva o ya fue evaluada con este diagnóstico en el último mes"
-            )
-    else:
-        plantas = []
-
-    data = DiagnosticoCreate(
-        programa_id=programa_id,
-        tipo_monitoreo_id=tipo_monitoreo_id,
-        lote_id=lote_id,
-        usuario_id=usuario_id,
-        tipo_diagnostico=tipo_diagnostico,
-        condiciones_dia=condiciones_dia,
-        formulario=formulario,
-        plantas_ids=plantas_ids
-    )
-    obj = crud.create_diagnostico(db, data)
-
-    if plantas_ids:
-        obj.plantas = plantas
-        db.commit()
-        db.refresh(obj)
-
-    _enriquecer(obj)
-    obj.plantas = _cargar_plantas(db, obj)
+    _cargar_relaciones(obj)
     return obj
 
 
+# === OBTENER UNO ===
 @router.get("/{id}", response_model=DiagnosticoWithRecomendacionesResponse)
 def obtener_diagnostico(
     id: int,
@@ -263,99 +111,49 @@ def obtener_diagnostico(
     user: Usuario = Depends(get_current_user)
 ):
     obj = get_or_404(db, Diagnostico, id)
-    if user.rol.nombre == "estudiante" and obj.usuario_id != user.id:
-        raise HTTPException(403, "No puede ver este diagnóstico")
-    _enriquecer(obj)
+
+    _check_view_permission(obj, user)
+    _cargar_relaciones(obj)
+
     obj.recomendaciones = db.query(Recomendacion).filter_by(diagnostico_id=id).all()
-    obj.plantas = _cargar_plantas(db, obj)
     return obj
 
 
+# === ACTUALIZAR ===
 @router.put("/{id}", response_model=DiagnosticoResponse)
-async def actualizar_diagnostico(
+def actualizar_diagnostico(
     id: int,
-    request: Request,
+    data: DiagnosticoUpdate,
     db: Session = Depends(get_db),
     user: Usuario = Depends(get_current_user)
 ):
     obj = get_or_404(db, Diagnostico, id)
-    if user.rol.nombre == "estudiante" and obj.usuario_id != user.id:
-        raise HTTPException(403, "No tiene permisos para editar este diagnóstico")
 
-    form_data = await request.form()
-    update_data = {}
+    _check_edit_permission(obj, user, data)
 
-    if "tipo_diagnostico" in form_data:
-        update_data["tipo_diagnostico"] = form_data["tipo_diagnostico"]
-    if "condiciones_dia" in form_data:
-        update_data["condiciones_dia"] = form_data["condiciones_dia"]
-    if "formulario" in form_data:
-        try:
-            formulario_nuevo = json.loads(form_data["formulario"])
-            update_data["formulario"] = formulario_nuevo
-        except json.JSONDecodeError:
-            raise HTTPException(400, "El campo 'formulario' debe ser JSON válido")
+    # Validar docente si se está asignando
+    if data.docente_id:
+        docente = get_or_404(db, Usuario, data.docente_id)
+        if docente.rol.nombre not in ["docente", "asesor"]:
+            raise HTTPException(400, "Usuario asignado no es docente")
 
-    plantas_ids_raw = form_data.get("plantas_ids")
-    plantas_ids = None
-    if plantas_ids_raw:
-        try:
-            plantas_ids = json.loads(plantas_ids_raw)
-            if not isinstance(plantas_ids, list):
-                raise HTTPException(400, "plantas_ids debe ser una lista de enteros")
-            update_data["plantas_ids"] = plantas_ids
-        except json.JSONDecodeError:
-            raise HTTPException(400, "plantas_ids debe ser un JSON válido")
+    update_data = data.dict(exclude_unset=True)
 
-    fotos_por_prefix = procesar_archivos_r2(form_data)
-    if fotos_por_prefix:
-        formulario_actual = update_data.get("formulario", obj.formulario or {})
-        existing = formulario_actual.get("fotos_subidas", {})
-        for prefix, urls in fotos_por_prefix.items():
-            existing.setdefault(prefix, []).extend(urls)
-        formulario_actual["fotos_subidas"] = existing
-        update_data["formulario"] = formulario_actual
-        logger.info(f"Nuevos archivos añadidos en actualización: {list(fotos_por_prefix.keys())}")
+    # Cerrar diagnóstico → asignar fecha_revision
+    if update_data.get("estado") == "cerrado":
+        update_data["fecha_revision"] = datetime.utcnow()
 
-    if plantas_ids:
-        hace_un_mes = datetime.utcnow() - timedelta(days=30)
-        subquery = db.query(diagnostico_planta.c.planta_id).join(
-            Diagnostico, Diagnostico.id == diagnostico_planta.c.diagnostico_id
-        ).filter(
-            Diagnostico.tipo_diagnostico == obj.tipo_diagnostico,
-            Diagnostico.fecha_creacion >= hace_un_mes,
-            Diagnostico.id != id
-        ).subquery()
+    for k, v in update_data.items():
+        setattr(obj, k, v)
 
-        plantas = db.query(Planta).filter(
-            Planta.id.in_(plantas_ids),
-            Planta.lote_id == obj.lote_id,
-            Planta.estado == "productivo",
-            ~Planta.id.in_(subquery)
-        ).all()
+    db.commit()
+    db.refresh(obj)
 
-        if len(plantas) != len(plantas_ids):
-            raise HTTPException(
-                400,
-                "Alguna planta no existe, no pertenece al lote, no está productiva o ya fue evaluada con este diagnóstico en el último mes"
-            )
-    else:
-        plantas = []
-
-    if update_data:
-        data_update = DiagnosticoUpdate(**update_data)
-        obj = crud.update_diagnostico(db, obj, data_update)
-
-        if plantas_ids is not None:
-            obj.plantas = plantas
-            db.commit()
-            db.refresh(obj)
-
-    _enriquecer(obj)
-    obj.plantas = _cargar_plantas(db, obj)
+    _cargar_relaciones(obj)
     return obj
 
 
+# === ELIMINAR ===
 @router.delete("/{id}", status_code=200)
 def eliminar_diagnostico(
     id: int,
@@ -363,39 +161,162 @@ def eliminar_diagnostico(
     user: Usuario = Depends(require_any_role(["admin", "docente", "asesor"]))
 ):
     obj = get_or_404(db, Diagnostico, id)
+
     if obj.recomendaciones:
-        raise HTTPException(400, "No se puede eliminar un diagnóstico con recomendaciones asociadas")
+        raise HTTPException(400, "No se puede eliminar un diagnóstico con recomendaciones")
 
-    if obj.formulario and "fotos_subidas" in obj.formulario:
-        for urls in obj.formulario["fotos_subidas"].values():
-            for url in urls:
-                delete_file_from_r2(url)
-        logger.info(f"Archivos eliminados de R2 para diagnóstico {id}")
-
-    crud.delete_diagnostico(db, obj)
+    db.delete(obj)
+    db.commit()
     return {"message": "Diagnóstico eliminado correctamente"}
 
 
+# === ASIGNAR DOCENTE ===
+@router.post("/{id}/asignar-docente", response_model=DiagnosticoResponse)
+def asignar_docente(
+    id: int,
+    data: AsignacionDocenteRequest,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_any_role(["docente", "admin"]))
+):
+    obj = get_or_404(db, Diagnostico, id)
+
+    docente = get_or_404(db, Usuario, data.docente_id)
+    if docente.rol.nombre not in ["docente", "asesor"]:
+        raise HTTPException(400, "El usuario asignado no es docente ó asesor")
+
+    # Docente solo se asigna a si mismo
+    if docente.rol.nombre not in ["docente", "asesor"] and docente.id != user.id:
+        raise HTTPException(403, "Solo puede auto-asignarse diagnósticos")
+
+
+    obj.docente_id = docente.id
+    obj.estado = "en_revision"
+
+    db.commit()
+    db.refresh(obj)
+    _cargar_relaciones(obj)
+    return obj
+
+
+# === CERRAR ===
+@router.post("/{id}/cerrar", response_model=DiagnosticoResponse)
+def cerrar_diagnostico(
+    id: int,
+    data: CierreDiagnosticoRequest,  # Solo tiene "observaciones"
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_any_role(["docente", "admin"]))
+):
+    obj = get_or_404(db, Diagnostico, id)
+    
+    # NO usar data.docente_id porque no existe en CierreDiagnosticoRequest
+    # En cambio, verificamos que el usuario actual sea el docente asignado
+    if not obj.docente_id:
+        raise HTTPException(400, "No se puede cerrar sin docente asignado")
+
+    # Docente solo cierra si es el asignado
+    # (El docente ya viene del token JWT, no del request body)
+    if obj.docente_id != user.id and user.rol.nombre not in ["admin"]:
+        raise HTTPException(403, "Solo el docente asignado puede cerrar el diagnóstico")
+
+    obj.estado = "cerrado"
+    obj.observaciones = data.observaciones  # Aquí usamos las observaciones del request
+    obj.fecha_revision = datetime.utcnow()
+
+    db.commit()
+    db.refresh(obj)
+    _cargar_relaciones(obj)
+    return obj
+
+
+# === RECOMENDACIÓN ASOCIADA ===
+@router.get("/{id}/recomendacion")
+def obtener_recomendacion_diagnostico(
+    id: int,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user)
+):
+    """Verifica si un diagnóstico ya tiene recomendación asociada"""
+    obj = get_or_404(db, Diagnostico, id)
+    rec = db.query(Recomendacion).filter(Recomendacion.diagnostico_id == id).first()
+    if rec:
+        return {
+            "tiene_recomendacion": True,
+            "recomendacion_id": rec.id,
+            "recomendacion_titulo": rec.titulo,
+            "recomendacion_estado": rec.estado
+        }
+    return {"tiene_recomendacion": False, "recomendacion_id": None}
+
+# === ESTADÍSTICAS ===
 @router.get("/estadisticas/resumen", response_model=EstadisticasDiagnosticosResponse)
 def obtener_estadisticas(
-    programa_id: Optional[int] = None,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(require_any_role(["admin", "docente", "asesor", "estudiante"]))
+    user: Usuario = Depends(require_any_role(["docente", "admin","asesor", "estudiante"]))
 ):
     query = db.query(Diagnostico)
-    if user.rol.nombre == "estudiante":
-        query = query.filter(Diagnostico.usuario_id == user.id)
-    if programa_id:
-        query = query.filter(Diagnostico.programa_id == programa_id)
+    if user.rol.nombre not in ["docente", "asesor"]:
+        query = query.filter(Diagnostico.docente_id == user.id)
 
     total = query.count()
-    por_tipo = {}
-    for row in db.query(Diagnostico.tipo_diagnostico).distinct():
-        t = row[0]
-        if t:
-            por_tipo[t] = query.filter(Diagnostico.tipo_diagnostico == t).count()
-    por_lote = {}
-    for d in query.all():
-        nombre_lote = d.lote.nombre if d.lote else f"lote_{d.lote_id}"
-        por_lote[nombre_lote] = por_lote.get(nombre_lote, 0) + 1
-    return EstadisticasDiagnosticosResponse(total=total, por_tipo=por_tipo, por_lote=por_lote)
+
+    estados = ["abierto", "en_revision", "cerrado"]
+    stats = {s: query.filter(Diagnostico.estado == s).count() for s in estados}
+
+    tipos = {t[0]: query.filter(Diagnostico.tipo == t[0]).count()
+             for t in db.query(Diagnostico.tipo).distinct()
+             if t[0]}
+
+    return EstadisticasDiagnosticosResponse(
+        total=total,
+        abiertos=stats["abierto"],
+        en_revision=stats["en_revision"],
+        cerrados=stats["cerrado"],
+        por_tipo=tipos
+    )
+
+
+# === PERMISOS ===
+def _check_view_permission(obj: Diagnostico, user: Usuario):
+    rol = user.rol.nombre
+
+    if rol == "admin":
+        return
+    if rol == "docente" and (obj.docente_id == user.id or obj.estado == "abierto"):
+        return
+    if rol == "estudiante" and obj.estudiante_id == user.id:
+        return
+
+    raise HTTPException(403, "No puede ver este diagnóstico")
+
+
+def _check_edit_permission(obj: Diagnostico, user: Usuario, data: DiagnosticoUpdate):
+    rol = user.rol.nombre
+    fields = set(data.dict(exclude_unset=True).keys())
+    
+    # ✅ admin tiene acceso completo a todo
+    if rol == "admin":
+        return
+
+    # ✅ Docente solo puede editar diagnósticos asignados a él
+    if rol in  ["docente", "asesor"] and obj.docente_id == user.id:
+        if not fields.issubset({"estado", "observaciones"}):
+            raise HTTPException(403, "Docente solo puede editar estado u observaciones")
+        return
+
+    # ✅ Estudiante solo puede editar sus diagnósticos abiertos
+    if rol == "estudiante" and obj.estado == "abierto" and obj.estudiante_id == user.id:
+        if not fields.issubset({"descripcion"}):
+            raise HTTPException(403, "Estudiante solo puede editar descripción")
+        return
+
+    # ❌ Si no cumple ninguna condición anterior
+    raise HTTPException(403, "No tiene permisos para editar este diagnóstico")
+
+# === RELACIONES ===
+def _cargar_relaciones(obj: Diagnostico):
+    obj.estudiante_nombre = obj.estudiante.nombre if obj.estudiante else None
+    obj.docente_nombre = obj.docente.nombre if obj.docente else None
+    if obj.lote:
+        obj.lote_nombre = obj.lote.nombre
+        obj.granja_nombre = getattr(obj.lote.granja, "nombre", None)
+        obj.programa_nombre = getattr(obj.lote.programa, "nombre", None)

@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
 from app.api import (
     granjas, 
     oauth_google, 
@@ -11,44 +14,30 @@ from app.api import (
     tipo_lotes,
     cultivos_especies,
     tipo_labores,
+    categorias_inventario,
+    insumos,
+    herramientas,
     diagnosticos,
     recomendaciones,
     labores,
     evidencias,
     upload,
+    movimientos,
     roles,
-    exportRoutes,
-    asignaciones,
-    monitoreos,
-    inventario_dinamico,   # 👈 NUEVO ROUTER PARA INVENTARIO DINÁMICO
-    plantas,                     # 👈 NUEVO ROUTER PARA PLANTAS
+    exportRoutes
 )
 from app.db.database import engine, Base
 from app.db.models import Usuario, Granja, Programa, Lote, Labor, Rol
 import logging
-import time
-import sys
-import ssl
-import os
-from starlette.middleware.base import BaseHTTPMiddleware
-
-
-class ForceHTTPSRedirectMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        response = await call_next(request)
-        # Si es redirección y Location comienza con http://, cámbiala a https://
-        if response.status_code in (301, 302, 307, 308):
-            location = response.headers.get("location")
-            if location and location.startswith("http://"):
-                response.headers["location"] = location.replace("http://", "https://", 1)
-        return response
-
+import time  # <-- Añade esto
+import sys   # <-- Añade esto
+import ssl   # <-- Añade esto
 
 # Configurar logging detallado para Render
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    stream=sys.stdout  # Esto asegura que Render vea los logs
+    stream=sys.stdout  # <-- Esto asegura que Render vea los logs
 )
 
 logger = logging.getLogger(__name__)
@@ -59,6 +48,7 @@ logger.info(f"Python version: {sys.version}")
 logger.info(f"OpenSSL version: {ssl.OPENSSL_VERSION}")
 
 # Test de variables de entorno críticas
+import os
 env_vars_to_check = [
     'R2_ACCESS_KEY',
     'R2_SECRET_KEY', 
@@ -75,13 +65,8 @@ for var in env_vars_to_check:
     else:
         logger.warning(f"⚠️  {var}: NO DEFINIDA")
 
-# Crear tablas - Solo en desarrollo, en producción usar Alembic
-ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
-if ENVIRONMENT == "development":
-    logger.info("🔧 Modo desarrollo: creando tablas automáticamente...")
-    Base.metadata.create_all(bind=engine)
-else:
-    logger.info("🏭 Modo producción: asumiendo que las migraciones están manejadas por Alembic")
+# Crear tablas (esto es solo para desarrollo)
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Sistema Granjas UCaldas",
@@ -91,32 +76,13 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# CORS - Configuración completa para desarrollo y producción
-allow_origins = [
-    "https://sistemagranjasucaldas-production.up.railway.app",  # Producción frontend
-    "http://localhost:3000",  # Desarrollo local React/Vite
-    "http://localhost:5173",  # Alternativa de Vite
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-]
-
-# Si hay una variable de entorno para orígenes adicionales
-if os.getenv("CORS_ORIGINS"):
-    extra_origins = os.getenv("CORS_ORIGINS").split(",")
-    allow_origins.extend(extra_origins)
-
-logger.info(f"🌐 CORS allow_origins: {allow_origins}")
-
+# CORS - Añade tu dominio de frontend si está en producción
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allow_origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-)
-
-app.add_middleware(
-    ForceHTTPSRedirectMiddleware,
 )
 
 # ========== ENDPOINT DE DIAGNÓSTICO R2 ==========
@@ -231,43 +197,7 @@ async def debug_ssl():
     
     return debug_info
 
-# ========== ENDPOINT DE DIAGNÓSTICO DE AUTENTICACIÓN ==========
-@app.get("/debug/auth-check")
-async def debug_auth_check(token: str = None):
-    """Endpoint para verificar tokens JWT"""
-    try:
-        from app.core.security import verify_token
-        from jose import jwt
-        
-        debug_info = {
-            "token_provided": bool(token),
-            "timestamp": time.time()
-        }
-        
-        if token:
-            try:
-                payload = verify_token(token)
-                debug_info["payload"] = payload
-                debug_info["valid"] = True
-                
-                # Verificar expiración
-                if "exp" in payload:
-                    exp_time = payload["exp"]
-                    current_time = time.time()
-                    debug_info["expires_at"] = exp_time
-                    debug_info["expires_in"] = exp_time - current_time
-                    debug_info["is_expired"] = exp_time < current_time
-                    
-            except Exception as e:
-                debug_info["valid"] = False
-                debug_info["error"] = str(e)
-                debug_info["error_type"] = type(e).__name__
-        
-        return debug_info
-    except Exception as e:
-        return {"error": str(e)}
-
-# ========== INCLUIR ROUTERS ==========
+# Incluir routers (tus routers existentes)
 app.include_router(oauth_google.router, prefix="/api")
 app.include_router(auth_tradicional.router, prefix="/api")
 app.include_router(usuarios.router, prefix="/api")
@@ -278,63 +208,68 @@ app.include_router(lotes.router, prefix="/api")
 app.include_router(tipo_lotes.router, prefix="/api")
 app.include_router(cultivos_especies.router, prefix="/api")
 app.include_router(tipo_labores.router, prefix="/api")
+app.include_router(categorias_inventario.router, prefix="/api")
+app.include_router(insumos.router, prefix="/api")
+app.include_router(herramientas.router, prefix="/api")
 app.include_router(diagnosticos.router, prefix="/api")
 app.include_router(recomendaciones.router, prefix="/api")
 app.include_router(labores.router, prefix="/api")
 app.include_router(evidencias.router, prefix="/api")
 app.include_router(upload.router, prefix="/api")
+app.include_router(movimientos.router, prefix="/api")
 app.include_router(roles.router, prefix="/api")
 app.include_router(exportRoutes.router, prefix="/api")
-app.include_router(asignaciones.router, prefix="/api")
-app.include_router(monitoreos.router, prefix="/api")
-app.include_router(inventario_dinamico.router, prefix="/api")   # 👈 NUEVO ROUTER PARA INVENTARIO DINÁMICO
-app.include_router(plantas.router, prefix="/api")               # 👈 NUEVO ROUTER
 
-# ========== ENDPOINTS PÚBLICOS ==========
 @app.get("/")
 def root():
     return {
         "message": "Sistema de Gestión de Granjas UCaldas API", 
         "version": "2.0.0",
-        "environment": ENVIRONMENT,
         "status": "running",
         "debug_endpoints": {
             "r2_test": "/debug/r2",
-            "ssl_test": "/debug/ssl",
-            "auth_check": "/debug/auth-check?token=YOUR_TOKEN"
+            "ssl_test": "/debug/ssl"
         }
     }
 
 @app.get("/api/health")
 def health_check():
-    return {"status": "healthy", "timestamp": time.time(), "environment": ENVIRONMENT}
+    return {"status": "healthy", "timestamp": time.time()}
 
 @app.get("/api/info")
 def api_info():
     return {
         "name": "Sistema Granjas UCaldas",
         "version": "2.0.0",
-        "environment": ENVIRONMENT,
         "endpoints": {
             "auth": "/api/auth",
             "usuarios": "/api/usuarios",
             "granjas": "/api/granjas",
-            "programas": "/api/programas",
-            "lotes": "/api/lotes",
-            "plantas": "/api/plantas",              # 👈 NUEVO ENDPOINT EN LA LISTA
             "sync": "/api/sync",
             "evidencias": "/api/evidencias",
             "debug_r2": "/debug/r2",
-            "debug_ssl": "/debug/ssl",
-            "debug_auth": "/debug/auth-check"
+            "debug_ssl": "/debug/ssl"
         }
     }
+
+# ========== STATIC FRONTEND (production) ==========
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static_frontend")
+
+if os.path.isdir(STATIC_DIR):
+    app.mount("/assets", StaticFiles(directory=os.path.join(STATIC_DIR, "assets")), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        index = os.path.join(STATIC_DIR, "index.html")
+        if os.path.isfile(index):
+            return FileResponse(index)
+        return {"error": "Frontend not built"}
 
 # ========== INICIALIZACIÓN FINAL ==========
 @app.on_event("startup")
 async def startup_event():
     """Ejecutar al iniciar la app"""
-    logger.info(f"🎉 Aplicación iniciada correctamente en modo {ENVIRONMENT}")
+    logger.info("🎉 Aplicación iniciada correctamente")
     
     # Test R2 al inicio
     try:
@@ -348,6 +283,3 @@ async def startup_event():
             logger.warning("⚠️  Cliente R2 no inicializado")
     except Exception as e:
         logger.error(f"❌ Error testing R2 on startup: {e}")
-    
-    # Mostrar orígenes CORS configurados
-    logger.info(f"🌐 CORS configurado para: {allow_origins}")

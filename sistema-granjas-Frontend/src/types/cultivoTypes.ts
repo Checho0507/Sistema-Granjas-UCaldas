@@ -1,21 +1,24 @@
 export interface CultivoEspecie {
   id: number;
   nombre: string;
-  tipo: 'agricola' | 'pecuario'; // Usamos literal types para mayor precisión
+  tipo: string; // 'agricola' | 'pecuario'
+  fecha_inicio?: string;
+  duracion_dias?: number;
   descripcion?: string;
-  estado: 'activo' | 'inactivo'; // Eliminado 'completado'
+  estado: string; // 'activo' | 'inactivo' | 'completado'
   granja_id: number;
   granja_nombre?: string;
-  // Eliminados: fecha_inicio, duracion_dias, fecha_creacion
+  fecha_creacion?: string;
 }
 
 export interface CultivoFormData {
   nombre: string;
-  tipo: 'agricola' | 'pecuario';
-  descripcion?: string;
-  estado: 'activo' | 'inactivo';
+  tipo: string;
+  fecha_inicio: string;
+  duracion_dias: number;
+  descripcion: string;
+  estado: string;
   granja_id: number;
-  // Eliminados: fecha_inicio, duracion_dias
 }
 
 export interface CultivoStats {
@@ -23,5 +26,5 @@ export interface CultivoStats {
   agricolas: number;
   pecuarios: number;
   activos: number;
-  // Eliminado: completados
+  completados: number;
 }

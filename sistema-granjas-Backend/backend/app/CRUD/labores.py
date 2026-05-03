@@ -1,10 +1,10 @@
-# app/CRUD/labores.py
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
-from datetime import datetime, timedelta
+from datetime import datetime
 from fastapi import HTTPException
 from app.db.models import (
-    Labor, Usuario, Recomendacion, Lote,
+    Labor, Usuario, Recomendacion, Lote, Herramienta, Insumo,
+    MovimientoHerramienta, MovimientoInsumo, AsignacionHerramienta,
     Evidencia, TipoLabor, Granja, Programa, usuario_programa
 )
 from app.schemas.labor_schema import (
@@ -12,10 +12,6 @@ from app.schemas.labor_schema import (
     AsignacionInsumoRequest, RegistroAvanceRequest, LaborWithRecursosResponse,
     LaborListResponse, LaborResponse
 )
-
-# Nota: Los modelos Herramienta, Insumo, MovimientoHerramienta, MovimientoInsumo, AsignacionHerramienta
-# han sido eliminados. La funcionalidad de inventario será reemplazada por el nuevo sistema de
-# inventario dinámico. Las funciones de asignación de recursos serán migradas posteriormente.
 
 def crear_labor_crud(db: Session, data: LaborCreate, usuario: Usuario):
     # Verificar que la recomendación existe
@@ -212,7 +208,7 @@ def actualizar_labor_crud(db: Session, labor: Labor, data: LaborUpdate, usuario:
     
     # Si se completa la labor, establecer fecha de finalización
     if update_data.get("estado") == "completada" and not labor.fecha_finalizacion:
-        update_data["fecha_finalizacion"] = (datetime.utcnow() - timedelta(hours=5)) 
+        update_data["fecha_finalizacion"] = datetime.utcnow()
         update_data["avance_porcentaje"] = 100
     
     for attr, value in update_data.items():
@@ -229,30 +225,114 @@ def eliminar_labor_crud(db: Session, labor: Labor, usuario: Usuario):
     """Elimina una labor"""
     _verificar_permisos_labor(labor, usuario, "eliminar")
     
+    # Verificar que no tenga movimientos asociados
+    mov_herramientas = db.query(MovimientoHerramienta).filter(MovimientoHerramienta.labor_id == labor.id).count()
+    mov_insumos = db.query(MovimientoInsumo).filter(MovimientoInsumo.labor_id == labor.id).count()
+    
     # Verificar que no tenga evidencias asociadas
     evidencias = db.query(Evidencia).filter(Evidencia.labor_id == labor.id).count()
     
-    if evidencias > 0:
-        raise HTTPException(400, "No se puede eliminar labor con evidencias asociadas")
+    if mov_herramientas > 0 or mov_insumos > 0 or evidencias > 0:
+        raise HTTPException(400, "No se puede eliminar labor con movimientos de inventario o evidencias asociadas")
     
     db.delete(labor)
     db.commit()
 
-# === FUNCIONES DE ASIGNACIÓN DE RECURSOS (MIGRACIÓN PENDIENTE) ===
+# === FUNCIONES DE ASIGNACIÓN DE RECURSOS ===
 
 def asignar_herramienta_crud(db: Session, labor: Labor, data: AsignacionHerramientaRequest, usuario: Usuario):
-    """
-    ⚠️ FUNCIONALIDAD DESCONTINUADA: La gestión de herramientas e insumos será migrada al nuevo sistema de inventario dinámico.
-    Por favor, utiliza la nueva API de inventario dinámico (/api/inventario-dinamico) para gestionar recursos.
-    """
-    raise HTTPException(501, "La asignación de herramientas está siendo migrada. Próximamente disponible en el nuevo módulo de inventario dinámico.")
+    _verificar_permisos_labor(labor, usuario, "asignar_recursos")
+    
+    herramienta = db.query(Herramienta).filter(Herramienta.id == data.herramienta_id).first()
+    if not herramienta:
+        raise HTTPException(404, "Herramienta no encontrada")
+    
+    if herramienta.cantidad_disponible < data.cantidad:
+        raise HTTPException(400, f"No hay suficiente disponibilidad. Disponible: {herramienta.cantidad_disponible}")
+    
+    movimiento = MovimientoHerramienta(
+        herramienta_id=data.herramienta_id,
+        labor_id=labor.id,
+        cantidad=data.cantidad,
+        tipo_movimiento="salida",
+        observaciones=f"Asignado a labor {labor.id}"
+    )
+    
+    herramienta.cantidad_disponible -= data.cantidad
+    
+    db.add(movimiento)
+    db.commit()
+    db.refresh(labor)
+    _cargar_relaciones_labor(labor)
+    _cargar_recursos_labor(db, labor)
+    
+    return _labor_a_dict_con_recursos(labor)
 
 def asignar_insumo_crud(db: Session, labor: Labor, data: AsignacionInsumoRequest, usuario: Usuario):
-    """
-    ⚠️ FUNCIONALIDAD DESCONTINUADA: La gestión de herramientas e insumos será migrada al nuevo sistema de inventario dinámico.
-    Por favor, utiliza la nueva API de inventario dinámico (/api/inventario-dinamico) para gestionar recursos.
-    """
-    raise HTTPException(501, "La asignación de insumos está siendo migrada. Próximamente disponible en el nuevo módulo de inventario dinámico.")
+    _verificar_permisos_labor(labor, usuario, "asignar_recursos")
+    
+    insumo = db.query(Insumo).filter(Insumo.id == data.insumo_id).first()
+    if not insumo:
+        raise HTTPException(404, "Insumo no encontrado")
+    
+    if insumo.cantidad_disponible < data.cantidad:
+        raise HTTPException(400, f"No hay suficiente disponibilidad. Disponible: {insumo.cantidad_disponible}")
+    
+    # ========== CORRECCIÓN: Verificación de programa del insumo ==========
+    # Necesitamos obtener el programa del lote o de la recomendación
+    programa_id_labor = None
+    
+    # Primero intentar obtener desde el lote directo de la labor
+    if labor.lote_id:
+        lote = db.query(Lote).filter(Lote.id == labor.lote_id).first()
+        if lote:
+            programa_id_labor = lote.programa_id
+    
+    # Si no tiene lote directo, intentar desde la recomendación
+    if not programa_id_labor and labor.recomendacion_id:
+        recomendacion = db.query(Recomendacion).filter(Recomendacion.id == labor.recomendacion_id).first()
+        if recomendacion and recomendacion.lote_id:
+            lote_rec = db.query(Lote).filter(Lote.id == recomendacion.lote_id).first()
+            if lote_rec:
+                programa_id_labor = lote_rec.programa_id
+    
+    # Si aún no tenemos programa_id, obtenerlo del trabajador
+    if not programa_id_labor:
+        trabajador = db.query(Usuario).filter(Usuario.id == labor.trabajador_id).first()
+        if trabajador and trabajador.programa_id:
+            programa_id_labor = trabajador.programa_id
+    
+    # Verificar que el insumo pertenece al programa de la labor
+    if programa_id_labor and insumo.programa_id != programa_id_labor:
+        # Obtener nombres para el mensaje de error
+        programa_insumo = db.query(Programa).filter(Programa.id == insumo.programa_id).first()
+        programa_labor = db.query(Programa).filter(Programa.id == programa_id_labor).first()
+        
+        raise HTTPException(400, 
+            f"El insumo '{insumo.nombre}' pertenece al programa '{programa_insumo.nombre if programa_insumo else 'Desconocido'}', "
+            f"pero la labor está asociada al programa '{programa_labor.nombre if programa_labor else 'Desconocido'}'. "
+            f"Solo puedes asignar insumos del mismo programa."
+        )
+    
+    # ========== FIN CORRECCIÓN ==========
+    
+    movimiento = MovimientoInsumo(
+        insumo_id=data.insumo_id,
+        labor_id=labor.id,
+        cantidad=data.cantidad,
+        tipo_movimiento="salida",
+        observaciones=f"Consumido en labor {labor.id}"
+    )
+    
+    insumo.cantidad_disponible -= data.cantidad
+    
+    db.add(movimiento)
+    db.commit()
+    db.refresh(labor)
+    _cargar_relaciones_labor(labor)
+    _cargar_recursos_labor(db, labor)
+    
+    return _labor_a_dict_con_recursos(labor)
 
 def registrar_avance_crud(db: Session, labor: Labor, data: RegistroAvanceRequest, usuario: Usuario):
     if labor.trabajador_id != usuario.id:
@@ -263,7 +343,7 @@ def registrar_avance_crud(db: Session, labor: Labor, data: RegistroAvanceRequest
     
     if data.avance_porcentaje == 100:
         labor.estado = "completada"
-        labor.fecha_finalizacion = (datetime.utcnow() - timedelta(hours=5)) 
+        labor.fecha_finalizacion = datetime.utcnow()
     elif data.avance_porcentaje > 0 and labor.estado == "pendiente":
         labor.estado = "en_progreso"
     
@@ -279,26 +359,95 @@ def completar_labor_crud(db: Session, labor: Labor, usuario: Usuario):
     
     labor.estado = "completada"
     labor.avance_porcentaje = 100
-    labor.fecha_finalizacion = (datetime.utcnow() - timedelta(hours=5)) 
+    labor.fecha_finalizacion = datetime.utcnow()
     
     db.commit()
     db.refresh(labor)
+
+    # Actualizar estado de la recomendación si todas sus labores están completas
+    if labor.recomendacion_id:
+        _actualizar_estado_recomendacion(db, labor.recomendacion_id)
+
     _cargar_relaciones_labor(labor)
     _cargar_recursos_labor(db, labor)
     
     return _labor_a_dict_con_recursos(labor)
 
 def devolver_herramienta_crud(db: Session, labor: Labor, movimiento_id: int, cantidad: int, usuario: Usuario):
-    """
-    ⚠️ FUNCIONALIDAD DESCONTINUADA: La gestión de herramientas e insumos será migrada al nuevo sistema de inventario dinámico.
-    """
-    raise HTTPException(501, "La devolución de herramientas está siendo migrada. Próximamente disponible en el nuevo módulo de inventario dinámico.")
+    _verificar_permisos_labor(labor, usuario, "devolver")
+    
+    movimiento = db.query(MovimientoHerramienta).filter(
+        and_(
+            MovimientoHerramienta.id == movimiento_id,
+            MovimientoHerramienta.labor_id == labor.id,
+            MovimientoHerramienta.tipo_movimiento == "salida"
+        )
+    ).first()
+    
+    if not movimiento:
+        raise HTTPException(404, "Movimiento no encontrado")
+    
+    if cantidad > movimiento.cantidad:
+        raise HTTPException(400, "No puede devolver más de lo asignado")
+    
+    movimiento_devolucion = MovimientoHerramienta(
+        herramienta_id=movimiento.herramienta_id,
+        labor_id=labor.id,
+        cantidad=cantidad,
+        tipo_movimiento="entrada",
+        observaciones=f"Devolución de labor {labor.id}"
+    )
+    
+    herramienta = db.query(Herramienta).filter(Herramienta.id == movimiento.herramienta_id).first()
+    if herramienta:
+        herramienta.cantidad_disponible += cantidad
+    
+    db.add(movimiento_devolucion)
+    db.commit()
+    
+    return {"message": "✅ Herramienta devuelta correctamente"}
+
 
 def devolver_insumo_crud(db: Session, labor: Labor, movimiento_id: int, cantidad: float, usuario: Usuario):
     """
-    ⚠️ FUNCIONALIDAD DESCONTINUADA: La gestión de herramientas e insumos será migrada al nuevo sistema de inventario dinámico.
+    Devuelve insumos que fueron consumidos en una labor.
+    Similar a devolver_herramienta_crud pero para insumos.
     """
-    raise HTTPException(501, "La devolución de insumos está siendo migrada. Próximamente disponible en el nuevo módulo de inventario dinámico.")
+    _verificar_permisos_labor(labor, usuario, "devolver")
+    
+    # Buscar el movimiento de salida (consumo)
+    movimiento = db.query(MovimientoInsumo).filter(
+        and_(
+            MovimientoInsumo.id == movimiento_id,
+            MovimientoInsumo.labor_id == labor.id,
+            MovimientoInsumo.tipo_movimiento == "salida"
+        )
+    ).first()
+    
+    if not movimiento:
+        raise HTTPException(404, "Movimiento de insumo no encontrado")
+    
+    if cantidad > movimiento.cantidad:
+        raise HTTPException(400, f"No puede devolver más de lo consumido. Consumido: {movimiento.cantidad}")
+    
+    # Crear movimiento de entrada (devolución)
+    movimiento_devolucion = MovimientoInsumo(
+        insumo_id=movimiento.insumo_id,
+        labor_id=labor.id,
+        cantidad=cantidad,
+        tipo_movimiento="entrada",
+        observaciones=f"Devolución de insumo de labor {labor.id}"
+    )
+    
+    # Actualizar disponibilidad del insumo
+    insumo = db.query(Insumo).filter(Insumo.id == movimiento.insumo_id).first()
+    if insumo:
+        insumo.cantidad_disponible += cantidad
+    
+    db.add(movimiento_devolucion)
+    db.commit()
+    
+    return {"message": "✅ Insumo devuelto correctamente"}
 
 # === FUNCIONES ADICIONALES ===
 
@@ -392,6 +541,20 @@ def obtener_estadisticas_labores_crud(db: Session, usuario: Usuario):
 
 # === FUNCIONES AUXILIARES ===
 
+def _actualizar_estado_recomendacion(db: Session, recomendacion_id: int):
+    """Actualiza el estado de la recomendación según el progreso de sus labores"""
+    labores = db.query(Labor).filter(Labor.recomendacion_id == recomendacion_id).all()
+    if not labores:
+        return
+    rec = db.query(Recomendacion).filter(Recomendacion.id == recomendacion_id).first()
+    if not rec:
+        return
+    if all(l.estado == "completada" for l in labores):
+        rec.estado = "completada"
+    elif any(l.estado in ["en_progreso", "completada"] for l in labores):
+        rec.estado = "en_ejecucion"
+    db.commit()
+
 def _verificar_permisos_labor(labor: Labor, usuario: Usuario, accion: str):
     rol = usuario.rol.nombre
     
@@ -443,14 +606,104 @@ def _cargar_relaciones_labor(labor: Labor):
 
 def _cargar_recursos_labor(db: Session, labor: Labor):
     """
-    ✅ Carga evidencias de la labor (los recursos de inventario se migrarán al sistema dinámico)
+    ✅ CORREGIDO: Carga recursos de la labor y calcula cantidades netas
     """
-    # Evidencias
+    print(f"Cargando recursos para labor ID: {labor.id}")
+    # Cargar movimientos de herramientas y calcular cantidades netas
+    movimientos_herramientas = db.query(MovimientoHerramienta).filter(
+        MovimientoHerramienta.labor_id == labor.id
+    ).all()
+    
+    herramientas_info = []
+    herramientas_totales = {}
+    
+    for mov in movimientos_herramientas:
+        herramienta_id = mov.herramienta_id
+        
+        # Calcular cantidad neta por herramienta
+        if mov.tipo_movimiento == "salida":  # ✅ SALIDA = Asignación a labor
+            herramientas_totales[herramienta_id] = herramientas_totales.get(herramienta_id, 0) + mov.cantidad
+        elif mov.tipo_movimiento == "entrada":  # ✅ ENTRADA = Devolución a inventario
+            herramientas_totales[herramienta_id] = herramientas_totales.get(herramienta_id, 0) - mov.cantidad
+        
+        herramienta_info = {
+            "movimiento_id": mov.id,
+            "herramienta_id": herramienta_id,
+            "herramienta_nombre": mov.herramienta.nombre if mov.herramienta else None,
+            "cantidad": mov.cantidad,
+            "tipo_movimiento": mov.tipo_movimiento,
+            "fecha_movimiento": mov.fecha_movimiento,
+            "observaciones": mov.observaciones
+        }
+        herramientas_info.append(herramienta_info)
+    
+    # Crear resumen de herramientas asignadas (cantidad neta actual)
+    herramientas_resumen = []
+    for herramienta_id, cantidad_neta in herramientas_totales.items():
+        if cantidad_neta > 0:  # Solo mostrar herramientas que aún están asignadas
+            herramienta = db.query(Herramienta).filter(Herramienta.id == herramienta_id).first()
+            herramientas_resumen.append({
+                "herramienta_id": herramienta_id,
+                "herramienta_nombre": herramienta.nombre if herramienta else None,
+                "cantidad_actual": cantidad_neta,
+                "unidad_medida": "unidades"
+            })
+    
+    labor.herramientas_asignadas_info = herramientas_info
+    labor.herramientas_resumen = herramientas_resumen
+    
+    # Cargar movimientos de insumos y calcular cantidades netas
+    movimientos_insumos = db.query(MovimientoInsumo).filter(
+        MovimientoInsumo.labor_id == labor.id
+    ).all()
+    
+    insumos_info = []
+    insumos_totales = {}
+    
+    for mov in movimientos_insumos:
+        insumo_id = mov.insumo_id
+        
+        # Calcular cantidad neta por insumo
+        if mov.tipo_movimiento == "salida":  # ✅ SALIDA = Consumo en labor
+            insumos_totales[insumo_id] = insumos_totales.get(insumo_id, 0) + mov.cantidad
+        elif mov.tipo_movimiento == "entrada":  # ✅ ENTRADA = Devolución a inventario
+            insumos_totales[insumo_id] = insumos_totales.get(insumo_id, 0) - mov.cantidad
+        
+        insumo_info = {
+            "movimiento_id": mov.id,
+            "insumo_id": insumo_id,
+            "insumo_nombre": mov.insumo.nombre if mov.insumo else None,
+            "cantidad": mov.cantidad,
+            "tipo_movimiento": mov.tipo_movimiento,
+            "fecha_movimiento": mov.fecha_movimiento,
+            "observaciones": mov.observaciones,
+            "unidad_medida": mov.insumo.unidad_medida if mov.insumo else None
+        }
+        insumos_info.append(insumo_info)
+    
+    # Crear resumen de insumos consumidos (cantidad neta)
+    insumos_resumen = []
+    for insumo_id, cantidad_neta in insumos_totales.items():
+        if cantidad_neta > 0:  # Solo mostrar insumos que fueron consumidos
+            insumo = db.query(Insumo).filter(Insumo.id == insumo_id).first()
+            insumos_resumen.append({
+                "insumo_id": insumo_id,
+                "insumo_nombre": insumo.nombre if insumo else None,
+                "cantidad_consumida": cantidad_neta,
+                "unidad_medida": insumo.unidad_medida if insumo else "unidades"
+            })
+    
+    labor.insumos_asignados_info = insumos_info
+    labor.insumos_resumen = insumos_resumen
+    
+    # Cargar evidencias
     evidencias = db.query(Evidencia).filter(Evidencia.labor_id == labor.id).all()
+    
     evidencias_info = []
     for evidencia in evidencias:
         usuario_creador = db.query(Usuario).filter(Usuario.id == evidencia.usuario_id).first()
         creado_por_nombre = usuario_creador.nombre if usuario_creador else None
+        
         evidencia_info = {
             "id": evidencia.id,
             "tipo": evidencia.tipo,
@@ -460,17 +713,12 @@ def _cargar_recursos_labor(db: Session, labor: Labor):
             "creado_por_nombre": creado_por_nombre
         }
         evidencias_info.append(evidencia_info)
+    
     labor.evidencias_info = evidencias_info
-
-    # Los recursos de inventario (herramientas, insumos) serán migrados
-    labor.herramientas_resumen = []
-    labor.insumos_resumen = []
-    labor.herramientas_asignadas_info = []
-    labor.insumos_asignados_info = []
 
 def _labor_a_dict_con_recursos(labor: Labor):
     """
-    ✅ Convierte objeto Labor a diccionario compatible con LaborWithRecursosResponse
+    ✅ NUEVA FUNCIÓN: Convierte objeto Labor a diccionario compatible con LaborWithRecursosResponse
     """
     return {
         "id": labor.id,
@@ -489,6 +737,7 @@ def _labor_a_dict_con_recursos(labor: Labor):
         "granja_nombre": getattr(labor, 'granja_nombre', None),
         "tipo_labor_nombre": getattr(labor, 'tipo_labor_nombre', None),
         "tipo_labor_descripcion": getattr(labor, 'tipo_labor_descripcion', None),
+        # ✅ INCLUIR RECURSOS según el schema LaborWithRecursosResponse
         "herramientas_asignadas": getattr(labor, 'herramientas_resumen', []),
         "insumos_asignados": getattr(labor, 'insumos_resumen', []),
         "evidencias": getattr(labor, 'evidencias_info', []),

@@ -19,29 +19,14 @@ export default function LogoutButton({ className = "", variant = "default" }: Pr
 
         setLoading(true);
         try {
-            // Intentar hacer logout en el servidor
             await logout();
-        } catch (error: any) {
-            // Si hay error, solo registrarlo, pero continuar con el logout local
-            console.error("Error en logout del servidor:", error);
-        } finally {
-            // Siempre limpiar el estado local y redirigir
-            // Incluso si no hay token o falla la llamada al servidor
-            
-            // Limpiar cualquier dato de autenticación local
-            localStorage.removeItem("token");
-            sessionStorage.removeItem("token");
-            // También limpiar cualquier otro dato de sesión que tengas
-            
-            setLoading(false);
             alert("Sesión cerrada correctamente");
-            
-            // Redirigir al login y recargar para resetear el estado de la app
             navigate("/login");
-            // Pequeño delay para asegurar que la navegación ocurra antes del reload
-            setTimeout(() => {
-                navigate(0);
-            }, 100);
+        } catch (error: any) {
+            console.error("Error en logout:", error);
+            alert("Error al cerrar sesión. Intenta nuevamente.");
+        } finally {
+            setLoading(false);
         }
     };
 

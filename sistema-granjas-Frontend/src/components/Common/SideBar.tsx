@@ -216,6 +216,15 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true }) => {
                                 </a>
                             </li>
                         )}
+
+                        {canSee(['trabajador', 'admin']) && (
+                            <li>
+                                <a href="/mis-tareas" className="flex items-center space-x-2 text-gray-700 hover:text-green-600 hover:bg-gray-50 p-2 rounded transition-colors">
+                                    <i className="fas fa-clipboard-check w-4 text-green-500"></i>
+                                    <span>Mis Tareas</span>
+                                </a>
+                            </li>
+                        )}
                     </ul>
                 </div>
 

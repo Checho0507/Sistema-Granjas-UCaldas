@@ -1,12 +1,30 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from datetime import datetime, timedelta
+from datetime import datetime
 from app.db.models import Recomendacion, Labor, Usuario, Lote, Diagnostico
 from app.schemas.recomendacion_schema import RecomendacionCreate, RecomendacionUpdate, AprobacionRecomendacionRequest
 from fastapi import HTTPException
 
 def crear_recomendacion(db: Session, data: RecomendacionCreate, usuario_id: int):
-    # CORRECCIÓN: Usar docente_id en lugar de usuario_id
+    # Verificar 1:1 — cada diagnóstico solo puede tener UNA recomendación
+    if data.diagnostico_id:
+        existente = db.query(Recomendacion).filter(
+            Recomendacion.diagnostico_id == data.diagnostico_id
+        ).first()
+        if existente:
+            raise HTTPException(
+                400,
+                f"Este diagnóstico ya tiene una recomendación asociada (ID: {existente.id}). "
+                f"Solo se permite una recomendación por diagnóstico."
+            )
+        # Verificar que el diagnóstico existe
+        diagnostico = db.query(Diagnostico).filter(Diagnostico.id == data.diagnostico_id).first()
+        if not diagnostico:
+            raise HTTPException(404, "Diagnóstico no encontrado")
+        # Sincronizar lote_id con el del diagnóstico
+        if not data.lote_id and diagnostico.lote_id:
+            data.lote_id = diagnostico.lote_id
+
     rec = Recomendacion(
         titulo=data.titulo,
         descripcion=data.descripcion,
@@ -14,7 +32,7 @@ def crear_recomendacion(db: Session, data: RecomendacionCreate, usuario_id: int)
         estado=data.estado,
         lote_id=data.lote_id,
         diagnostico_id=data.diagnostico_id,
-        docente_id=data.docente_id  # ← CORREGIDO
+        docente_id=data.docente_id
     )
     db.add(rec)
     db.commit()
@@ -81,7 +99,7 @@ def actualizar_recomendacion(db: Session, recomendacion: Recomendacion, data: Re
     
     # Si se aprueba, establecer fecha de aprobación
     if update_data.get("estado") == "aprobada" and not recomendacion.fecha_aprobacion:
-        update_data["fecha_aprobacion"] = (datetime.utcnow() - timedelta(hours=5)) 
+        update_data["fecha_aprobacion"] = datetime.utcnow()
     
     # Si se está desasignando el diagnóstico (diagnostico_id es None)
     if "diagnostico_id" in update_data and update_data["diagnostico_id"] is None:
@@ -116,7 +134,7 @@ def aprobar_recomendacion_crud(db: Session, id: int, data: AprobacionRecomendaci
     
     if data.aprobar:
         rec.estado = "aprobada"
-        rec.fecha_aprobacion = (datetime.utcnow() - timedelta(hours=5)) 
+        rec.fecha_aprobacion = datetime.utcnow()
     else:
         rec.estado = "cancelada"
     

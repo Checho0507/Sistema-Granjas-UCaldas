@@ -1,7 +1,5 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React from 'react';
 import type { CultivoEspecie } from '../../types/cultivoTypes';
-import granjaService from '../../services/granjaService';
 
 interface CultivosTableProps {
     cultivos: CultivoEspecie[];
@@ -14,57 +12,7 @@ const CultivosTable: React.FC<CultivosTableProps> = ({
     onEditar,
     onEliminar
 }) => {
-    const navigate = useNavigate();
-    const [granjasMap, setGranjasMap] = useState<Record<number, string>>({});
-    const [cargando, setCargando] = useState(false);
-
-    // 👇 ORDENAR CULTIVOS POR ID (de menor a mayor)
-    const cultivosOrdenados = useMemo(() => {
-        return [...cultivos].sort((a, b) => a.id - b.id);
-    }, [cultivos]);
-
-    useEffect(() => {
-        const cargarNombresGranjas = async () => {
-            if (cultivos.length === 0) return;
-            
-            const granjaIds = Array.from(
-                new Set(cultivos.map(c => c.granja_id).filter(Boolean))
-            ) as number[];
-            
-            if (granjaIds.length === 0) return;
-            
-            setCargando(true);
-            
-            try {
-                const promesas = granjaIds.map(async (id) => {
-                    try {
-                        const res = await granjaService.obtenerGranjaPorId(id);
-                        return { id, nombre: res.nombre };
-                    } catch (error) {
-                        console.error(`Error al obtener granja ${id}:`, error);
-                        return { id, nombre: 'No encontrada' };
-                    }
-                });
-                
-                const resultados = await Promise.all(promesas);
-                const nuevoMap: Record<number, string> = {};
-                resultados.forEach(r => nuevoMap[r.id] = r.nombre);
-                setGranjasMap(nuevoMap);
-            } catch (error) {
-                console.error('Error cargando nombres de granjas:', error);
-            } finally {
-                setCargando(false);
-            }
-        };
-        
-        cargarNombresGranjas();
-    }, [cultivos]);
-
-    const verLotesConCultivo = (e: React.MouseEvent, cultivoId: number, cultivoNombre: string) => {
-        e.stopPropagation();
-        navigate(`/lotes?cultivoId=${cultivoId}&cultivoNombre=${encodeURIComponent(cultivoNombre)}`);
-    };
-
+    // Función para obtener color según tipo
     const getTipoColor = (tipo: string) => {
         switch (tipo?.toLowerCase()) {
             case 'agricola': return 'bg-green-100 text-green-800';
@@ -73,6 +21,7 @@ const CultivosTable: React.FC<CultivosTableProps> = ({
         }
     };
 
+    // Función para obtener color según estado
     const getEstadoColor = (estado: string) => {
         switch (estado?.toLowerCase()) {
             case 'activo': return 'bg-blue-100 text-blue-800';
@@ -82,9 +31,16 @@ const CultivosTable: React.FC<CultivosTableProps> = ({
         }
     };
 
-    // Logs para depuración (opcional)
-    console.log('📋 Cultivos originales:', cultivos);
-    console.log('📋 Cultivos ordenados:', cultivosOrdenados);
+    // Formatear fecha
+    const formatearFecha = (fechaString?: string) => {
+        if (!fechaString) return '-';
+        try {
+            const fecha = new Date(fechaString);
+            return fecha.toLocaleDateString('es-ES');
+        } catch {
+            return '-';
+        }
+    };
 
     return (
         <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -94,7 +50,6 @@ const CultivosTable: React.FC<CultivosTableProps> = ({
                         <h3 className="text-lg font-medium text-gray-900">Lista de Cultivos/Especies</h3>
                         <p className="text-sm text-gray-500">
                             Mostrando {cultivos.length} registros
-                            {cargando && <span className="ml-2 text-blue-500">(Cargando granjas...)</span>}
                         </p>
                     </div>
                 </div>
@@ -104,6 +59,9 @@ const CultivosTable: React.FC<CultivosTableProps> = ({
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                ID
+                            </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Nombre
                             </th>
@@ -117,13 +75,19 @@ const CultivosTable: React.FC<CultivosTableProps> = ({
                                 Granja
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Duración
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Acciones
                             </th>
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {cultivosOrdenados.map((cultivo) => (
+                        {cultivos.map((cultivo) => (
                             <tr key={cultivo.id} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    {cultivo.id}
+                                </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div>
                                         <p className="text-sm font-medium text-gray-900">{cultivo.nombre}</p>
@@ -145,28 +109,23 @@ const CultivosTable: React.FC<CultivosTableProps> = ({
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {granjasMap[cultivo.granja_id] || cultivo.granja_nombre || `Granja ${cultivo.granja_id}`}
+                                    {cultivo.granja_nombre || `Granja ${cultivo.granja_id}`}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {cultivo.duracion_dias ? `${cultivo.duracion_dias} días` : '-'}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                     <div className="flex space-x-2">
                                         <button
-                                            onClick={(e) => verLotesConCultivo(e, cultivo.id, cultivo.nombre)}
-                                            className="text-purple-600 hover:text-purple-900 p-1.5 hover:bg-purple-50 rounded transition-colors"
-                                            title="Ver lotes con este cultivo"
-                                        >
-                                            <i className="fas fa-seedling"></i>
-                                        </button>
-
-                                        <button
                                             onClick={() => onEditar(cultivo)}
-                                            className="text-yellow-600 hover:text-yellow-900 p-1.5 hover:bg-yellow-50 rounded transition-colors"
+                                            className="text-yellow-600 hover:text-yellow-900 transition-colors"
                                             title="Editar"
                                         >
                                             <i className="fas fa-edit"></i>
                                         </button>
                                         <button
                                             onClick={() => onEliminar(cultivo.id)}
-                                            className="text-red-600 hover:text-red-900 p-1.5 hover:bg-red-50 rounded transition-colors"
+                                            className="text-red-600 hover:text-red-900 transition-colors"
                                             title="Eliminar"
                                         >
                                             <i className="fas fa-trash"></i>

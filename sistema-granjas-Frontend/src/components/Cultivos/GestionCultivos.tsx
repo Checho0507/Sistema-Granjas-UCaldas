@@ -1,85 +1,113 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import cultivoService from "../../services/cultivoService";
 import granjaService from "../../services/granjaService";
 import { StatsCard } from "../Common/StatsCard";
 import CultivosTable from "./CultivosTable";
 import CultivoForm from "./CultivosForm";
-import type { CultivoFormData, CultivoEspecie } from "../../types/cultivoTypes";
+import exportService from "../../services/exportService";
 
 export default function GestionCultivos() {
-    const [searchParams] = useSearchParams();
-    const programaId = searchParams.get("programaId");
-    
-    console.log('📍 GestionCultivos - programaId:', programaId); // 👈 LOG PARA DEBUG
-
-    const [cultivos, setCultivos] = useState<CultivoEspecie[]>([]);
+    const [cultivos, setCultivos] = useState<any[]>([]);
     const [granjas, setGranjas] = useState<any[]>([]);
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [erroresValidacion, setErroresValidacion] = useState<Record<string, string>>({});
-
     const [estadisticas, setEstadisticas] = useState({
         total: 0,
         agricolas: 0,
         pecuarios: 0,
         activos: 0,
+        completados: 0
     });
 
+    // Modales
     const [modalCrear, setModalCrear] = useState(false);
-    const [cultivoSeleccionado, setCultivoSeleccionado] = useState<CultivoEspecie | null>(null);
+
+    // Selecciones
+    const [cultivoSeleccionado, setCultivoSeleccionado] = useState<any>(null);
     const [editando, setEditando] = useState(false);
 
-    const [datosFormulario, setDatosFormulario] = useState<CultivoFormData>({
+    // Formulario
+    const [datosFormulario, setDatosFormulario] = useState({
         nombre: "",
         tipo: "agricola",
+        fecha_inicio: new Date().toISOString().split('T')[0],
+        duracion_dias: 90,
         descripcion: "",
         estado: "activo",
         granja_id: 0,
     });
 
+    // Estados específicos para exportación
+    const [exporting, setExporting] = useState(false);
+    const [exportMessage, setExportMessage] = useState('');
+
+    // Handler para exportar cultivos
+    const handleExportCultivos = async () => {
+        if (exporting) return;
+
+        setExporting(true);
+        setExportMessage('Exportando cultivos...');
+
+        try {
+            const loadingToast = toast.loading('Exportando cultivos...');
+            const result = await exportService.exportarCultivos();
+
+            toast.dismiss(loadingToast);
+            toast.success('Exportación completada exitosamente', {
+                duration: 3000,
+                position: 'top-right'
+            });
+
+            setExportMessage(`¡Exportación completada! (${result.filename})`);
+            setTimeout(() => setExportMessage(''), 5000);
+        } catch (error: any) {
+            console.error('❌ Error exportando cultivos:', error);
+
+            toast.error('Error al exportar cultivos', {
+                duration: 4000,
+                position: 'top-right'
+            });
+
+            setExportMessage('Error al exportar.');
+            setTimeout(() => setExportMessage(''), 5000);
+        } finally {
+            setExporting(false);
+        }
+    };
+
     useEffect(() => {
         cargarDatos();
-    }, [programaId]);
+    }, []);
 
     const cargarDatos = async () => {
         try {
             setCargando(true);
             setError(null);
 
-            let datosCultivos: CultivoEspecie[] = [];
+            console.log('🔄 Cargando datos de cultivos...');
+            const loadingToast = toast.loading('Cargando datos...');
 
-            if (programaId) {
-                console.log(`🔍 Cargando cultivos para programa ${programaId}...`);
-                datosCultivos = await cultivoService.obtenerCultivosPorPrograma(Number(programaId));
-                console.log(`✅ Cultivos obtenidos:`, datosCultivos);
-            } else {
-                console.log(`🔍 Cargando todos los cultivos...`);
-                datosCultivos = await cultivoService.obtenerCultivos();
-            }
+            const [datosCultivos, datosGranjas, datosEstadisticas] = await Promise.all([
+                cultivoService.obtenerCultivos(),
+                granjaService.obtenerGranjas(),
+                cultivoService.obtenerEstadisticas()
+            ]);
 
-            // Si no hay cultivos, mostrar mensaje pero continuar
-            if (datosCultivos.length === 0) {
-                console.log('⚠️ No se encontraron cultivos');
-            }
-
-            const datosGranjas = await granjaService.obtenerGranjas();
+            toast.dismiss(loadingToast);
+            console.log('✅ Datos cargados exitosamente');
 
             setCultivos(datosCultivos);
             setGranjas(datosGranjas);
+            setEstadisticas(datosEstadisticas);
 
-            setEstadisticas({
-                total: datosCultivos.length,
-                agricolas: datosCultivos.filter((c) => c.tipo === "agricola").length,
-                pecuarios: datosCultivos.filter((c) => c.tipo === "pecuario").length,
-                activos: datosCultivos.filter((c) => c.estado === "activo").length,
+        } catch (error: any) {
+            console.error('❌ Error cargando datos:', error);
+            setError(error.message || 'Error al cargar los datos');
+            toast.error('Error al cargar los datos de cultivos', {
+                duration: 4000,
+                position: 'top-right'
             });
-        } catch (err: unknown) {
-            console.error('❌ Error en cargarDatos:', err);
-            const mensaje = err instanceof Error ? err.message : "Error al cargar los datos";
-            setError(mensaje);
-            toast.error(mensaje);
         } finally {
             setCargando(false);
         }
@@ -88,66 +116,94 @@ export default function GestionCultivos() {
     const manejarCrear = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        setErroresValidacion({});
-        setError(null);
-
-        const loadingToast = toast.loading(editando ? "Actualizando..." : "Creando...");
-
         try {
+            setError(null);
+            console.log('📤 Guardando cultivo...', datosFormulario);
+
+            const loadingToast = toast.loading(
+                editando ? 'Actualizando cultivo...' : 'Creando cultivo...'
+            );
+
             if (editando && cultivoSeleccionado) {
                 await cultivoService.actualizarCultivo(cultivoSeleccionado.id, datosFormulario);
-                toast.success("Actualizado exitosamente");
+
+                toast.dismiss(loadingToast);
+                toast.success('Cultivo actualizado exitosamente', {
+                    duration: 3000,
+                    position: 'top-right'
+                });
+
+                console.log('✅ Cultivo actualizado');
             } else {
                 await cultivoService.crearCultivo(datosFormulario);
-                toast.success("Creado exitosamente");
+
+                toast.dismiss(loadingToast);
+                toast.success('Cultivo creado exitosamente', {
+                    duration: 3000,
+                    position: 'top-right'
+                });
+
+                console.log('✅ Cultivo creado');
             }
 
             await cargarDatos();
-
             setModalCrear(false);
             setEditando(false);
             resetFormulario();
-        } catch (err: any) {
-            if (err.erroresValidacion) {
-                setErroresValidacion(err.erroresValidacion);
 
-                const primerError = Object.values(err.erroresValidacion)[0] as string;
-                if (primerError) toast.error(primerError);
-            } else {
-                const mensaje = err?.message || "Error inesperado";
-                setError(mensaje);
-                toast.error(mensaje);
-            }
-        } finally {
-            toast.dismiss(loadingToast);
+        } catch (error: any) {
+            console.error('❌ Error guardando cultivo:', error);
+            setError(error.message || 'Error al guardar el cultivo');
+
+            toast.error(`Error al guardar cultivo: ${error.message || 'Error desconocido'}`, {
+                duration: 4000,
+                position: 'top-right'
+            });
         }
     };
 
-    const abrirEditar = (cultivo: CultivoEspecie) => {
+    const abrirEditar = (cultivo: any) => {
         setDatosFormulario({
             nombre: cultivo.nombre || "",
             tipo: cultivo.tipo || "agricola",
+            fecha_inicio: cultivo.fecha_inicio ? new Date(cultivo.fecha_inicio).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            duracion_dias: cultivo.duracion_dias || 90,
             descripcion: cultivo.descripcion || "",
             estado: cultivo.estado || "activo",
             granja_id: cultivo.granja_id || 0,
         });
-
         setCultivoSeleccionado(cultivo);
         setEditando(true);
         setModalCrear(true);
-        setErroresValidacion({});
     };
 
     const manejarEliminar = async (id: number) => {
-        if (!window.confirm("¿Eliminar este cultivo?")) return;
+        const confirmar = window.confirm("¿Estás seguro de eliminar este cultivo/especie?\nEsta acción no se puede deshacer.");
+        if (!confirmar) return;
 
         try {
+            setError(null);
+            const loadingToast = toast.loading('Eliminando cultivo...');
+
             await cultivoService.eliminarCultivo(id);
-            toast.success("Eliminado exitosamente");
+
+            toast.dismiss(loadingToast);
+            toast.success('Cultivo eliminado exitosamente', {
+                duration: 3000,
+                position: 'top-right'
+            });
+
+            console.log('✅ Cultivo eliminado');
             await cargarDatos();
-        } catch (err: unknown) {
-            const mensaje = err instanceof Error ? err.message : "Error al eliminar";
-            toast.error(mensaje);
+
+        } catch (error: any) {
+            console.error('❌ Error al eliminar cultivo:', error);
+            setError(error.message || 'Error al eliminar el cultivo');
+
+            toast.error(`Error al eliminar cultivo: ${error.message || 'Error desconocido'}`, {
+                duration: 4000,
+                position: 'top-right'
+            });
         }
     };
 
@@ -155,58 +211,121 @@ export default function GestionCultivos() {
         setDatosFormulario({
             nombre: "",
             tipo: "agricola",
+            fecha_inicio: new Date().toISOString().split('T')[0],
+            duracion_dias: 90,
             descripcion: "",
             estado: "activo",
             granja_id: 0,
         });
-
-        setErroresValidacion({});
     };
 
     if (cargando) {
         return (
             <div className="flex justify-center items-center p-8">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
-                <span className="ml-4">
-                    {programaId ? 'Cargando cultivos del programa...' : 'Cargando...'}
-                </span>
+                <span className="ml-4 text-gray-600">Cargando cultivos...</span>
             </div>
         );
     }
 
     return (
         <div className="p-6">
-            <button
-                onClick={() => {
-                    resetFormulario();
-                    setEditando(false);
-                    setModalCrear(true);
-                }}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg mb-4"
-            >
-                <i className="fas fa-plus mr-2"></i>
-                Nuevo Cultivo
-            </button>
+            <h1 className="text-2xl font-bold mb-6">Gestión de Cultivos/Especies</h1>
 
-            {/* Mensaje si no hay cultivos */}
-            {!cargando && programaId && cultivos.length === 0 && (
-                <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded mb-4">
-                    <i className="fas fa-info-circle mr-2"></i>
-                    No se encontraron cultivos para este programa. Esto puede deberse a que:
-                    <ul className="list-disc ml-6 mt-2">
-                        <li>El programa no tiene lotes asignados</li>
-                        <li>Los lotes del programa no tienen cultivos asociados</li>
-                        <li>Los cultivos no están activos</li>
-                    </ul>
+            {/* Mensaje de exportación */}
+            <div className="flex items-center space-x-3 m-2 mb-6">
+                {exportMessage && (
+                    <span className={`text-sm px-3 py-1 rounded ${exportMessage.includes('Error')
+                        ? 'bg-red-100 text-red-600'
+                        : 'bg-green-100 text-green-600'
+                        }`}>
+                        {exportMessage}
+                    </span>
+                )}
+
+                <button
+                    onClick={handleExportCultivos}
+                    disabled={exporting}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 disabled:opacity-50 transition-colors"
+                >
+                    <i className={`fas ${exporting ? 'fa-spinner fa-spin' : 'fa-file-excel'}`}></i>
+                    <span>{exporting ? 'Exportando...' : 'Exportar a Excel'}</span>
+                </button>
+            </div>
+
+            {/* Mostrar error global */}
+            {error && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                    <div className="flex items-center">
+                        <i className="fas fa-exclamation-triangle mr-2"></i>
+                        <strong>Error:</strong> {error}
+                    </div>
+                    <button
+                        onClick={() => setError(null)}
+                        className="float-right text-red-800 hover:text-red-900"
+                    >
+                        <i className="fas fa-times"></i>
+                    </button>
                 </div>
             )}
 
+            {/* Estadísticas */}
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                <StatsCard
+                    icon="fas fa-leaf"
+                    color="bg-green-600"
+                    value={estadisticas.total}
+                    label="Total Cultivos"
+                />
+                <StatsCard
+                    icon="fas fa-seedling"
+                    color="bg-emerald-600"
+                    value={estadisticas.agricolas}
+                    label="Agrícolas"
+                />
+                <StatsCard
+                    icon="fas fa-paw"
+                    color="bg-amber-600"
+                    value={estadisticas.pecuarios}
+                    label="Pecuario"
+                />
+                <StatsCard
+                    icon="fas fa-check-circle"
+                    color="bg-blue-600"
+                    value={estadisticas.activos}
+                    label="Activos"
+                />
+                <StatsCard
+                    icon="fas fa-flag-checkered"
+                    color="bg-purple-600"
+                    value={estadisticas.completados}
+                    label="Completados"
+                />
+            </div>
+
+            {/* Botón Crear */}
+            <div className="mb-6">
+                <button
+                    onClick={() => {
+                        resetFormulario();
+                        setEditando(false);
+                        setModalCrear(true);
+                    }}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
+                >
+                    <i className="fas fa-plus"></i>
+                    Nuevo Cultivo/Especie
+                </button>
+            </div>
+
+            {/* Tabla de cultivos */}
             <CultivosTable
                 cultivos={cultivos}
                 onEditar={abrirEditar}
                 onEliminar={manejarEliminar}
             />
 
+            {/* Modal de formulario */}
             <CultivoForm
                 isOpen={modalCrear}
                 onClose={() => {
@@ -219,7 +338,6 @@ export default function GestionCultivos() {
                 onSubmit={manejarCrear}
                 editando={editando}
                 granjas={granjas}
-                erroresValidacion={erroresValidacion}
             />
         </div>
     );

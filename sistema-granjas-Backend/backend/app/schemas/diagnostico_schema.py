@@ -1,190 +1,127 @@
 from pydantic import BaseModel, Field, validator
-from typing import Optional, List, Dict, Any
-from datetime import datetime, date
+from typing import Optional, List
+from datetime import datetime
+from enum import Enum
 
-CONDICIONES_DIA_PERMITIDAS = ["Soleado", "Nublado", "Lluvia"]
+class TipoDiagnostico(str, Enum):
+    NUTRICIONAL = "nutricional"
+    PLAGAS = "plagas"
+    CONTROLADORES_BIOLÓGICOS = "controladores_biológicos"
+    FENOLOGÍA = "fenología"
 
-TIPOS_DIAGNOSTICO_PERMITIDOS = [
-    "censo_poblacional",
-    "monitoreo_fenologico",
-    "artropodos",
-    "enfermedades",
-    "arvenses",
-    "controladores_biologicos",
-    "polinizadores",
-]
+class EstadoDiagnostico(str, Enum):
+    ABIERTO = "abierto"
+    EN_REVISION = "en_revision"
+    CERRADO = "cerrado"
 
+# Schema base para herencia
+class DiagnosticoBase(BaseModel):
+    tipo: TipoDiagnostico = Field(..., description="Tipo de diagnóstico")
+    descripcion: str = Field(..., min_length=10, max_length=1000, description="Descripción detallada del diagnóstico")
+    lote_id: int = Field(..., gt=0, description="ID del lote asociado")
+    estado: EstadoDiagnostico = Field(EstadoDiagnostico.ABIERTO, description="Estado del diagnóstico")
+    observaciones: Optional[str] = Field(None, max_length=1000, description="Observaciones del docente")
 
-# =============================================================================
-# SCHEMA AUXILIAR PARA PLANTA (respuesta simplificada)
-# =============================================================================
-class PlantaSimpleResponse(BaseModel):
-    id: int
-    codigo: str
-    surco: int
-    numero: int
-    lote_id: int
+    @validator('descripcion')
+    def descripcion_minima(cls, v):
+        if len(v.strip()) < 10:
+            raise ValueError('La descripción debe tener al menos 10 caracteres')
+        return v.strip()
 
-    class Config:
-        from_attributes = True
+    # ❌ VALIDACIÓN DE OBSERVACIONES ELIMINADA
 
-
-# =============================================================================
-# CREATE
-# =============================================================================
+# Schema para creación - con docente_id opcional
 class DiagnosticoCreate(BaseModel):
-    programa_id:       int            = Field(..., gt=0)
-    tipo_monitoreo_id: int            = Field(..., gt=0)
-    lote_id:           int            = Field(..., gt=0)
-    usuario_id:        int            = Field(..., gt=0)
-    tipo_diagnostico:  str            = Field(..., description="Tipo de diagnóstico")
-    condiciones_dia:   str            = Field(..., description="Condiciones climáticas del día")
-    formulario:        Optional[Dict[str, Any]] = Field(None, description="Datos del formulario en JSON")
-    plantas_ids:       Optional[List[int]] = Field(None, description="IDs de las plantas evaluadas en este diagnóstico")
+    tipo: TipoDiagnostico = Field(..., description="Tipo de diagnóstico")
+    descripcion: str = Field(..., min_length=10, max_length=1000, description="Descripción detallada")
+    estudiante_id: int = Field(..., gt=0, description="ID del estudiante que crea el diagnóstico")
+    lote_id: int = Field(..., gt=0, description="ID del lote asociado")
+    docente_id: Optional[int] = Field(None, gt=0, description="ID del docente que revisa")
 
-    @validator("tipo_diagnostico")
-    def validar_tipo(cls, v):
-        if v not in TIPOS_DIAGNOSTICO_PERMITIDOS:
-            raise ValueError(f"tipo_diagnostico debe ser uno de: {', '.join(TIPOS_DIAGNOSTICO_PERMITIDOS)}")
-        return v
+    @validator('descripcion')
+    def descripcion_minima(cls, v):
+        if len(v.strip()) < 10:
+            raise ValueError('La descripción debe tener al menos 10 caracteres')
+        return v.strip()
 
-    @validator("condiciones_dia")
-    def validar_condiciones(cls, v):
-        if v not in CONDICIONES_DIA_PERMITIDAS:
-            raise ValueError(f"condiciones_dia debe ser uno de: {', '.join(CONDICIONES_DIA_PERMITIDAS)}")
-        return v
-
-    @validator("plantas_ids")
-    def validar_plantas_ids(cls, v):
-        if v is not None:
-            if len(v) == 0:
-                raise ValueError("La lista de plantas_ids no puede estar vacía")
-            # Se puede agregar validación de que los IDs sean positivos
-            for pid in v:
-                if pid <= 0:
-                    raise ValueError("Todos los IDs de plantas deben ser positivos")
-        return v
-
-
-# =============================================================================
-# UPDATE
-# =============================================================================
+# Schema para actualización
 class DiagnosticoUpdate(BaseModel):
-    tipo_diagnostico: Optional[str]            = None
-    condiciones_dia:  Optional[str]            = None
-    formulario:       Optional[Dict[str, Any]] = None
-    plantas_ids:      Optional[List[int]]      = None   # Permite reemplazar la lista de plantas asociadas
+    tipo: Optional[TipoDiagnostico] = Field(None, description="Tipo de diagnóstico")
+    descripcion: Optional[str] = Field(None, min_length=10, max_length=1000, description="Descripción detallada")
+    docente_id: Optional[int] = Field(None, gt=0, description="ID del docente que revisa")
+    estado: Optional[EstadoDiagnostico] = Field(None, description="Estado del diagnóstico")
+    observaciones: Optional[str] = Field(None, max_length=1000, description="Observaciones del docente")
 
-    @validator("tipo_diagnostico")
-    def validar_tipo(cls, v):
-        if v is not None and v not in TIPOS_DIAGNOSTICO_PERMITIDOS:
-            raise ValueError(f"tipo_diagnostico debe ser uno de: {', '.join(TIPOS_DIAGNOSTICO_PERMITIDOS)}")
-        return v
+    @validator('descripcion')
+    def descripcion_minima(cls, v):
+        if v is not None and len(v.strip()) < 10:
+            raise ValueError('La descripción debe tener al menos 10 caracteres')
+        return v.strip() if v else v
 
-    @validator("condiciones_dia")
-    def validar_condiciones(cls, v):
-        if v is not None and v not in CONDICIONES_DIA_PERMITIDAS:
-            raise ValueError(f"condiciones_dia debe ser uno de: {', '.join(CONDICIONES_DIA_PERMITIDAS)}")
-        return v
+    # ❌ VALIDACIÓN DE OBSERVACIONES ELIMINADA
 
-    @validator("plantas_ids")
-    def validar_plantas_ids(cls, v):
-        if v is not None and len(v) == 0:
-            raise ValueError("La lista de plantas_ids no puede estar vacía")
-        return v
-
-
-# =============================================================================
-# RESPONSE (básico)
-# =============================================================================
-class DiagnosticoResponse(BaseModel):
-    id:               int
-    programa_id:      int
-    tipo_monitoreo_id: int
-    lote_id:          int
-    usuario_id:       int
-    tipo_diagnostico: str
-    condiciones_dia:  str
-    formulario:       Optional[Dict[str, Any]] = None
-    fecha_creacion:   datetime
-
-    # Campos enriquecidos (calculados en el router)
-    programa_nombre:       Optional[str] = None
-    tipo_monitoreo_nombre: Optional[str] = None
-    lote_nombre:           Optional[str] = None
-    granja_nombre:         Optional[str] = None
-    usuario_nombre:        Optional[str] = None
-
-    # Relación muchos a muchos con plantas
-    plantas: List[PlantaSimpleResponse] = []
-
-    class Config:
-        from_attributes = True
-
-
-# =============================================================================
-# RESPONSE CON RECOMENDACIONES
-# =============================================================================
-class RecomendacionBasicResponse(BaseModel):
-    id:             int
-    titulo:         str
-    tipo:           Optional[str] = None
-    estado:         str
+# Schema para respuesta
+class DiagnosticoResponse(DiagnosticoBase):
+    id: int
+    estudiante_id: int
+    docente_id: Optional[int] = None
     fecha_creacion: datetime
-
+    fecha_revision: Optional[datetime] = None
+    
+    estudiante_nombre: Optional[str] = None
+    docente_nombre: Optional[str] = None
+    lote_nombre: Optional[str] = None
+    granja_nombre: Optional[str] = None
+    programa_nombre: Optional[str] = None
+    
     class Config:
         from_attributes = True
 
+# Schema con recomendaciones
+class RecomendacionBasicResponse(BaseModel):
+    id: int
+    titulo: str
+    tipo: Optional[str] = None
+    estado: str
+    fecha_creacion: datetime
+    
+    class Config:
+        from_attributes = True
 
 class DiagnosticoWithRecomendacionesResponse(DiagnosticoResponse):
     recomendaciones: List[RecomendacionBasicResponse] = []
-
+    
     class Config:
         from_attributes = True
 
-
-# =============================================================================
-# LISTA PAGINADA
-# =============================================================================
+# Listado paginado
 class DiagnosticoListResponse(BaseModel):
-    items:   List[DiagnosticoResponse]
-    total:   int
+    items: List[DiagnosticoResponse]
+    total: int
     paginas: int
-
+    
     class Config:
         from_attributes = True
 
+# Asignación docente
+class AsignacionDocenteRequest(BaseModel):
+    docente_id: int = Field(..., gt=0, description="ID del docente a asignar")
 
-# =============================================================================
-# ESTADÍSTICAS
-# =============================================================================
+# Cierre de diagnóstico (este sí tiene validación)
+class CierreDiagnosticoRequest(BaseModel):
+    observaciones: Optional[str] = Field(
+        None,
+        max_length=1000,
+        description="Observaciones de cierre"
+    )
+
+# Estadísticas
 class EstadisticasDiagnosticosResponse(BaseModel):
-    total:    int
-    por_tipo: Dict[str, int] = {}
-    por_lote: Dict[str, int] = {}
-
+    total: int
+    abiertos: int
+    en_revision: int
+    cerrados: int
+    por_tipo: dict = {}
+    
     class Config:
         from_attributes = True
-
-# Añadir al final del archivo
-class GenerarPlantasRequest(BaseModel):
-    lote_id: int
-    tipo_diagnostico: str
-    cantidad: int = Field(10, ge=1, le=100)
-
-class PlantaGenerada(BaseModel):
-    id: int
-    codigo: str
-    surco: int
-    numero: int
-    lote_id: int
-
-    class Config:
-        from_attributes = True
-
-class GenerarPlantasResponse(BaseModel):
-    plantas: List[PlantaGenerada]
-    total_plantas_lote: int
-    productivas: int
-    elegibles: int
-    advertencias: List[str] = []

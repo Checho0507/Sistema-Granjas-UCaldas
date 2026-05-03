@@ -5,29 +5,23 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { syncPendingData } from './services/sync';
 import { checkBackendConnection } from './api/auth';
 import { Toaster } from 'react-hot-toast';
-
 // Pages
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
-
-// Módulos principales
 import GestionGranjasPage from './pages/GestionGranjas';
 import GestionProgramasPage from './pages/GestionProgramas';
-import GestionLotesPage from './pages/GestionLotes';
-import GestionCultivosPage from './pages/GestionCultivos';
-import GestionPlantasPage from './pages/GestionPlantas';
 import GestionLaboresPage from './pages/GestionLabores';
 import GestionUsuariosPage from './pages/GestionUsuarios';
-import GestionInventarioPage from './pages/GestionInventarioDinamico';
+import GestionLotesPage from './pages/GestionLotes';
+import GestionCultivosPage from './pages/GestionCultivos';
+import GestionInventarioPage from './pages/GestionInventarios';
 import GestionDiagnosticosPage from './pages/GestionDiagnosticos';
 import GestionRecomendacionesPage from './pages/GestionRecomendaciones';
-import GestionEstadisticasPage from './pages/GestionEstadisticas';
-import LoteMapa from './components/Lotes/LoteMapa';
-
+import MisTareasPage from './pages/MisTareas';
 
 function AppContent() {
-  const { token } = useAuthValue();
+  const { token } = useAuthValue(); // Usa el token del contexto
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -51,6 +45,7 @@ function AppContent() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    // Verificar estado inicial
     handleOnline();
 
     return () => {
@@ -59,6 +54,7 @@ function AppContent() {
     };
   }, [token]);
 
+  // Componente para redireccionar si ya está autenticado
   const RedirectIfAuth = ({ children }: { children: JSX.Element }) => {
     if (token) {
       return <Navigate to="/dashboard" replace />;
@@ -78,8 +74,7 @@ function AppContent() {
           },
         }}
       />
-
-      {/* Banners de estado de conexión */}
+      {/* Banner de estado del sistema */}
       {!navigator.onLine && (
         <div className="bg-yellow-600 text-white text-center py-2 px-4">
           ⚠️ Estás trabajando sin conexión a internet
@@ -99,12 +94,13 @@ function AppContent() {
       )}
 
       <Routes>
-        {/* ===== RUTAS PÚBLICAS ===== */}
         <Route
           path="/"
           element={token ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />}
         />
+
         <Route path="/home" element={<Home />} />
+
         <Route
           path="/login"
           element={
@@ -114,7 +110,6 @@ function AppContent() {
           }
         />
 
-        {/* ===== RUTAS PROTEGIDAS ===== */}
         <Route
           path="/dashboard"
           element={
@@ -124,7 +119,7 @@ function AppContent() {
           }
         />
 
-        {/* ===== RUTAS DE GESTIÓN PRINCIPALES ===== */}
+        {/* Rutas para gestiones separadas */}
         <Route
           path="/gestion/granjas"
           element={
@@ -135,46 +130,10 @@ function AppContent() {
         />
 
         <Route
-          path="/lotes/:loteId/mapa"
-          element={
-            <ProtectedRoute>
-              <LoteMapa />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
           path="/gestion/programas"
           element={
             <ProtectedRoute>
               <GestionProgramasPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/gestion/lotes"
-          element={
-            <ProtectedRoute>
-              <GestionLotesPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/gestion/cultivos"
-          element={
-            <ProtectedRoute>
-              <GestionCultivosPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/gestion/plantas"
-          element={
-            <ProtectedRoute>
-              <GestionPlantasPage />
             </ProtectedRoute>
           }
         />
@@ -198,19 +157,28 @@ function AppContent() {
         />
 
         <Route
-          path="/gestion/inventario"
+          path="/gestion/lotes"
           element={
             <ProtectedRoute>
-              <GestionInventarioPage />
+              <GestionLotesPage />
             </ProtectedRoute>
           }
         />
 
         <Route
-          path="/gestion/diagnosticos"
+          path="/gestion/cultivos"
           element={
             <ProtectedRoute>
-              <GestionDiagnosticosPage />
+              <GestionCultivosPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/gestion/inventario"
+          element={
+            <ProtectedRoute>
+              <GestionInventarioPage />
             </ProtectedRoute>
           }
         />
@@ -225,67 +193,23 @@ function AppContent() {
         />
 
         <Route
-          path="/gestion/estadisticas"
+          path="/gestion/diagnosticos"
           element={
             <ProtectedRoute>
-              <GestionEstadisticasPage />
+              <GestionDiagnosticosPage />
             </ProtectedRoute>
           }
         />
 
-        {/* ===== RUTAS JERÁRQUICAS (Navegación contextual) ===== */}
-
-        {/* Programas filtrados por granja */}
         <Route
-          path="/granjas/:granjaId/programas"
+          path="/mis-tareas"
           element={
             <ProtectedRoute>
-              <GestionProgramasPage />
+              <MisTareasPage />
             </ProtectedRoute>
           }
         />
 
-        {/* Lotes de un programa específico */}
-        <Route
-          path="/granjas/:granjaId/programas/:programaId/lotes"
-          element={
-            <ProtectedRoute>
-              <GestionLotesPage />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Ruta alternativa para lotes por programa (sin granja) */}
-        <Route
-          path="/programas/:programaId/lotes"
-          element={
-            <ProtectedRoute>
-              <GestionLotesPage />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Lotes filtrados por cultivo (vía query params) */}
-        <Route
-          path="/lotes"
-          element={
-            <ProtectedRoute>
-              <GestionLotesPage />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Cultivos filtrados por programa (vía query params) */}
-        <Route
-          path="/gestion/cultivos"
-          element={
-            <ProtectedRoute>
-              <GestionCultivosPage />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* ===== RUTA POR DEFECTO ===== */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
@@ -321,6 +245,7 @@ function App() {
     );
   }
 
+  // ORDEN CORRECTO: AuthContext.Provider DENTRO de Router
   return (
     <Router>
       <AuthContext.Provider value={authValue}>

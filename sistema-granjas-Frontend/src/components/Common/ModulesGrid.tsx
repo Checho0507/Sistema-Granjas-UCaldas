@@ -21,7 +21,7 @@ const ModulesGrid: React.FC<ModulesGridProps> = ({ navigate }) => {
             docente: ['diagnosticos', 'recomendaciones', 'labores'],
             talento_humano: ['recomendaciones', 'labores'],
             estudiante: ['diagnosticos', 'recomendaciones', 'labores'],
-            trabajador: ['labores']
+            trabajador: ['labores', 'mis_tareas']
         };
 
         return permissions[rol] || [];
@@ -110,6 +110,15 @@ const ModulesGrid: React.FC<ModulesGridProps> = ({ navigate }) => {
             color: 'bg-orange-500',
             path: '/gestion/labores',
             roles: ['admin', 'asesor', 'docente', 'talento_humano', 'trabajador']
+        },
+        {
+            id: 'mis_tareas',
+            title: 'Mis Tareas',
+            description: 'Tablero personal de labores asignadas',
+            icon: 'fas fa-clipboard-check',
+            color: 'bg-green-600',
+            path: '/mis-tareas',
+            roles: ['trabajador', 'admin']
         }
     ];
 

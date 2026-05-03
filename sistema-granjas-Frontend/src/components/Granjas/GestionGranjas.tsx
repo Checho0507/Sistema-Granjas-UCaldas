@@ -1,299 +1,520 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import granjaService from '../../services/granjaService';
-import programaService from '../../services/programaService';
-import asignacionService from '../../services/asignacionService';
-import { GranjaForm } from './GranjasForm';
-import type { Granja, Programa } from '../../types/granjaTypes';
+import { useEffect, useState } from "react";
+import { toast } from "react-hot-toast";
 
-interface ProgramaResumen {
-  id: number;
-  nombre: string;
-}
+// --- SERVICES DE GRANJA (CRUD y asignaciones específicas de granja)
+import granjaService from "../../services/granjaService";
+import usuarioService from "../../services/usuarioService";
+import programaService from "../../services/programaService";
 
-interface GranjaConDetalles extends Granja {
-  programas: ProgramaResumen[];
-}
+import { StatsCard } from "../Common/StatsCard";
+import { GranjaForm } from "./GranjasForm";
+import { DetallesGranja } from "./DetallesGranja";
+import { AsignarUsuarioModal } from "../Usuarios/AsignarUsuario";
+import { AsignarProgramaModal } from "../Programas/AsignarPrograma";
+import GranjasTable from "./GranjasTable";
+import exportService from "../../services/exportService";
 
-// Normaliza cualquier respuesta a un array
-const normalizarArray = <T,>(respuesta: any): T[] => {
-  if (Array.isArray(respuesta)) return respuesta;
-  if (respuesta?.items && Array.isArray(respuesta.items)) return respuesta.items;
-  if (respuesta?.data && Array.isArray(respuesta.data)) return respuesta.data;
-  return [];
-};
+export default function GestionGranjas() {
+    const [granjas, setGranjas] = useState<any[]>([]);
+    const [usuarios, setUsuarios] = useState<any[]>([]);
+    const [programas, setProgramas] = useState<any[]>([]);
+    const [cargando, setCargando] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-const GestionGranjas: React.FC = () => {
-  const navigate = useNavigate();
-  const [granjas, setGranjas] = useState<GranjaConDetalles[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+    // Modales
+    const [modalCrear, setModalCrear] = useState(false);
+    const [modalDetalles, setModalDetalles] = useState(false);
+    const [modalAsignarUsuario, setModalAsignarUsuario] = useState(false);
+    const [modalAsignarPrograma, setModalAsignarPrograma] = useState(false);
 
-  // Estado para el modal
-  const [modalAbierto, setModalAbierto] = useState(false);
-  const [editando, setEditando] = useState(false);
-  const [granjaActual, setGranjaActual] = useState<Partial<Granja>>({
-    id: undefined,
-    nombre: '',
-    ubicacion: '',
-    activo: true
-  });
+    // Selecciones
+    const [granjaSeleccionada, setGranjaSeleccionada] = useState<any>(null);
+    const [usuariosGranja, setUsuariosGranja] = useState<any[]>([]);
+    const [programasGranja, setProgramasGranja] = useState<any[]>([]);
+    const [usuarioSeleccionado, setUsuarioSeleccionado] = useState<number>(0);
+    const [programaSeleccionado, setProgramaSeleccionado] = useState<number>(0);
+    const [exporting, setExporting] = useState(false);
+    const [exportMessage, setExportMessage] = useState('');
 
-  const cargarGranjas = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const granjasResp = await granjaService.obtenerGranjas();
-      const granjasData = normalizarArray<Granja>(granjasResp);
-      console.log('Granjas obtenidas:', granjasData);
-
-      const programasResp = await programaService.obtenerProgramas();
-      const todosProgramas = normalizarArray<Programa>(programasResp);
-      console.log('Programas obtenidos:', todosProgramas);
-
-      let asignaciones: { programa_id: number; granja_id: number }[] = [];
-      try {
-        asignaciones = await asignacionService.obtenerRelacionesProgramaGranja();
-        console.log('Asignaciones obtenidas:', asignaciones);
-      } catch (err) {
-        console.error('Error al obtener asignaciones programa-granja:', err);
-        setError('No se pudieron cargar las asignaciones de programas a granjas. Verifique el backend.');
-        setLoading(false);
-        return;
-      }
-
-      const programasPorGranja = new Map<number, Programa[]>();
-      const programasMap = new Map<number, Programa>();
-      todosProgramas.forEach(prog => programasMap.set(prog.id, prog));
-
-      asignaciones.forEach(asig => {
-        const programa = programasMap.get(asig.programa_id);
-        if (!programa) return;
-        const granjaId = asig.granja_id;
-        if (!programasPorGranja.has(granjaId)) {
-          programasPorGranja.set(granjaId, []);
-        }
-        programasPorGranja.get(granjaId)!.push(programa);
-      });
-
-      const granjasConDetalles: GranjaConDetalles[] = granjasData.map(granja => {
-        const programasDeGranja = programasPorGranja.get(granja.id) || [];
-        return {
-          ...granja,
-          programas: programasDeGranja.map(prog => ({
-            id: prog.id,
-            nombre: prog.nombre,
-          })),
-        };
-      });
-
-      setGranjas(granjasConDetalles);
-    } catch (err) {
-      console.error('Error al cargar las granjas:', err);
-      setError('No se pudo cargar la información. Intente nuevamente.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const eliminarGranja = async (id: number) => {
-    if (!window.confirm('¿Está seguro de que desea eliminar esta granja? Esta acción no se puede deshacer.')) {
-      return;
-    }
-    try {
-      await granjaService.eliminarGranja(id);
-      cargarGranjas();
-    } catch (err) {
-      console.error('Error al eliminar granja:', err);
-      alert('Ocurrió un error al eliminar la granja. Intente nuevamente.');
-    }
-  };
-
-  const abrirModalNueva = () => {
-    setEditando(false);
-    setGranjaActual({ id: undefined, nombre: '', ubicacion: '', activo: true });
-    setModalAbierto(true);
-  };
-
-  const abrirModalEditar = (granja: GranjaConDetalles) => {
-    setEditando(true);
-    setGranjaActual({
-      id: granja.id,
-      nombre: granja.nombre,
-      ubicacion: granja.ubicacion || '',
-      activo: granja.activo !== undefined ? granja.activo : true
+    // Formulario
+    const [editando, setEditando] = useState(false);
+    const [datosFormulario, setDatosFormulario] = useState({
+        nombre: "",
+        ubicacion: "",
+        activo: true,
     });
-    setModalAbierto(true);
-  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      if (editando && granjaActual.id) {
-        await granjaService.actualizarGranja(granjaActual.id, {
-          nombre: granjaActual.nombre!,
-          ubicacion: granjaActual.ubicacion,
-          activo: granjaActual.activo
+    const handleExportGranjas = async () => {
+        if (exporting) return;
+
+        setExporting(true);
+        setExportMessage('Exportando granjas...');
+
+        try {
+            const loadingToast = toast.loading('Exportando granjas...');
+            const result = await exportService.exportarGranjas();
+
+            toast.dismiss(loadingToast);
+            toast.success('¡Exportación completada!', {
+                duration: 3000,
+                position: 'top-right'
+            });
+
+            setExportMessage(`¡Exportación completada! (${result.filename})`);
+
+            setTimeout(() => {
+                setExportMessage('');
+            }, 5000);
+        } catch (error: any) {
+            console.error('❌ Error exportando granjas:', error);
+
+            toast.error('Error al exportar granjas', {
+                duration: 4000,
+                position: 'top-right'
+            });
+
+            setExportMessage('Error al exportar.');
+
+            setTimeout(() => {
+                setExportMessage('');
+            }, 5000);
+        } finally {
+            setExporting(false);
+        }
+    };
+
+    useEffect(() => {
+        cargarDatos();
+    }, []);
+
+    const cargarDatos = async () => {
+        try {
+            setCargando(true);
+            setError(null);
+
+            console.log('🔄 Cargando datos iniciales...');
+            const [datosGranjas, datosUsuarios, datosProgramas] = await Promise.all([
+                granjaService.obtenerGranjas(),
+                usuarioService.obtenerUsuarios(),
+                programaService.obtenerProgramas()
+            ]);
+
+            console.log('✅ Datos cargados exitosamente');
+            setGranjas(datosGranjas);
+            setUsuarios(datosUsuarios);
+            setProgramas(datosProgramas);
+
+        } catch (error: any) {
+            console.error('❌ Error cargando datos:', error);
+            setError(error.message || 'Error al cargar los datos');
+            toast.error('Error al cargar los datos', {
+                duration: 4000,
+                position: 'top-right'
+            });
+        } finally {
+            setCargando(false);
+        }
+    };
+
+    const manejarCrear = async (e: any) => {
+        e.preventDefault();
+
+        try {
+            setError(null);
+            console.log('📤 Guardando granja...');
+
+            const loadingToast = toast.loading(
+                editando ? 'Actualizando granja...' : 'Creando granja...'
+            );
+
+            if (editando) {
+                await granjaService.actualizarGranja(granjaSeleccionada.id, datosFormulario);
+                console.log('✅ Granja actualizada');
+
+                toast.dismiss(loadingToast);
+                toast.success('Granja actualizada exitosamente', {
+                    duration: 3000,
+                    position: 'top-right'
+                });
+            } else {
+                await granjaService.crearGranja(datosFormulario);
+                console.log('✅ Granja creada');
+
+                toast.dismiss(loadingToast);
+                toast.success('Granja creada exitosamente', {
+                    duration: 3000,
+                    position: 'top-right'
+                });
+            }
+
+            await cargarDatos();
+            setModalCrear(false);
+            setEditando(false);
+            setDatosFormulario({ nombre: "", ubicacion: "", activo: true });
+        } catch (error: any) {
+            console.error('❌ Error guardando granja:', error);
+            setError(error.message || 'Error al guardar la granja');
+            toast.error(`Error al guardar la granja: ${error.message || 'Error desconocido'}`, {
+                duration: 4000,
+                position: 'top-right'
+            });
+        }
+    };
+
+    const abrirEditar = (granja: any) => {
+        setDatosFormulario({
+            nombre: granja.nombre,
+            ubicacion: granja.ubicacion,
+            activo: granja.activo
         });
-      } else {
-        await granjaService.crearGranja({
-          nombre: granjaActual.nombre!,
-          ubicacion: granjaActual.ubicacion,
-          activo: granjaActual.activo ?? true
-        });
-      }
-      setModalAbierto(false);
-      cargarGranjas();
-    } catch (err) {
-      console.error('Error al guardar granja:', err);
-      alert('Ocurrió un error al guardar la granja. Intente nuevamente.');
+        setGranjaSeleccionada(granja);
+        setEditando(true);
+        setModalCrear(true);
+    };
+
+    const abrirDetalles = async (granja: any) => {
+        try {
+            setError(null);
+            setGranjaSeleccionada(granja);
+
+            console.log('🔍 Cargando detalles de granja...');
+            const loadingToast = toast.loading('Cargando detalles...');
+
+            const [usuarios, programas] = await Promise.all([
+                granjaService.obtenerUsuariosPorGranja(granja.id),
+                granjaService.obtenerProgramasPorGranja(granja.id)
+            ]);
+
+            toast.dismiss(loadingToast);
+            setUsuariosGranja(usuarios);
+            setProgramasGranja(programas);
+            setModalDetalles(true);
+        } catch (error: any) {
+            console.error('❌ Error al cargar detalles:', error);
+            setError(error.message || 'Error al cargar los detalles');
+            toast.error('Error al cargar los detalles de la granja', {
+                duration: 4000,
+                position: 'top-right'
+            });
+        }
+    };
+
+    const manejarEliminar = async (id: number) => {
+        // Usar toast para confirmación más elegante
+        const confirmar = window.confirm("¿Estás seguro de eliminar esta granja?");
+        if (!confirmar) return;
+
+        try {
+            setError(null);
+            const loadingToast = toast.loading('Eliminando granja...');
+
+            await granjaService.eliminarGranja(id);
+
+            toast.dismiss(loadingToast);
+            toast.success('Granja eliminada exitosamente', {
+                duration: 3000,
+                position: 'top-right'
+            });
+
+            console.log('✅ Granja eliminada');
+            await cargarDatos();
+        } catch (error: any) {
+            console.error('❌ Error al eliminar granja:', error);
+            setError(error.message || 'Error al eliminar la granja');
+            toast.error(`Error al eliminar la granja: ${error.message || 'Error desconocido'}`, {
+                duration: 4000,
+                position: 'top-right'
+            });
+        }
+    };
+
+    const asignarUsuario = async () => {
+        if (!usuarioSeleccionado) {
+            toast.error('Por favor selecciona un usuario', {
+                duration: 3000,
+                position: 'top-right'
+            });
+            return;
+        }
+
+        try {
+            setError(null);
+            const loadingToast = toast.loading('Asignando usuario...');
+
+            await granjaService.asignarUsuario(granjaSeleccionada.id, usuarioSeleccionado);
+
+            toast.dismiss(loadingToast);
+            toast.success('Usuario asignado exitosamente', {
+                duration: 3000,
+                position: 'top-right'
+            });
+
+            console.log('✅ Usuario asignado');
+
+            // Actualizar lista de usuarios de la granja
+            const usuariosActualizados = await granjaService.obtenerUsuariosPorGranja(granjaSeleccionada.id);
+            setUsuariosGranja(usuariosActualizados);
+
+            setUsuarioSeleccionado(0);
+            setModalAsignarUsuario(false);
+        } catch (error: any) {
+            console.error('❌ Error al asignar usuario:', error);
+            setError(error.message || 'Error al asignar usuario');
+            toast.error(`Error al asignar usuario: ${error.message || 'Error desconocido'}`, {
+                duration: 4000,
+                position: 'top-right'
+            });
+        }
+    };
+
+    const asignarPrograma = async () => {
+        if (!programaSeleccionado) {
+            toast.error('Por favor selecciona un programa', {
+                duration: 3000,
+                position: 'top-right'
+            });
+            return;
+        }
+
+        try {
+            setError(null);
+            const loadingToast = toast.loading('Asignando programa...');
+
+            await granjaService.asignarPrograma(granjaSeleccionada.id, programaSeleccionado);
+
+            toast.dismiss(loadingToast);
+            toast.success('Programa asignado exitosamente', {
+                duration: 3000,
+                position: 'top-right'
+            });
+
+            console.log('✅ Programa asignado');
+
+            // Actualizar lista de programas de la granja
+            const programasActualizados = await granjaService.obtenerProgramasPorGranja(granjaSeleccionada.id);
+            setProgramasGranja(programasActualizados);
+
+            setProgramaSeleccionado(0);
+            setModalAsignarPrograma(false);
+        } catch (error: any) {
+            console.error('❌ Error al asignar programa:', error);
+            setError(error.message || 'Error al asignar programa');
+            toast.error(`Error al asignar programa: ${error.message || 'Error desconocido'}`, {
+                duration: 4000,
+                position: 'top-right'
+            });
+        }
+    };
+
+    const removerUsuario = async (usuarioId: number) => {
+        const confirmar = window.confirm("¿Estás seguro de remover este usuario de la granja?");
+        if (!confirmar) return;
+
+        try {
+            setError(null);
+            const loadingToast = toast.loading('Removiendo usuario...');
+
+            await granjaService.removerUsuario(granjaSeleccionada.id, usuarioId);
+
+            toast.dismiss(loadingToast);
+            toast.success('Usuario removido exitosamente', {
+                duration: 3000,
+                position: 'top-right'
+            });
+
+            console.log('✅ Usuario removido');
+
+            const usuariosActualizados = await granjaService.obtenerUsuariosPorGranja(granjaSeleccionada.id);
+            setUsuariosGranja(usuariosActualizados);
+        } catch (error: any) {
+            console.error('❌ Error al remover usuario:', error);
+            setError(error.message || 'Error al remover usuario');
+            toast.error(`Error al remover usuario: ${error.message || 'Error desconocido'}`, {
+                duration: 4000,
+                position: 'top-right'
+            });
+        }
+    };
+
+    const removerPrograma = async (programaId: number) => {
+        const confirmar = window.confirm("¿Estás seguro de remover este programa de la granja?");
+        if (!confirmar) return;
+
+        try {
+            setError(null);
+            const loadingToast = toast.loading('Removiendo programa...');
+
+            await granjaService.removerPrograma(granjaSeleccionada.id, programaId);
+
+            toast.dismiss(loadingToast);
+            toast.success('Programa removido exitosamente', {
+                duration: 3000,
+                position: 'top-right'
+            });
+
+            console.log('✅ Programa removido');
+
+            const programasActualizados = await granjaService.obtenerProgramasPorGranja(granjaSeleccionada.id);
+            setProgramasGranja(programasActualizados);
+        } catch (error: any) {
+            console.error('❌ Error al remover programa:', error);
+            setError(error.message || 'Error al remover programa');
+            toast.error(`Error al remover programa: ${error.message || 'Error desconocido'}`, {
+                duration: 4000,
+                position: 'top-right'
+            });
+        }
+    };
+
+    if (cargando) {
+        return (
+            <div className="flex justify-center items-center p-8">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+                <span className="ml-4 text-gray-600">Cargando datos...</span>
+            </div>
+        );
     }
-  };
 
-  useEffect(() => {
-    cargarGranjas();
-  }, []);
+    return (
+        <div className="p-6">
+            <h1 className="text-2xl font-bold mb-6">Gestión de Granjas</h1>
 
-  return (
-    <div>
-      {/* Cabecera */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-        <h2 className="text-2xl font-bold text-gray-800">Mis Granjas</h2>
-        <div className="flex space-x-3">
-          <button
-            onClick={abrirModalNueva}
-            className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-grren-700"
-          >
-            <i className="fas fa-plus mr-2"></i>
-            Nueva Granja
-          </button>
-        </div>
-      </div>
-
-      {/* Error */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-          {error}
-        </div>
-      )}
-
-      {/* Loading skeleton */}
-      {loading && (
-        <div className="space-y-6">
-          {[1, 2].map(i => (
-            <div key={i} className="bg-white rounded-xl shadow-lg p-6 animate-pulse">
-              <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
-              <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
-              <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Lista de granjas */}
-      {!loading && !error && (
-        <div className="space-y-6">
-          {granjas.length === 0 ? (
-            <div className="bg-white rounded-xl shadow-lg p-12 text-center">
-              <i className="fas fa-tractor text-gray-300 text-5xl mb-4"></i>
-              <h3 className="text-xl font-semibold text-gray-700 mb-2">No hay granjas registradas</h3>
-              <p className="text-gray-500 mb-6">Comienza creando una nueva granja.</p>
-              <button
-                onClick={abrirModalNueva}
-                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-              >
-                <i className="fas fa-plus mr-2"></i>
-                Crear granja
-              </button>
-            </div>
-          ) : (
-            granjas.map(granja => (
-              <div key={granja.id} className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
-                <div className="flex flex-wrap justify-between items-start gap-4">
-                  <div className="flex-1">
-                    <h3
-                      className="text-xl font-bold text-gray-800 cursor-pointer hover:text-green-600"
-                      onClick={() => navigate(`/granjas/${granja.id}`)}
-                    >
-                      {granja.nombre}
-                    </h3>
-                    {granja.ubicacion && (
-                      <p className="text-sm text-gray-500">{granja.ubicacion}</p>
-                    )}
-                    {granja.activo === false && (
-                      <span className="inline-flex items-center px-2 py-1 mt-1 rounded-full text-xs bg-red-100 text-red-800">
-                        Inactiva
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => navigate(`/granjas/${granja.id}/programas`)}
-                      className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-                      title="Programas"
-                    >
-                      <i className="fas fa-tasks text-xl"></i>
-                    </button>
-                    <button
-                      onClick={() => navigate(`/granjas/${granja.id}/inventario`)}
-                      className="p-2 text-purple-600 hover:bg-purple-50 rounded-full transition-colors"
-                      title="Inventario"
-                    >
-                      <i className="fas fa-boxes text-xl"></i>
-                    </button>
-                    <button
-                      onClick={() => abrirModalEditar(granja)}
-                      className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-full transition-colors"
-                      title="Editar granja"
-                    >
-                      <i className="fas fa-edit text-xl"></i>
-                    </button>
-                    <button
-                      onClick={() => eliminarGranja(granja.id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                      title="Eliminar granja"
-                    >
-                      <i className="fas fa-trash text-xl"></i>
-                    </button>
-                  </div>
-                </div>
-
-                {granja.programas.length > 0 && (
-                  <div className="mt-4">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
-                      <i className="fas fa-tasks text-green-500 mr-2"></i>
-                      Programas asignados
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                      {granja.programas.map(prog => (
-                        <span
-                          key={prog.id}
-                          className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-green-100 text-green-800"
-                        >
-                          {prog.nombre}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+            {/* Mensaje de exportación */}
+            <div className="flex items-center space-x-3 m-2">
+                {exportMessage && (
+                    <span className={`text-sm px-3 py-1 rounded ${exportMessage.includes('Error')
+                        ? 'bg-red-100 text-red-600'
+                        : 'bg-green-100 text-green-600'
+                        }`}>
+                        {exportMessage}
+                    </span>
                 )}
-              </div>
-            ))
-          )}
+
+                <button
+                    onClick={handleExportGranjas}
+                    disabled={exporting}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 disabled:opacity-50 transition-colors"
+                >
+                    <i className={`fas ${exporting ? 'fa-spinner fa-spin' : 'fa-file-excel'}`}></i>
+                    <span>{exporting ? 'Exportando...' : 'Exportar a Excel'}</span>
+                </button>
+            </div>
+
+            {/* Mostrar error global */}
+            {error && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                    <div className="flex items-center">
+                        <i className="fas fa-exclamation-triangle mr-2"></i>
+                        <strong>Error:</strong> {error}
+                    </div>
+                    <button
+                        onClick={() => setError(null)}
+                        className="float-right text-red-800 hover:text-red-900"
+                    >
+                        <i className="fas fa-times"></i>
+                    </button>
+                </div>
+            )}
+
+            {/* Estadísticas */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <StatsCard
+                    icon="fas fa-warehouse"
+                    color="bg-green-600"
+                    value={granjas.length}
+                    label="Granjas Registradas"
+                />
+                <StatsCard
+                    icon="fas fa-users"
+                    color="bg-blue-600"
+                    value={usuarios.length}
+                    label="Usuarios Totales"
+                />
+                <StatsCard
+                    icon="fas fa-clipboard-list"
+                    color="bg-purple-600"
+                    value={programas.length}
+                    label="Programas Totales"
+                />
+            </div>
+
+            {/* Botón Crear */}
+            <div className="mb-6">
+                <button
+                    onClick={() => {
+                        setDatosFormulario({ nombre: "", ubicacion: "", activo: true });
+                        setEditando(false);
+                        setModalCrear(true);
+                    }}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
+                >
+                    <i className="fas fa-plus"></i>
+                    Nueva Granja
+                </button>
+            </div>
+
+            {/* Tabla */}
+            <GranjasTable
+                granjas={granjas}
+                onEditar={abrirEditar}
+                onEliminar={manejarEliminar}
+                onVerDetalles={abrirDetalles}
+            />
+
+            {/* FORM */}
+            <GranjaForm
+                isOpen={modalCrear}
+                onClose={() => {
+                    setModalCrear(false);
+                    setEditando(false);
+                    setDatosFormulario({ nombre: "", ubicacion: "", activo: true });
+                }}
+                datosFormulario={datosFormulario}
+                setDatosFormulario={setDatosFormulario}
+                onSubmit={manejarCrear}
+                editando={editando}
+            />
+
+            {/* DETALLES */}
+            <DetallesGranja
+                isOpen={modalDetalles}
+                onClose={() => setModalDetalles(false)}
+                granja={granjaSeleccionada}
+                usuariosGranja={usuariosGranja}
+                programasGranja={programasGranja}
+                onAsignarUsuarioOpen={() => setModalAsignarUsuario(true)}
+                onAsignarProgramaOpen={() => setModalAsignarPrograma(true)}
+                onRemoveUsuario={removerUsuario}
+                onRemovePrograma={removerPrograma}
+            />
+
+            {/* MODAL USUARIO */}
+            <AsignarUsuarioModal
+                isOpen={modalAsignarUsuario}
+                onClose={() => {
+                    setModalAsignarUsuario(false);
+                    setUsuarioSeleccionado(0);
+                }}
+                usuarios={usuarios}
+                usuariosAsignados={usuariosGranja}
+                usuarioSeleccionado={usuarioSeleccionado}
+                setUsuarioSeleccionado={setUsuarioSeleccionado}
+                onAsignar={asignarUsuario}
+            />
+
+            {/* MODAL PROGRAMA */}
+            <AsignarProgramaModal
+                isOpen={modalAsignarPrograma}
+                onClose={() => {
+                    setModalAsignarPrograma(false);
+                    setProgramaSeleccionado(0);
+                }}
+                programas={programas}
+                programasGranja={programasGranja}
+                programaSeleccionado={programaSeleccionado}
+                setProgramaSeleccionado={setProgramaSeleccionado}
+                onAsignar={asignarPrograma}
+            />
         </div>
-      )}
-
-      {/* Modal de creación/edición */}
-      <GranjaForm
-        isOpen={modalAbierto}
-        onClose={() => setModalAbierto(false)}
-        datosFormulario={granjaActual}
-        setDatosFormulario={setGranjaActual}
-        onSubmit={handleSubmit}
-        editando={editando}
-      />
-    </div>
-  );
-};
-
-export default GestionGranjas;
+    );
+}

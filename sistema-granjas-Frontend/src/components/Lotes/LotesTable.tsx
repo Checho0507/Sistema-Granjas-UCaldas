@@ -1,8 +1,5 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom'; // 👈 NUEVA IMPORTACIÓN
+import React, { useEffect, useState } from 'react';
 import programaService from '../../services/programaService';
-import cultivoService from '../../services/cultivoService';
-import granjaService from '../../services/granjaService';
 
 interface LotesTableProps {
     lotes: any[];
@@ -15,148 +12,55 @@ const LotesTable: React.FC<LotesTableProps> = ({
     onEditar,
     onEliminar
 }) => {
-    const navigate = useNavigate(); // 👈 PARA NAVEGACIÓN
 
-    // Mapas
+    // Mapa programa_id -> nombre
     const [programasMap, setProgramasMap] = useState<Record<number, string>>({});
-    const [cultivosMap, setCultivosMap] = useState<Record<number, any>>({});
-    const [granjasMap, setGranjasMap] = useState<Record<number, any>>({});
-    const [cultivosPorLote, setCultivosPorLote] = useState<Record<number, any[]>>({});
 
-    const [cargando, setCargando] = useState(false);
-
-    // 👇 ORDENAR LOTES POR ID (de menor a mayor)
-    const lotesOrdenados = useMemo(() => {
-        return [...lotes].sort((a, b) => a.id - b.id);
-    }, [lotes]);
-
+    // Obtener programas por cada lote
     useEffect(() => {
-        const cargarDatosRelacionados = async () => {
-            if (lotes.length === 0) return;
-
-            setCargando(true);
-
+        const cargarProgramas = async () => {
             try {
-                // IDs únicos
-                const programasIds = Array.from(new Set(lotes.map(l => l.programa_id).filter(Boolean)));
-                const cultivosIdsSet = new Set<number>();
+                const idsUnicos = Array.from(
+                    new Set(lotes.map(l => l.programa_id).filter(Boolean))
+                );
 
-                // Recolectar todos los cultivos de todos los lotes
-                lotes.forEach(lote => {
-                    if (lote.cultivos_ids && Array.isArray(lote.cultivos_ids)) {
-                        lote.cultivos_ids.forEach((id: number) => {
-                            cultivosIdsSet.add(id);
-                        });
-                    }
+                const respuestas = await Promise.all(
+                    idsUnicos.map(id =>
+                        programaService
+                            .obtenerProgramaPorId(id)
+                            .then(res => ({ id, nombre: res.nombre }))
+                            .catch(() => ({ id, nombre: 'No encontrado' }))
+                    )
+                );
+
+                const map: Record<number, string> = {};
+                respuestas.forEach(p => {
+                    map[p.id] = p.nombre;
                 });
 
-                const granjasIds = Array.from(new Set(lotes.map(l => l.granja_id).filter(Boolean)));
-                const cultivosIds = Array.from(cultivosIdsSet);
-
-                // Promesas para programas
-                const programasPromises = programasIds.map(async (id) => {
-                    try {
-                        const res = await programaService.obtenerProgramaPorId(id);
-                        return { id, nombre: res.nombre };
-                    } catch {
-                        return { id, nombre: 'No encontrado' };
-                    }
-                });
-
-                // Promesas para cultivos
-                const cultivosPromises = cultivosIds.map(async (id) => {
-                    try {
-                        const res = await cultivoService.obtenerCultivoPorId(id);
-                        return {
-                            id,
-                            nombre: res.nombre,
-                            tipo: res.tipo
-                        };
-                    } catch {
-                        return {
-                            id,
-                            nombre: 'No encontrado',
-                            tipo: 'desconocido'
-                        };
-                    }
-                });
-
-                // Promesas para granjas
-                const granjasPromises = granjasIds.map(async (id) => {
-                    try {
-                        const res = await granjaService.obtenerGranjaPorId(id);
-                        return { id, nombre: res.nombre };
-                    } catch {
-                        return { id, nombre: 'No encontrada' };
-                    }
-                });
-
-                // Esperar todas
-                const [programasResp, cultivosResp, granjasResp] = await Promise.all([
-                    Promise.all(programasPromises),
-                    Promise.all(cultivosPromises),
-                    Promise.all(granjasPromises)
-                ]);
-
-                // Construir mapas
-                const progMap: Record<number, string> = {};
-                programasResp.forEach(p => progMap[p.id] = p.nombre);
-
-                const cultMap: Record<number, any> = {};
-                cultivosResp.forEach(c => cultMap[c.id] = c);
-
-                const granMap: Record<number, any> = {};
-                granjasResp.forEach(g => granMap[g.id] = g);
-
-                // Construir mapa de cultivos por lote
-                const nuevosCultivosPorLote: Record<number, any[]> = {};
-
-                lotes.forEach(lote => {
-                    if (lote.cultivos_ids && Array.isArray(lote.cultivos_ids)) {
-                        nuevosCultivosPorLote[lote.id] = lote.cultivos_ids
-                            .map((id: number) => cultMap[id])
-                            .filter(Boolean);
-                    } else {
-                        nuevosCultivosPorLote[lote.id] = [];
-                    }
-                });
-
-                setProgramasMap(progMap);
-                setCultivosMap(cultMap);
-                setGranjasMap(granMap);
-                setCultivosPorLote(nuevosCultivosPorLote);
-
-                console.log('📊 Cultivos por lote:', nuevosCultivosPorLote);
-
+                setProgramasMap(map);
             } catch (error) {
-                console.error('Error cargando datos relacionados:', error);
-            } finally {
-                setCargando(false);
+                console.error('Error cargando programas', error);
             }
         };
 
-        cargarDatosRelacionados();
+        if (lotes.length > 0) {
+            cargarProgramas();
+        }
     }, [lotes]);
 
-    // 👇 NUEVA FUNCIÓN PARA NAVEGAR A PLANTAS DEL LOTE
-    const verPlantasDelLote = (e: React.MouseEvent, loteId: number, loteNombre: string) => {
-        e.stopPropagation();
-        navigate(`/gestion/plantas?loteId=${loteId}&loteNombre=${encodeURIComponent(loteNombre)}`);
-    };
-
-    // Funciones auxiliares
+    // Estado → color
     const getEstadoColor = (estado: string) => {
         switch (estado?.toLowerCase()) {
             case 'activo': return 'bg-green-100 text-green-800';
             case 'inactivo': return 'bg-gray-100 text-gray-800';
-            case 'pendiente': return 'bg-yellow-100 text-yellow-800';
             case 'completado': return 'bg-blue-100 text-blue-800';
+            case 'pendiente': return 'bg-yellow-100 text-yellow-800';
             default: return 'bg-gray-100 text-gray-800';
         }
     };
 
-    const formatearFecha = (fechaString: string | null | undefined) => {
-        if (!fechaString) return '-';
+    const formatearFecha = (fechaString: string) => {
         try {
             return new Date(fechaString).toLocaleDateString('es-ES');
         } catch {
@@ -164,42 +68,14 @@ const LotesTable: React.FC<LotesTableProps> = ({
         }
     };
 
-    const getTipoColor = (tipo: string) => {
-        switch (tipo?.toLowerCase()) {
-            case 'agricola': return 'bg-green-100 text-green-800';
-            case 'pecuario': return 'bg-amber-100 text-amber-800';
-            default: return 'bg-gray-100 text-gray-800';
+    const calcularFechaFin = (fechaInicio: string, duracionDias: number) => {
+        try {
+            const fecha = new Date(fechaInicio);
+            fecha.setDate(fecha.getDate() + duracionDias);
+            return fecha.toLocaleDateString('es-ES');
+        } catch {
+            return '-';
         }
-    };
-
-    const renderCultivos = (loteId: number) => {
-        const cultivosLote = cultivosPorLote[loteId] || [];
-
-        if (cultivosLote.length === 0) {
-            return <span className="text-gray-400 text-sm italic">—</span>;
-        }
-
-        const cultivosVisibles = cultivosLote.slice(0, 100);
-
-        return (
-            <div className="flex flex-wrap gap-1">
-                {cultivosVisibles.map((cultivo) => (
-                    <span
-                        key={cultivo.id}
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getTipoColor(cultivo.tipo)}`}
-                    >
-                        <i className={`fas ${cultivo.tipo === 'agricola' ? 'fa-seedling' : 'fa-paw'
-                            } mr-1 text-xs`}></i>
-                        {cultivo.nombre}
-                    </span>
-                ))}
-            </div>
-        );
-    };
-
-    const formatearNumero = (numero: number | null | undefined) => {
-        if (numero === null || numero === undefined) return '-';
-        return numero.toLocaleString('es-ES');
     };
 
     return (
@@ -207,8 +83,7 @@ const LotesTable: React.FC<LotesTableProps> = ({
             <div className="px-6 py-4 border-b border-gray-200">
                 <h3 className="text-lg font-medium text-gray-900">Lista de Lotes</h3>
                 <p className="text-sm text-gray-500">
-                    Mostrando {lotes.length} {lotes.length === 1 ? 'lote registrado' : 'lotes registrados'}
-                    {cargando && <span className="ml-2 text-blue-500">(Cargando datos...)</span>}
+                    Mostrando {lotes.length} lotes registrados
                 </p>
             </div>
 
@@ -216,126 +91,92 @@ const LotesTable: React.FC<LotesTableProps> = ({
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Granja</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cultivos</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Programa</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Surcos</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Plantas/Surco</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Plantas</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Siembra</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Granja</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cultivo</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Programa</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Inicio / Fin</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duración</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gestión</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
                         </tr>
                     </thead>
 
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {lotesOrdenados.map((lote) => {
-                            const granja = granjasMap[lote.granja_id];
-                            const totalPlantas = lote.surcos && lote.plantas_por_surco
-                                ? lote.surcos * lote.plantas_por_surco
-                                : null;
+                        {lotes.map((lote) => (
+                            <tr key={lote.id} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 text-sm font-medium">{lote.id}</td>
 
-                            return (
-                                <tr key={lote.id} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm font-medium text-gray-900">{lote.nombre}</div>
-                                    </td>
+                                <td className="px-6 py-4">
+                                    <p className="text-sm font-medium">{lote.nombre}</p>
+                                    {lote.tipo_lote_nombre && (
+                                        <p className="text-xs text-gray-500">{lote.tipo_lote_nombre}</p>
+                                    )}
+                                </td>
 
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm text-gray-900">
-                                            {granja?.nombre || lote.nombre_granja || `Granja ID: ${lote.granja_id}`}
-                                        </div>
-                                    </td>
+                                <td className="px-6 py-4">
+                                    {lote.granja_nombre || `Granja ${lote.granja_id}`}
+                                </td>
 
-                                    <td className="px-6 py-4">
-                                        {renderCultivos(lote.id)}
-                                    </td>
+                                <td className="px-6 py-4">
+                                    <p className="text-sm">{lote.nombre_cultivo}</p>
+                                    {lote.cultivo_nombre && (
+                                        <p className="text-xs text-gray-500">{lote.cultivo_nombre}</p>
+                                    )}
+                                </td>
 
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm text-gray-900">
-                                            {programasMap[lote.programa_id] || `Programa ID: ${lote.programa_id}`}
-                                        </div>
-                                    </td>
+                                {/* PROGRAMA */}
+                                <td className="px-6 py-4 text-sm">
+                                    {programasMap[lote.programa_id] || '—'}
+                                </td>
 
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm text-gray-900 text-center">
-                                            {formatearNumero(lote.surcos)}
-                                        </div>
-                                    </td>
+                                <td className="px-6 py-4">
+                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getEstadoColor(lote.estado)}`}>
+                                        {lote.estado || 'N/A'}
+                                    </span>
+                                </td>
 
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm text-gray-900 text-center">
-                                            {formatearNumero(lote.plantas_por_surco)}
-                                        </div>
-                                    </td>
+                                <td className="px-6 py-4 text-sm text-gray-500">
+                                    <p>Inicio: {formatearFecha(lote.fecha_inicio)}</p>
+                                    <p className="text-xs">
+                                        Fin: {calcularFechaFin(lote.fecha_inicio, lote.duracion_dias)}
+                                    </p>
+                                </td>
 
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm font-semibold text-green-600 text-center">
-                                            {totalPlantas ? formatearNumero(totalPlantas) : '-'}
-                                        </div>
-                                    </td>
+                                <td className="px-6 py-4 text-sm text-gray-500">
+                                    {lote.duracion_dias} días
+                                </td>
 
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getEstadoColor(lote.estado)}`}>
-                                            {lote.estado ? lote.estado.charAt(0).toUpperCase() + lote.estado.slice(1) : 'N/A'}
-                                        </span>
-                                    </td>
+                                <td className="px-6 py-4 text-sm text-gray-500">
+                                    {lote.tipo_gestion}
+                                </td>
 
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        Inicio: {formatearFecha(lote.fecha_inicio)}
-                                    </td>
-
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                        <div className="flex space-x-3">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    navigate(`/lotes/${lote.id}/mapa`);
-                                                }}
-                                                className="text-blue-600 hover:text-blue-900 transition-colors p-2 hover:bg-blue-50 rounded"
-                                                title="Ver mapa del lote"
-                                            >
-                                                <i className="fas fa-map"></i>
-                                            </button>
-                                            {/* 👇 NUEVO BOTÓN PLANTAS */}
-                                            <button
-                                                onClick={(e) => verPlantasDelLote(e, lote.id, lote.nombre)}
-                                                className="text-green-600 hover:text-green-900 transition-colors p-2 hover:bg-green-50 rounded"
-                                                title="Ver plantas de este lote"
-                                            >
-                                                <i className="fas fa-leaf"></i>
-                                            </button>
-
-                                            <button
-                                                onClick={() => onEditar(lote)}
-                                                className="text-yellow-600 hover:text-yellow-900 transition-colors p-2 hover:bg-yellow-50 rounded"
-                                                title="Editar lote"
-                                            >
-                                                <i className="fas fa-edit"></i>
-                                            </button>
-                                            <button
-                                                onClick={() => onEliminar(lote.id)}
-                                                className="text-red-600 hover:text-red-900 transition-colors p-2 hover:bg-red-50 rounded"
-                                                title="Eliminar lote"
-                                            >
-                                                <i className="fas fa-trash"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            );
-                        })}
+                                <td className="px-6 py-4 text-sm font-medium">
+                                    <div className="flex space-x-2">
+                                        <button
+                                            onClick={() => onEditar(lote)}
+                                            className="text-yellow-600 hover:text-yellow-900"
+                                        >
+                                            <i className="fas fa-edit"></i>
+                                        </button>
+                                        <button
+                                            onClick={() => onEliminar(lote.id)}
+                                            className="text-red-600 hover:text-red-900"
+                                        >
+                                            <i className="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
                     </tbody>
                 </table>
 
                 {lotes.length === 0 && (
-                    <div className="text-center py-12">
-                        <i className="fas fa-archive text-gray-400 text-5xl mb-4"></i>
-                        <p className="text-lg text-gray-500">No hay lotes registrados</p>
-                        <p className="text-sm text-gray-400 mt-2">
-                            Comienza creando un nuevo lote desde el botón "Nuevo Lote"
-                        </p>
+                    <div className="text-center py-12 text-gray-500">
+                        <p className="text-lg">No hay lotes registrados</p>
                     </div>
                 )}
             </div>

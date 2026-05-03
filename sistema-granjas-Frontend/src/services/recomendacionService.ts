@@ -8,7 +8,7 @@ import type {
   Evidencia
 } from '../types/recomendacionTypes';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = '/api';
 
 // Headers con token
 const getHeaders = (multipart = false): HeadersInit => {
@@ -352,6 +352,27 @@ export const recomendacionService = {
 
   async obtenerEstadosRecomendacion(): Promise<string[]> {
     return ['pendiente', 'aprobada', 'rechazada', 'en_ejecucion', 'completada', 'cancelada'];
+  },
+
+  async obtenerInsumosPorPrograma(programaId: number): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/insumos/programa/${programaId}`, {
+      headers: getHeaders()
+    });
+    return handleResponse(response);
+  },
+
+  async verificarRecomendacionDiagnostico(diagnosticoId: number): Promise<{ tiene_recomendacion: boolean; recomendacion_id?: number; recomendacion_titulo?: string; recomendacion_estado?: string }> {
+    const response = await fetch(`${API_BASE_URL}/diagnosticos/${diagnosticoId}/recomendacion`, {
+      headers: getHeaders()
+    });
+    return handleResponse(response);
+  },
+
+  async obtenerRecomendacionesPorDiagnostico(diagnosticoId: number): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/recomendaciones/diagnostico/${diagnosticoId}`, {
+      headers: getHeaders()
+    });
+    return handleResponse(response);
   }
 };
 

@@ -13,25 +13,11 @@ def get_roles_activos(db: Session, skip: int = 0, limit: int = 100):
     return db.query(Rol).filter(Rol.activo == True).offset(skip).limit(limit).all()
 
 def get_roles_para_registro(db: Session):
-    """
-    Obtiene roles que pueden ser seleccionados en el registro.
-    Se utiliza la lista ROLES_PERMITIDOS_REGISTRO desde settings.
-    Si no existe la configuración, se retornan todos los roles activos.
-    """
-    try:
-        roles_permitidos = getattr(settings, "ROLES_PERMITIDOS_REGISTRO", None)
-        if roles_permitidos and isinstance(roles_permitidos, list):
-            return db.query(Rol).filter(
-                Rol.activo == True,
-                Rol.nombre.in_(roles_permitidos)
-            ).all()
-        else:
-            # Fallback: devolver todos los roles activos
-            return db.query(Rol).filter(Rol.activo == True).all()
-    except Exception as e:
-        # En caso de error, devolver lista vacía o loguear
-        print(f"Error al obtener roles para registro: {e}")
-        return []
+    """Obtiene roles que pueden ser seleccionados en el registro"""
+    return db.query(Rol).filter(
+        Rol.activo == True, 
+        Rol.nombre.in_(settings.ROLES_PERMITIDOS_REGISTRO)
+    ).all()
 
 def create_rol(db: Session, rol: RolCreate):
     db_rol = Rol(**rol.dict())
@@ -43,15 +29,13 @@ def create_rol(db: Session, rol: RolCreate):
 def inicializar_roles_por_defecto(db: Session):
     """Inicializa los roles por defecto en la base de datos"""
     roles_creados = []
-    roles_por_defecto = getattr(settings, "ROLES_POR_DEFECTO", {})
-    for nombre_rol, info in roles_por_defecto.items():
+    for nombre_rol, info in settings.ROLES_POR_DEFECTO.items():
         rol_existente = get_rol_by_nombre(db, nombre_rol)
         if not rol_existente:
             db_rol = Rol(
                 nombre=nombre_rol,
-                descripcion=info.get("descripcion", ""),
-                nivel_permiso=info.get("nivel_permiso", 0),
-                activo=True
+                descripcion=info["descripcion"],
+                nivel_permiso=info["nivel_permiso"]
             )
             db.add(db_rol)
             roles_creados.append(nombre_rol)
