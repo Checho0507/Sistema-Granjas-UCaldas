@@ -5,20 +5,12 @@ from datetime import datetime
 
 from app.db.database import get_db
 from app.core.dependencies import get_current_user, require_any_role
-from app.CRUD.movimientos import (
-    listar_movimientos_herramientas_crud,
-    listar_movimientos_insumos_crud,
-    obtener_movimiento_herramienta_crud,
-    obtener_movimiento_insumo_crud,
-    obtener_estadisticas_movimientos_crud
-)
-from app.schemas.movimientos_schema import (
-    MovimientoHerramientaResponse,
-    MovimientoInsumoResponse,
-    MovimientosListResponse
-)
 
 router = APIRouter(prefix="/movimientos", tags=["Movimientos de Inventario"])
+
+# ========== TODOS LOS ENDPOINTS ESTÁN TEMPORALMENTE DESHABILITADOS ==========
+# La funcionalidad de movimientos será migrada al nuevo sistema de inventario dinámico.
+# Por favor, utiliza la nueva API de inventario dinámico (/api/inventario-dinamico).
 
 @router.get("/herramientas", response_model=dict)
 def listar_movimientos_herramientas(
@@ -34,11 +26,9 @@ def listar_movimientos_herramientas(
     _ = Depends(require_any_role(["admin", "talento_humano", "docente"]))
 ):
     """
-    Listar movimientos de herramientas con filtros
+    ⚠️ FUNCIONALIDAD DESCONTINUADA: La gestión de movimientos de herramientas será migrada al nuevo sistema de inventario dinámico.
     """
-    return listar_movimientos_herramientas_crud(
-        db, skip, limit, herramienta_id, labor_id, tipo_movimiento, fecha_desde, fecha_hasta
-    )
+    raise HTTPException(501, "Funcionalidad en migración. Próximamente disponible en el nuevo módulo de inventario dinámico.")
 
 @router.get("/insumos", response_model=dict)
 def listar_movimientos_insumos(
@@ -54,11 +44,9 @@ def listar_movimientos_insumos(
     _ = Depends(require_any_role(["admin", "talento_humano", "docente"]))
 ):
     """
-    Listar movimientos de insumos con filtros
+    ⚠️ FUNCIONALIDAD DESCONTINUADA: La gestión de movimientos de insumos será migrada al nuevo sistema de inventario dinámico.
     """
-    return listar_movimientos_insumos_crud(
-        db, skip, limit, insumo_id, labor_id, tipo_movimiento, fecha_desde, fecha_hasta
-    )
+    raise HTTPException(501, "Funcionalidad en migración. Próximamente disponible en el nuevo módulo de inventario dinámico.")
 
 @router.get("/herramientas/{movimiento_id}")
 def obtener_movimiento_herramienta(
@@ -68,12 +56,9 @@ def obtener_movimiento_herramienta(
     _ = Depends(require_any_role(["admin", "talento_humano", "docente"]))
 ):
     """
-    Obtener un movimiento específico de herramienta
+    ⚠️ FUNCIONALIDAD DESCONTINUADA: La gestión de movimientos de herramientas será migrada al nuevo sistema de inventario dinámico.
     """
-    movimiento = obtener_movimiento_herramienta_crud(db, movimiento_id)
-    if not movimiento:
-        raise HTTPException(404, "Movimiento de herramienta no encontrado")
-    return movimiento
+    raise HTTPException(501, "Funcionalidad en migración. Próximamente disponible en el nuevo módulo de inventario dinámico.")
 
 @router.get("/insumos/{movimiento_id}")
 def obtener_movimiento_insumo(
@@ -83,12 +68,9 @@ def obtener_movimiento_insumo(
     _ = Depends(require_any_role(["admin", "talento_humano", "docente"]))
 ):
     """
-    Obtener un movimiento específico de insumo
+    ⚠️ FUNCIONALIDAD DESCONTINUADA: La gestión de movimientos de insumos será migrada al nuevo sistema de inventario dinámico.
     """
-    movimiento = obtener_movimiento_insumo_crud(db, movimiento_id)
-    if not movimiento:
-        raise HTTPException(404, "Movimiento de insumo no encontrado")
-    return movimiento
+    raise HTTPException(501, "Funcionalidad en migración. Próximamente disponible en el nuevo módulo de inventario dinámico.")
 
 @router.get("/labor/{labor_id}")
 def obtener_movimientos_labor(
@@ -97,15 +79,9 @@ def obtener_movimientos_labor(
     usuario = Depends(get_current_user)
 ):
     """
-    Obtener todos los movimientos de una labor específica
+    ⚠️ FUNCIONALIDAD DESCONTINUADA: La gestión de movimientos por labor será migrada al nuevo sistema de inventario dinámico.
     """
-    movimientos_herramientas = listar_movimientos_herramientas_crud(db, labor_id=labor_id, limit=1000)
-    movimientos_insumos = listar_movimientos_insumos_crud(db, labor_id=labor_id, limit=1000)
-    
-    return {
-        "herramientas": movimientos_herramientas,
-        "insumos": movimientos_insumos
-    }
+    raise HTTPException(501, "Funcionalidad en migración. Próximamente disponible en el nuevo módulo de inventario dinámico.")
 
 @router.get("/estadisticas/resumen")
 def obtener_estadisticas_movimientos(
@@ -115,6 +91,6 @@ def obtener_estadisticas_movimientos(
     _ = Depends(require_any_role(["admin", "talento_humano"]))
 ):
     """
-    Obtener estadísticas de movimientos en un período
+    ⚠️ FUNCIONALIDAD DESCONTINUADA: Las estadísticas de movimientos serán migradas al nuevo sistema de inventario dinámico.
     """
-    return obtener_estadisticas_movimientos_crud(db, dias)
+    raise HTTPException(501, "Funcionalidad en migración. Próximamente disponible en el nuevo módulo de inventario dinámico.")
