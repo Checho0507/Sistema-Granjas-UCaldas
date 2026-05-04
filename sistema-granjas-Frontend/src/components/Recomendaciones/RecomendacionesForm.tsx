@@ -66,19 +66,16 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
                 setLoadingDiagnosticos(true);
                 console.log('🔍 Cargando diagnósticos para lote:', formData.lote_id);
 
-                // Cargar diagnósticos con filtro por lote
                 const datosDiagnosticos = await diagnosticoService.obtenerDiagnosticos({
                     lote_id: parseInt(formData.lote_id as string)
                 });
 
-                // Procesar la respuesta (puede ser array o { items: [] })
                 const diagnosticosData = Array.isArray(datosDiagnosticos)
                     ? datosDiagnosticos
                     : (datosDiagnosticos?.items || []);
 
                 console.log('✅ Diagnósticos cargados:', diagnosticosData);
 
-                // Filtrar diagnósticos abiertos o en revisión (suelen ser los más relevantes)
                 const diagnosticosDisponibles = diagnosticosData.filter((d: any) =>
                     d.estado === 'abierto' || d.estado === 'en_revision'
                 );
@@ -120,6 +117,7 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
                 cantidad_sugerida: recomendacion.cantidad_sugerida || '',
             });
         } else if (!esEdicion) {
+            // Reset para creación
             setFormData({
                 titulo: '',
                 descripcion: '',
@@ -160,7 +158,6 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
             const diagnosticoSeleccionado = diagnosticos.find(d => d.id === parseInt(formData.diagnostico_id as string));
             if (diagnosticoSeleccionado && diagnosticoSeleccionado.lote_id !== parseInt(formData.lote_id as string)) {
                 console.warn('⚠️ El diagnóstico seleccionado no pertenece al lote actual');
-                // Opcional: Mostrar advertencia o limpiar selección
             }
         }
     }, [formData.diagnostico_id, formData.lote_id, diagnosticos]);
@@ -203,7 +200,6 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
         setTiposEvidencia(copia);
     };
 
-    // Función para formatear fecha
     const formatearFecha = (fechaString: string) => {
         try {
             const fecha = new Date(fechaString);
@@ -217,7 +213,6 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
         }
     };
 
-    // Función para obtener el color del estado del diagnóstico
     const getColorEstado = (estado: string) => {
         switch (estado?.toLowerCase()) {
             case 'abierto': return 'text-yellow-600 bg-yellow-50';
@@ -247,17 +242,14 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
             lote_id: parseInt(formData.lote_id as string) || 0,
         };
 
-        // Solo incluir docente_id si no es estudiante auto-asignándose
         if (formData.docente_id) {
             datosSubmit.docente_id = parseInt(formData.docente_id as string);
         }
 
-        // Incluir estado solo en edición
         if (esEdicion) {
             datosSubmit.estado = formData.estado;
         }
 
-        // Incluir diagnostico_id si existe
         if (formData.diagnostico_id) {
             datosSubmit.diagnostico_id = parseInt(formData.diagnostico_id as string);
         }
@@ -335,29 +327,34 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
                         </select>
                     </div>
 
-                    {/* Lote */}
+                    {/* Lote (con indicador de carga) */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Lote *
-                        </label>
-                        <select
-                            name="lote_id"
-                            value={formData.lote_id}
-                            onChange={handleChange}
-                            className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            required
-                        >
-                            <option value="">Seleccionar lote</option>
-                            {lotes.map(lote => (
-                                <option key={lote.id} value={lote.id}>
-                                    {lote.nombre} - {lote.granja_nombre || 'Sin granja'}
-                                    {lote.cultivo?.nombre ? ` (${lote.cultivo.nombre})` : ''}
-                                </option>
-                            ))}
-                        </select>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Lote *</label>
+                        {lotes.length === 0 ? (
+                            <div className="text-center py-2 text-gray-500 bg-gray-50 rounded-lg border">
+                                <i className="fas fa-spinner fa-spin mr-2"></i>
+                                Cargando lotes disponibles...
+                            </div>
+                        ) : (
+                            <select
+                                name="lote_id"
+                                value={formData.lote_id}
+                                onChange={handleChange}
+                                className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                required
+                            >
+                                <option value="">Seleccionar lote</option>
+                                {lotes.map(lote => (
+                                    <option key={lote.id} value={lote.id}>
+                                        {lote.nombre} - {lote.granja_nombre || 'Sin granja'}
+                                        {lote.cultivo?.nombre ? ` (${lote.cultivo.nombre})` : ''}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
                     </div>
 
-                    {/* Diagnóstico Asociado - NUEVA IMPLEMENTACIÓN */}
+                    {/* Diagnóstico Asociado */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                             Diagnóstico Asociado (Opcional)
@@ -399,7 +396,6 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
                                     ))}
                                 </select>
 
-                                {/* Información del diagnóstico seleccionado */}
                                 {formData.diagnostico_id && (
                                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                                         <h4 className="font-medium text-blue-800 mb-2 flex items-center">
@@ -655,7 +651,6 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
                             </div>
                         )}
                     </div>
-
                 </div>
 
                 <div className="flex justify-end gap-3 mt-8 pt-5 border-t border-gray-200">
