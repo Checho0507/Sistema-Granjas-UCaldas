@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
+from typing import List
 from app.db.database import get_db
 from app.core.security import verify_token
-# Importamos los modelos de Pydantic y el servicio
 from app.schemas.auth_schema import (
     LoginRequest, 
     RegisterRequest, 
@@ -11,6 +11,8 @@ from app.schemas.auth_schema import (
     UserVerification,
     SuccessMessage
 )
+from app.schemas.rol_schema import RolParaRegistro
+from app.CRUD.roles import get_roles_para_registro
 from app.services.auth_service import AuthService
 
 import logging
@@ -87,6 +89,17 @@ def logout(data: LogoutRequest = Depends(LogoutRequest)):
         message="Logout exitoso",
         detail="Token eliminado del cliente. Sesión cerrada correctamente."
     )
+
+@router.get("/roles-disponibles")
+def get_roles_disponibles(db: Session = Depends(get_db)):
+    """Obtiene los roles disponibles para el registro de nuevos usuarios."""
+    try:
+        roles = get_roles_para_registro(db)
+        return {"roles": [{"id": r.id, "nombre": r.nombre, "descripcion": r.descripcion or ""} for r in roles]}
+    except Exception as e:
+        logger.error(f"Error obteniendo roles disponibles: {e}")
+        return {"roles": []}
+
 
 @router.get("/verify", response_model=UserVerification)
 def verify_token_endpoint(token: str):

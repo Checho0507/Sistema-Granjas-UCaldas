@@ -237,7 +237,7 @@ export const programaService = {
 
   // Obtener programas por granja (endpoint básico)
   async obtenerProgramasPorGranja(granjaId: number): Promise<Programa[]> {
-    const response = await fetch(`${API_BASE_URL}/programas/granja/${granjaId}`, {
+    const response = await fetch(`${API_BASE_URL}/programas/por-granja/${granjaId}`, {
       headers: getHeaders()
     });
     return handleResponse(response);

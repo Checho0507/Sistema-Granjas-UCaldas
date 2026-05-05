@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.models import (
-    Rol, Granja, Programa, TipoLote, CategoriaInventario # Eliminamos TipoLabor de la importación
+    Rol, Granja, Programa, TipoLote
 )
 
 def inicializar_datos_por_defecto(db: Session):
@@ -12,8 +12,6 @@ def inicializar_datos_por_defecto(db: Session):
         "granjas": inicializar_granjas(db),
         "programas": inicializar_programas(db),
         "tipos_lote": inicializar_tipos_lote(db),
-        "categorias_inventario": inicializar_categorias_inventario(db),
-        # Se elimina la inicialización de labores
     }
     
     return datos_inicializados
@@ -130,24 +128,3 @@ def inicializar_tipos_lote(db: Session):
     
     return tipos_creados
 
-def inicializar_categorias_inventario(db: Session):
-    """Inicializar categorías de inventario"""
-    categorias = [
-        {"nombre": "herramienta", "descripcion": "Herramientas y equipos"},
-        {"nombre": "insumo", "descripcion": "Insumos y materiales"}
-    ]
-    
-    categorias_creadas = []
-    for categoria_data in categorias:
-        categoria_existente = db.query(CategoriaInventario).filter(
-            CategoriaInventario.nombre == categoria_data["nombre"]
-        ).first()
-        if not categoria_existente:
-            db_categoria = CategoriaInventario(**categoria_data)
-            db.add(db_categoria)
-            categorias_creadas.append(categoria_data["nombre"])
-    
-    if categorias_creadas:
-        db.commit()
-    
-    return categorias_creadas

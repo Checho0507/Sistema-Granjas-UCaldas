@@ -29,7 +29,7 @@ def listar_programas(
     limit: int = Query(100, ge=1, le=1000),
     incluir_inactivos: bool = Query(False),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_any_role(["admin", "estudiante", "coordinador"]))
+    current_user: dict = Depends(require_any_role(["admin", "docente", "asesor", "estudiante", "talento_humano", "trabajador"]))
 ):
     """Listar todos los programas con paginación"""
     return get_programas(db, skip=skip, limit=limit, solo_activos=not incluir_inactivos)
@@ -38,7 +38,7 @@ def listar_programas(
 def obtener_programa(
     programa_id: int, 
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_any_role(["admin", "coordinador"]))
+    current_user: dict = Depends(require_any_role(["admin", "docente", "asesor", "estudiante", "talento_humano", "trabajador"]))
 ):
     """Obtener un programa por su ID"""
     programa = get_programa(db, programa_id)
@@ -116,7 +116,7 @@ def desasignar_usuario(
 def listar_usuarios(
     programa_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_any_role(["admin", "coordinador"]))
+    current_user: dict = Depends(require_any_role(["admin", "docente", "asesor"]))
 ):
     """Listar todos los usuarios asignados a un programa"""
     try:
@@ -162,7 +162,7 @@ def desasignar_granja(
 def listar_granjas(
     programa_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_any_role(["admin", "coordinador"]))
+    current_user: dict = Depends(require_any_role(["admin", "docente", "asesor", "estudiante", "talento_humano", "trabajador"]))
 ):
     """Listar todas las granjas asignadas a un programa"""
     try:
@@ -179,7 +179,7 @@ def listar_lotes_por_programa(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_any_role(["admin", "coordinador"]))
+    current_user: dict = Depends(require_any_role(["admin", "docente", "asesor", "estudiante", "talento_humano", "trabajador"]))
 ):
     """Listar todos los lotes asignados a un programa específico"""
     # Verificar que el programa existe
@@ -195,7 +195,7 @@ def listar_lotes_por_programa(
 def obtener_relaciones_completas(
     programa_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_any_role(["admin", "coordinador"]))
+    current_user: dict = Depends(require_any_role(["admin", "docente", "asesor"]))
 ):
     """Obtener todas las relaciones de un programa (usuarios y granjas)"""
     try:
@@ -209,7 +209,7 @@ def obtener_relaciones_completas(
 def listar_programas_por_granja(
     granja_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_any_role(["admin", "coordinador"]))
+    current_user: dict = Depends(require_any_role(["admin", "docente", "asesor", "estudiante", "talento_humano", "trabajador"]))
 ):
     """Listar todos los programas asignados a una granja específica"""
     try:
