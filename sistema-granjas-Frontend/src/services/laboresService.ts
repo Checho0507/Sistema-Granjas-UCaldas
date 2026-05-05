@@ -249,12 +249,17 @@ export const laborService = {
         }
     },
 
-    async completarLabor(id: number, comentario?: string): Promise<Labor> {
-        const payload = comentario ? { comentario } : {};
+    async completarLabor(id: number, datos?: {
+        comentario?: string;
+        inventario_item_id?: number;
+        cantidad_usada?: number;
+        dosis_aplicada?: number;
+        unidad_dosis?: string;
+    }): Promise<Labor> {
         const response = await fetch(`${API_BASE_URL}/labores/${id}/completar`, {
             method: 'POST',
             headers: getHeaders(),
-            body: JSON.stringify(payload)
+            body: JSON.stringify(datos || {})
         });
         return handleResponse(response);
     },

@@ -64,7 +64,7 @@ const TableroLabores: React.FC = () => {
   const [online, setOnline] = useState(navigator.onLine);
   const [pendientesSync, setPendientesSync] = useState(0);
   const [avanceModal, setAvanceModal] = useState<{ labor: Labor | null; valor: number; comentario: string }>({ labor: null, valor: 0, comentario: '' });
-  const [completarModal, setCompletarModal] = useState<{ labor: Labor | null; itemsInventario: any[]; loadingItems: boolean; cantidadUsada: string; inventarioItemId: string; comentario: string }>({ labor: null, itemsInventario: [], loadingItems: false, cantidadUsada: '', inventarioItemId: '', comentario: '' });
+  const [completarModal, setCompletarModal] = useState<{ labor: Labor | null; itemsInventario: any[]; loadingItems: boolean; cantidadUsada: string; inventarioItemId: string; comentario: string; dosisAplicada: string; unidadDosis: string; dosisRecomendada?: number; unidadRecomendada?: string }>({ labor: null, itemsInventario: [], loadingItems: false, cantidadUsada: '', inventarioItemId: '', comentario: '', dosisAplicada: '', unidadDosis: '' });
   const [vistaMovil, setVistaMovil] = useState<string>('todas');
 
   useEffect(() => {
@@ -205,23 +205,61 @@ const TableroLabores: React.FC = () => {
   };
 
   const abrirCompletarModal = async (labor: Labor) => {
-    setCompletarModal(prev => ({ ...prev, labor, loadingItems: true, cantidadUsada: '', inventarioItemId: '', comentario: '' }));
-    // Try to load inventory items for the program of this labor's lote
+    setCompletarModal(prev => ({ ...prev, labor, loadingItems: true, cantidadUsada: '', inventarioItemId: '', comentario: '', dosisAplicada: '', unidadDosis: '', dosisRecomendada: undefined, unidadRecomendada: undefined }));
     try {
       const laborRes = await fetch(`${API_BASE}/labores/${labor.id}`, { headers: getHeaders() });
       if (laborRes.ok) {
         const laborData = await laborRes.json();
         const recomId = laborData.recomendacion_id;
+        // Load recommended items from the recommendation
         if (recomId) {
           const recRes = await fetch(`${API_BASE}/recomendaciones/${recomId}`, { headers: getHeaders() });
           if (recRes.ok) {
             const recData = await recRes.json();
+            // Use items_sugeridos if available (multiple products)
+            const itemsSugeridos = recData.items_sugeridos || [];
+            if (itemsSugeridos.length > 0) {
+              // Build list of suggested items with metadata
+              const items = itemsSugeridos.map((item: any) => ({
+                id: item.inventario_item_id,
+                nombre: item.inventario_item_nombre || `Ítem #${item.inventario_item_id}`,
+                unidad: item.inventario_item_unidad || '',
+                cantidad_sugerida: item.cantidad_sugerida,
+              }));
+              const firstItem = items[0];
+              setCompletarModal(prev => ({
+                ...prev, loadingItems: false, itemsInventario: items,
+                inventarioItemId: items.length === 1 ? String(items[0].id) : '',
+                dosisRecomendada: firstItem?.cantidad_sugerida,
+                unidadRecomendada: firstItem?.unidad,
+                unidadDosis: firstItem?.unidad || '',
+              }));
+              return;
+            }
+            // Fallback: single inventario_item_id on recomendacion
+            if (recData.inventario_item_id) {
+              const items = [{ id: recData.inventario_item_id, nombre: recData.inventario_item_nombre || `Ítem #${recData.inventario_item_id}`, unidad: recData.inventario_item_unidad || '', cantidad_sugerida: recData.cantidad_sugerida }];
+              setCompletarModal(prev => ({
+                ...prev, loadingItems: false, itemsInventario: items,
+                inventarioItemId: String(recData.inventario_item_id),
+                dosisRecomendada: recData.cantidad_sugerida,
+                unidadRecomendada: recData.inventario_item_unidad || '',
+                unidadDosis: recData.inventario_item_unidad || '',
+              }));
+              return;
+            }
+            // Fallback: load all program items
             const programaId = recData.programa_id;
             if (programaId) {
-              const invRes = await fetch(`${API_BASE}/inventario-dinamico/items?programa_id=${programaId}&limit=200`, { headers: getHeaders() });
+              const invRes = await fetch(`${API_BASE}/inventario-dinamico/programas/${programaId}/items-planos`, { headers: getHeaders() });
               if (invRes.ok) {
                 const invData = await invRes.json();
-                const items = Array.isArray(invData) ? invData : (invData?.items || []);
+                const items = (Array.isArray(invData) ? invData : (invData?.items || [])).map((item: any) => ({
+                  id: item.id,
+                  nombre: item.valores?.nombre || item.valores?.producto || `Ítem #${item.id}`,
+                  unidad: item.valores?.unidad || '',
+                  cantidad_sugerida: undefined,
+                }));
                 setCompletarModal(prev => ({ ...prev, loadingItems: false, itemsInventario: items }));
                 return;
               }
@@ -234,18 +272,20 @@ const TableroLabores: React.FC = () => {
   };
 
   const confirmarCompletar = async () => {
-    const { labor, inventarioItemId, cantidadUsada, comentario } = completarModal;
+    const { labor, inventarioItemId, cantidadUsada, comentario, dosisAplicada, unidadDosis } = completarModal;
     if (!labor) return;
 
     const body: any = {};
     if (comentario) body.comentario = comentario;
     if (inventarioItemId) body.inventario_item_id = parseInt(inventarioItemId);
     if (cantidadUsada) body.cantidad_usada = parseFloat(cantidadUsada);
+    if (dosisAplicada) body.dosis_aplicada = parseFloat(dosisAplicada);
+    if (unidadDosis) body.unidad_dosis = unidadDosis;
 
     const optimistic = labores.map(l => l.id === labor.id ? { ...l, estado: 'completada', avance_porcentaje: 100 } : l);
     setLabores(optimistic);
     await guardarEnCache(optimistic);
-    setCompletarModal({ labor: null, itemsInventario: [], loadingItems: false, cantidadUsada: '', inventarioItemId: '', comentario: '' });
+    setCompletarModal({ labor: null, itemsInventario: [], loadingItems: false, cantidadUsada: '', inventarioItemId: '', comentario: '', dosisAplicada: '', unidadDosis: '' });
 
     if (navigator.onLine) {
       try {
@@ -394,17 +434,12 @@ const TableroLabores: React.FC = () => {
       {/* Modal de completar labor */}
       {completarModal.labor && (
         <div className="fixed inset-0 bg-black/60 flex items-end md:items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-5 border-b">
               <h3 className="font-bold text-lg text-gray-900">Completar Labor</h3>
               <p className="text-sm text-gray-500 mt-1">{completarModal.labor.tipo_labor_nombre}</p>
             </div>
             <div className="p-5 space-y-4">
-              <p className="text-sm text-gray-600">
-                Estás por marcar como completada esta labor.
-                Puedes reportar el consumo de insumos utilizado.
-              </p>
-
               {/* Comentario */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Comentario de finalización (opcional)</label>
@@ -417,57 +452,90 @@ const TableroLabores: React.FC = () => {
                 />
               </div>
 
-              {/* Inventario */}
+              {/* Productos / Dosis */}
               <div className="border-t pt-3">
-                <p className="text-sm font-medium text-gray-700 mb-2">Reporte de consumo de insumos (opcional)</p>
+                <p className="text-sm font-medium text-gray-700 mb-2">
+                  {completarModal.itemsInventario.length > 0 ? '🧪 Producto y dosis aplicada' : 'Reporte de insumos (opcional)'}
+                </p>
                 {completarModal.loadingItems ? (
                   <div className="flex items-center gap-2 text-sm text-gray-500">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
-                    Cargando inventario...
+                    Cargando información...
                   </div>
                 ) : completarModal.itemsInventario.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-3">
+                    {/* Selector de producto */}
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">Insumo usado</label>
+                      <label className="block text-xs text-gray-500 mb-1">Producto aplicado</label>
                       <select
                         value={completarModal.inventarioItemId}
-                        onChange={e => setCompletarModal(prev => ({ ...prev, inventarioItemId: e.target.value }))}
+                        onChange={e => {
+                          const itemId = e.target.value;
+                          const item = completarModal.itemsInventario.find((i: any) => String(i.id) === itemId);
+                          setCompletarModal(prev => ({
+                            ...prev,
+                            inventarioItemId: itemId,
+                            dosisRecomendada: item?.cantidad_sugerida,
+                            unidadRecomendada: item?.unidad || '',
+                            unidadDosis: item?.unidad || prev.unidadDosis,
+                          }));
+                        }}
                         className="w-full border rounded-lg p-2 text-sm"
                       >
-                        <option value="">Sin insumo</option>
-                        {completarModal.itemsInventario.map((item: any) => {
-                          const nombre = item.valores?.nombre || item.valores?.producto || `Ítem #${item.id}`;
-                          const unidad = item.unidad_medida || '';
-                          return (
-                            <option key={item.id} value={item.id}>
-                              {nombre}{unidad ? ` (${unidad})` : ''}
-                            </option>
-                          );
-                        })}
+                        <option value="">Sin producto</option>
+                        {completarModal.itemsInventario.map((item: any) => (
+                          <option key={item.id} value={item.id}>
+                            {item.nombre}{item.unidad ? ` (${item.unidad})` : ''}
+                            {item.cantidad_sugerida ? ` — Sugerido: ${item.cantidad_sugerida}` : ''}
+                          </option>
+                        ))}
                       </select>
                     </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">Cantidad usada</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={completarModal.cantidadUsada}
-                        onChange={e => setCompletarModal(prev => ({ ...prev, cantidadUsada: e.target.value }))}
-                        disabled={!completarModal.inventarioItemId}
-                        className="w-full border rounded-lg p-2 text-sm disabled:bg-gray-50"
-                        placeholder="0.00"
-                      />
+
+                    {/* Dosis recomendada */}
+                    {completarModal.inventarioItemId && completarModal.dosisRecomendada !== undefined && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 text-xs text-amber-800 flex items-center gap-2">
+                        <i className="fas fa-info-circle"></i>
+                        Dosis sugerida: <strong>{completarModal.dosisRecomendada} {completarModal.unidadRecomendada}</strong>
+                      </div>
+                    )}
+
+                    {/* Dosis aplicada */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Dosis aplicada *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={completarModal.dosisAplicada}
+                          onChange={e => setCompletarModal(prev => ({ ...prev, dosisAplicada: e.target.value, cantidadUsada: e.target.value }))}
+                          disabled={!completarModal.inventarioItemId}
+                          className="w-full border rounded-lg p-2 text-sm disabled:bg-gray-50"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Unidad</label>
+                        <input
+                          type="text"
+                          value={completarModal.unidadDosis}
+                          onChange={e => setCompletarModal(prev => ({ ...prev, unidadDosis: e.target.value }))}
+                          disabled={!completarModal.inventarioItemId}
+                          className="w-full border rounded-lg p-2 text-sm disabled:bg-gray-50"
+                          placeholder="kg, L, cc..."
+                        />
+                      </div>
                     </div>
                   </div>
                 ) : (
-                  <p className="text-xs text-gray-400">No hay ítems de inventario disponibles para este programa.</p>
+                  <p className="text-xs text-gray-400">Esta labor no tiene productos asociados desde la recomendación.</p>
                 )}
               </div>
             </div>
             <div className="p-4 flex gap-3 border-t">
               <button
-                onClick={() => setCompletarModal({ labor: null, itemsInventario: [], loadingItems: false, cantidadUsada: '', inventarioItemId: '', comentario: '' })}
+                onClick={() => setCompletarModal({ labor: null, itemsInventario: [], loadingItems: false, cantidadUsada: '', inventarioItemId: '', comentario: '', dosisAplicada: '', unidadDosis: '' })}
                 className="flex-1 py-3 border border-gray-300 rounded-xl text-gray-600 font-medium hover:bg-gray-50"
               >
                 Cancelar

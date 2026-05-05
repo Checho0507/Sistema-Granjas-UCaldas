@@ -39,7 +39,7 @@ class LaborBase(BaseModel):
 # ============================================================
 class LaborCreate(LaborBase):
     recomendacion_id: int = Field(..., gt=0, description="ID de la recomendación asociada")
-    trabajador_id: int = Field(..., gt=0, description="ID del trabajador asignado")
+    trabajador_id: Optional[int] = Field(None, gt=0, description="ID del trabajador asignado (opcional al crear)")
 
 
 # ============================================================
@@ -104,17 +104,23 @@ class EvidenciaBasicResponse(BaseModel):
 class LaborResponse(LaborBase):
     id: int
     recomendacion_id: int
-    trabajador_id: int
+    trabajador_id: Optional[int] = None
     fecha_asignacion: datetime
     fecha_finalizacion: Optional[datetime] = None
 
-    # información extra
+    inventario_item_id: Optional[int] = None
+    cantidad_usada: Optional[float] = None
+    dosis_aplicada: Optional[float] = None
+    unidad_dosis: Optional[str] = None
+
     trabajador_nombre: Optional[str] = None
     recomendacion_titulo: Optional[str] = None
     lote_nombre: Optional[str] = None
     granja_nombre: Optional[str] = None
     tipo_labor_nombre: Optional[str] = None
     tipo_labor_descripcion: Optional[str] = None
+    inventario_item_nombre: Optional[str] = None
+    inventario_item_unidad: Optional[str] = None
 
     class Config:
         from_attributes = True

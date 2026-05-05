@@ -147,6 +147,8 @@ class CompletarLaborRequest(BaseModel):
     comentario: Optional[str] = None
     inventario_item_id: Optional[int] = None
     cantidad_usada: Optional[float] = None
+    dosis_aplicada: Optional[float] = None
+    unidad_dosis: Optional[str] = None
 
 @router.post("/{id}/completar", response_model=LaborResponse)
 def completar_labor(

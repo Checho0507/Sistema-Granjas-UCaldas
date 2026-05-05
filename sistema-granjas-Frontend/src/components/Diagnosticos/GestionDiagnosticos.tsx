@@ -11,6 +11,7 @@ import DiagnosticosTable from './DiagnosticosTable';
 import DiagnosticoForm from './DiagnosticosForm';
 import AgregarEvidenciaModal from './AgregarEvidenciaModal';
 import DetallesDiagnosticoModal from './DetallesDiagnosticoModal';
+import GestionTiposDiagnostico from './GestionTiposDiagnostico';
 import { useAuth } from '../../hooks/useAuth';
 import granjaService from '../../services/granjaService';
 import exportService from '../../services/exportService';
@@ -39,6 +40,12 @@ const GestionDiagnosticos: React.FC = () => {
 
   const [exporting, setExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState('');
+
+  // Tabs
+  const [tabActivo, setTabActivo] = useState<'diagnosticos' | 'tipos'>('diagnosticos');
+  const [programaSeleccionadoTipos, setProgramaSeleccionadoTipos] = useState<number | null>(null);
+
+  const esAdminODocente = user && (user.rol_id === 1 || user.rol_id === 2 || user.rol_id === 5);
 
   const handleExportDiagnosticos = async () => {
     if (exporting) return;
@@ -73,7 +80,9 @@ const GestionDiagnosticos: React.FC = () => {
 
       try {
         const programasData = await programaService.obtenerProgramas();
-        setProgramas(Array.isArray(programasData) ? programasData : (programasData?.items || []));
+        const lista = Array.isArray(programasData) ? programasData : (programasData?.items || []);
+        setProgramas(lista);
+        if (lista.length > 0 && !programaSeleccionadoTipos) setProgramaSeleccionadoTipos(lista[0].id);
       } catch { setProgramas([]); }
 
       try {
@@ -117,7 +126,6 @@ const GestionDiagnosticos: React.FC = () => {
     }
   };
 
-  // ========== HANDLERS CORREGIDOS ==========
   const handleCrearDiagnostico = async (formData: FormData) => {
     try {
       if (!user?.id) throw new Error('Usuario no autenticado');
@@ -158,13 +166,8 @@ const GestionDiagnosticos: React.FC = () => {
   const handleAgregarEvidencia = async (file: File, descripcion: string, tipo: string) => {
     if (!selectedDiagnostico) return;
     try {
-      // Si el servicio tiene el método, se usa; si no, se implementa
       if (diagnosticoService.agregarEvidencia) {
         await diagnosticoService.agregarEvidencia(selectedDiagnostico.id, file, descripcion, tipo, user);
-      } else {
-        // Fallback: subir evidencia por separado (implementar si es necesario)
-        console.warn('Método agregarEvidencia no implementado en el servicio');
-        // Aquí podrías llamar a un endpoint de evidencias directamente
       }
       toast.success('Evidencia agregada');
       setShowEvidenciaModal(false);
@@ -199,56 +202,115 @@ const GestionDiagnosticos: React.FC = () => {
 
   return (
     <div className="p-6">
+      {/* Tabs */}
       <div className="mb-6">
         <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold text-gray-800">Gestión de Diagnósticos</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Diagnósticos</h1>
           <div className="flex gap-2">
-            <button onClick={() => setShowCrearModal(true)} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
-              <i className="fas fa-plus"></i> Nuevo Diagnóstico
-            </button>
+            {tabActivo === 'diagnosticos' && (
+              <button onClick={() => setShowCrearModal(true)} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                <i className="fas fa-plus"></i> Nuevo Diagnóstico
+              </button>
+            )}
+            {exportMessage && (
+              <span className={`px-3 py-2 rounded text-sm ${exportMessage.includes('Error') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                {exportMessage}
+              </span>
+            )}
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-lg shadow mb-6">
-          <h3 className="font-semibold mb-3">Filtros</h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <select className="border rounded p-2" value={(filtros as any).tipo_diagnostico || ''} onChange={(e) => setFiltros({ ...filtros, tipo_diagnostico: e.target.value || undefined } as any)}>
-              <option value="">Todos los tipos</option>
-              <option value="censo_poblacional">Censo Poblacional</option>
-              <option value="monitoreo_fenologico">Monitoreo Fenológico</option>
-              <option value="artropodos">Artrópodos</option>
-              <option value="enfermedades">Enfermedades</option>
-              <option value="arvenses">Arvenses</option>
-              <option value="controladores_biologicos">Controladores Biológicos</option>
-              <option value="polinizadores">Polinizadores</option>
-            </select>
-            <select className="border rounded p-2" value={(filtros as any).programa_id || ''} onChange={(e) => setFiltros({ ...filtros, programa_id: e.target.value ? parseInt(e.target.value) : undefined } as any)}>
-              <option value="">Todos los programas</option>
-              {programas.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-            </select>
-            <select className="border rounded p-2" value={(filtros as any).lote_id || ''} onChange={(e) => setFiltros({ ...filtros, lote_id: e.target.value ? parseInt(e.target.value) : undefined } as any)}>
-              <option value="">Todos los lotes</option>
-              {lotes.map(lote => <option key={lote.id} value={lote.id}>{lote.nombre} {lote.granja_nombre ? `(${lote.granja_nombre})` : ''}</option>)}
-            </select>
-            <button onClick={() => setFiltros({})} className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded">Limpiar Filtros</button>
-          </div>
+        {/* Tab bar */}
+        <div className="flex border-b border-gray-200 mb-4">
+          <button
+            onClick={() => setTabActivo('diagnosticos')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition ${tabActivo === 'diagnosticos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+          >
+            <i className="fas fa-microscope mr-2"></i>Diagnósticos
+          </button>
+          {esAdminODocente && (
+            <button
+              onClick={() => setTabActivo('tipos')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition ${tabActivo === 'tipos' ? 'border-purple-600 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            >
+              <i className="fas fa-cogs mr-2"></i>Tipos de Diagnóstico
+            </button>
+          )}
         </div>
       </div>
 
-      {loading ? (
-        <div className="text-center py-8"><i className="fas fa-spinner fa-spin text-2xl"></i><p className="mt-2 text-gray-600">Cargando...</p></div>
-      ) : error ? (
-        <div className="bg-red-50 p-4 rounded text-red-700"><p>{error}</p><button onClick={cargarDatos} className="mt-2 text-blue-600 underline">Reintentar</button></div>
-      ) : (
-        <DiagnosticosTable
-          diagnosticos={diagnosticosFiltrados}
-          onEditar={openEditarModal}
-          onEliminar={handleEliminarDiagnostico}
-          onAgregarEvidencia={openEvidenciaModal}
-          onVerDetalles={openDetallesModal}
-          currentUser={user}
-          onCrearRecomendacion={esDocenteOAdmin ? crearRecomendacionDesdeDiagnostico : undefined}
-        />
+      {/* TAB: Diagnósticos */}
+      {tabActivo === 'diagnosticos' && (
+        <>
+          <div className="bg-white p-4 rounded-lg shadow mb-6">
+            <h3 className="font-semibold mb-3">Filtros</h3>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <select className="border rounded p-2" value={(filtros as any).tipo_diagnostico || ''} onChange={(e) => setFiltros({ ...filtros, tipo_diagnostico: e.target.value || undefined } as any)}>
+                <option value="">Todos los tipos</option>
+                <option value="censo_poblacional">Censo Poblacional</option>
+                <option value="monitoreo_fenologico">Monitoreo Fenológico</option>
+                <option value="artropodos">Artrópodos</option>
+                <option value="enfermedades">Enfermedades</option>
+                <option value="arvenses">Arvenses</option>
+                <option value="controladores_biologicos">Controladores Biológicos</option>
+                <option value="polinizadores">Polinizadores</option>
+              </select>
+              <select className="border rounded p-2" value={(filtros as any).programa_id || ''} onChange={(e) => setFiltros({ ...filtros, programa_id: e.target.value ? parseInt(e.target.value) : undefined } as any)}>
+                <option value="">Todos los programas</option>
+                {programas.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              </select>
+              <select className="border rounded p-2" value={(filtros as any).lote_id || ''} onChange={(e) => setFiltros({ ...filtros, lote_id: e.target.value ? parseInt(e.target.value) : undefined } as any)}>
+                <option value="">Todos los lotes</option>
+                {lotes.map(lote => <option key={lote.id} value={lote.id}>{lote.nombre} {lote.granja_nombre ? `(${lote.granja_nombre})` : ''}</option>)}
+              </select>
+              <button onClick={() => setFiltros({})} className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded">Limpiar Filtros</button>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="text-center py-8"><i className="fas fa-spinner fa-spin text-2xl"></i><p className="mt-2 text-gray-600">Cargando...</p></div>
+          ) : error ? (
+            <div className="bg-red-50 p-4 rounded text-red-700"><p>{error}</p><button onClick={cargarDatos} className="mt-2 text-blue-600 underline">Reintentar</button></div>
+          ) : (
+            <DiagnosticosTable
+              diagnosticos={diagnosticosFiltrados}
+              onEditar={openEditarModal}
+              onEliminar={handleEliminarDiagnostico}
+              onAgregarEvidencia={openEvidenciaModal}
+              onVerDetalles={openDetallesModal}
+              currentUser={user}
+              onCrearRecomendacion={esDocenteOAdmin ? crearRecomendacionDesdeDiagnostico : undefined}
+            />
+          )}
+        </>
+      )}
+
+      {/* TAB: Tipos de Diagnóstico */}
+      {tabActivo === 'tipos' && esAdminODocente && (
+        <div className="bg-white rounded-lg shadow p-6">
+          {programas.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">No hay programas disponibles.</div>
+          ) : (
+            <>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar Programa</label>
+                <select
+                  value={programaSeleccionadoTipos || ''}
+                  onChange={e => setProgramaSeleccionadoTipos(e.target.value ? parseInt(e.target.value) : null)}
+                  className="border rounded-lg p-2.5 text-sm w-full md:w-auto min-w-[260px]"
+                >
+                  {programas.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                </select>
+              </div>
+              {programaSeleccionadoTipos && (
+                <GestionTiposDiagnostico
+                  programaId={programaSeleccionadoTipos}
+                  programaNombre={programas.find(p => p.id === programaSeleccionadoTipos)?.nombre}
+                />
+              )}
+            </>
+          )}
+        </div>
       )}
 
       <Modal isOpen={showCrearModal} onClose={() => setShowCrearModal(false)} width="max-w-2xl">

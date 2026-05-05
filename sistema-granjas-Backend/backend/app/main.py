@@ -20,8 +20,9 @@ from app.api import (
     exportRoutes,
     asignaciones,
     monitoreos,
-    inventario_dinamico,   # 👈 NUEVO ROUTER PARA INVENTARIO DINÁMICO
-    plantas,                     # 👈 NUEVO ROUTER PARA PLANTAS
+    inventario_dinamico,
+    plantas,
+    diagnosticos_dinamico,
 )
 from app.db.database import engine, Base
 from app.db.models import Usuario, Granja, Programa, Lote, Labor, Rol
@@ -294,8 +295,9 @@ app.include_router(roles.router, prefix="/api")
 app.include_router(exportRoutes.router, prefix="/api")
 app.include_router(asignaciones.router, prefix="/api")
 app.include_router(monitoreos.router, prefix="/api")
-app.include_router(inventario_dinamico.router, prefix="/api")   # 👈 NUEVO ROUTER PARA INVENTARIO DINÁMICO
-app.include_router(plantas.router, prefix="/api")               # 👈 NUEVO ROUTER
+app.include_router(inventario_dinamico.router, prefix="/api")
+app.include_router(plantas.router, prefix="/api")
+app.include_router(diagnosticos_dinamico.router, prefix="/api")
 
 # ========== ENDPOINTS PÚBLICOS ==========
 @app.get("/")

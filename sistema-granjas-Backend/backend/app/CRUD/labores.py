@@ -18,43 +18,31 @@ from app.schemas.labor_schema import (
 # inventario dinámico. Las funciones de asignación de recursos serán migradas posteriormente.
 
 def crear_labor_crud(db: Session, data: LaborCreate, usuario: Usuario):
-    # Verificar que la recomendación existe
     recomendacion = db.query(Recomendacion).filter(Recomendacion.id == data.recomendacion_id).first()
     if not recomendacion:
         raise HTTPException(404, "Recomendación no encontrada")
     
-    # Verificar que el trabajador existe y es trabajador
-    trabajador = db.query(Usuario).filter(Usuario.id == data.trabajador_id).first()
-    if not trabajador or trabajador.rol.nombre != "trabajador":
-        raise HTTPException(404, "Trabajador no encontrado o no tiene rol válido")
-    
-    # Verificar que el tipo de labor existe
+    # Verificar tipo de labor
     tipo_labor = db.query(TipoLabor).filter(TipoLabor.id == data.tipo_labor_id).first()
     if not tipo_labor:
         raise HTTPException(404, "Tipo de labor no encontrado")
     
-    # Verificar lote si se proporciona
+    # Solo verificar trabajador si se proporciona
+    if data.trabajador_id:
+        trabajador = db.query(Usuario).filter(Usuario.id == data.trabajador_id).first()
+        if not trabajador or trabajador.rol.nombre != "trabajador":
+            raise HTTPException(404, "Trabajador no encontrado o no tiene rol válido")
+        
+        if usuario.rol.nombre == "talento_humano":
+            trabajador_programa_ids = {p.id for p in trabajador.programas}
+            usuario_programa_ids = {p.id for p in usuario.programas}
+            if not trabajador_programa_ids.intersection(usuario_programa_ids):
+                raise HTTPException(403, "Solo puede asignar labores a trabajadores de su programa")
+    
     if data.lote_id:
         lote = db.query(Lote).filter(Lote.id == data.lote_id).first()
         if not lote:
             raise HTTPException(404, "Lote no encontrado")
-    
-    # Verificar que talento_humano solo asigne a trabajadores de su programa
-    if usuario.rol.nombre == "talento_humano":
-        # Obtener el trabajador
-        trabajador_obj = db.query(Usuario).filter(Usuario.id == data.trabajador_id).first()
-        if not trabajador_obj:
-            raise HTTPException(404, "Trabajador no encontrado")
-        
-        # Obtener IDs de programas del trabajador
-        trabajador_programa_ids = {programa.id for programa in trabajador_obj.programas}
-        
-        # Obtener IDs de programas del usuario de talento_humano
-        usuario_programa_ids = {programa.id for programa in usuario.programas}
-        
-        # Verificar que comparten al menos un programa
-        if not trabajador_programa_ids.intersection(usuario_programa_ids):
-            raise HTTPException(403, "Solo puede asignar labores a trabajadores de su programa")
         
     labor = Labor(
         estado=data.estado,
@@ -294,7 +282,6 @@ def completar_labor_crud(db: Session, labor: Labor, usuario: Usuario, data=None)
     labor.avance_porcentaje = 100
     labor.fecha_finalizacion = (datetime.utcnow() - timedelta(hours=5))
 
-    # Aplicar datos adicionales del trabajador (consumo reportado)
     if data:
         if getattr(data, 'comentario', None):
             labor.comentario = data.comentario
@@ -302,20 +289,23 @@ def completar_labor_crud(db: Session, labor: Labor, usuario: Usuario, data=None)
             labor.inventario_item_id = data.inventario_item_id
         if getattr(data, 'cantidad_usada', None):
             labor.cantidad_usada = data.cantidad_usada
+        if getattr(data, 'dosis_aplicada', None):
+            labor.dosis_aplicada = data.dosis_aplicada
+        if getattr(data, 'unidad_dosis', None):
+            labor.unidad_dosis = data.unidad_dosis
 
-    # Descontar del inventario si tiene item asignado
+    # Descontar del inventario usando dosis_aplicada si existe, sino cantidad_usada
     item_id = labor.inventario_item_id
-    cantidad = labor.cantidad_usada
+    cantidad_a_descontar = labor.dosis_aplicada or labor.cantidad_usada
     if not item_id and labor.recomendacion:
         item_id = labor.recomendacion.inventario_item_id
-        if not cantidad and labor.recomendacion:
-            cantidad = labor.recomendacion.cantidad_sugerida
+        if not cantidad_a_descontar and labor.recomendacion:
+            cantidad_a_descontar = labor.recomendacion.cantidad_sugerida
     
-    if item_id and cantidad:
+    if item_id and cantidad_a_descontar:
         item = db.query(ItemInventarioPrograma).filter(ItemInventarioPrograma.id == item_id).first()
         if item:
-            nueva_cantidad = max(0.0, item.cantidad_disponible - cantidad)
-            item.cantidad_disponible = nueva_cantidad
+            item.cantidad_disponible = max(0.0, item.cantidad_disponible - cantidad_a_descontar)
     
     db.commit()
     db.refresh(labor)
@@ -505,9 +495,18 @@ def _cargar_recursos_labor(db: Session, labor: Labor):
     labor.insumos_asignados_info = []
 
 def _labor_a_dict_con_recursos(labor: Labor):
-    """
-    ✅ Convierte objeto Labor a diccionario compatible con LaborWithRecursosResponse
-    """
+    # Enriquecer con info del item de inventario si existe
+    inventario_item_nombre = None
+    inventario_item_unidad = None
+    if labor.inventario_item:
+        v = labor.inventario_item.valores or {}
+        inventario_item_nombre = v.get("nombre") or v.get("producto") or v.get("Nombre") or f"Ítem #{labor.inventario_item_id}"
+        inventario_item_unidad = labor.inventario_item.unidad_medida
+    elif getattr(labor, 'recomendacion', None) and labor.recomendacion.inventario_item:
+        v = labor.recomendacion.inventario_item.valores or {}
+        inventario_item_nombre = v.get("nombre") or v.get("producto") or v.get("Nombre") or f"Ítem #{labor.recomendacion.inventario_item_id}"
+        inventario_item_unidad = labor.recomendacion.inventario_item.unidad_medida
+
     return {
         "id": labor.id,
         "estado": labor.estado,
@@ -519,12 +518,18 @@ def _labor_a_dict_con_recursos(labor: Labor):
         "trabajador_id": labor.trabajador_id,
         "fecha_asignacion": labor.fecha_asignacion,
         "fecha_finalizacion": labor.fecha_finalizacion,
+        "inventario_item_id": labor.inventario_item_id,
+        "cantidad_usada": labor.cantidad_usada,
+        "dosis_aplicada": labor.dosis_aplicada,
+        "unidad_dosis": labor.unidad_dosis,
         "trabajador_nombre": getattr(labor, 'trabajador_nombre', None),
         "recomendacion_titulo": getattr(labor, 'recomendacion_titulo', None),
         "lote_nombre": getattr(labor, 'lote_nombre', None),
         "granja_nombre": getattr(labor, 'granja_nombre', None),
         "tipo_labor_nombre": getattr(labor, 'tipo_labor_nombre', None),
         "tipo_labor_descripcion": getattr(labor, 'tipo_labor_descripcion', None),
+        "inventario_item_nombre": inventario_item_nombre,
+        "inventario_item_unidad": inventario_item_unidad,
         "herramientas_asignadas": getattr(labor, 'herramientas_resumen', []),
         "insumos_asignados": getattr(labor, 'insumos_resumen', []),
         "evidencias": getattr(labor, 'evidencias_info', []),

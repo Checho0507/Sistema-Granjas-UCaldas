@@ -34,6 +34,7 @@ const GestionLaboresPage: React.FC = () => {
 
     const [selectedLabor, setSelectedLabor] = useState<Labor | null>(null);
     const [laborACompletar, setLaborACompletar] = useState<Labor | null>(null);
+    const [productosRecomendados, setProductosRecomendados] = useState<any[]>([]);
 
     // Datos para formularios
     const [lotes, setLotes] = useState<any[]>([]);
@@ -199,11 +200,17 @@ const GestionLaboresPage: React.FC = () => {
         }
     };
 
-    const handleCompletarLabor = async (comentario: string = '') => {
+    const handleCompletarLabor = async (datos: {
+        comentario?: string;
+        inventario_item_id?: number;
+        cantidad_usada?: number;
+        dosis_aplicada?: number;
+        unidad_dosis?: string;
+    }) => {
         if (!laborACompletar) return;
 
         try {
-            const completada = await laborService.completarLabor(laborACompletar.id, comentario);
+            const completada = await laborService.completarLabor(laborACompletar.id, datos);
             setLabores(prev => prev.map(l =>
                 l.id === laborACompletar.id ? completada : l
             ));
@@ -232,9 +239,28 @@ const GestionLaboresPage: React.FC = () => {
         setShowAsignarRecursosModal(true);
     };
 
-    const openCompletarModal = (labor: Labor) => {
+    const openCompletarModal = async (labor: Labor) => {
         setLaborACompletar(labor);
+        setProductosRecomendados([]);
         setShowCompletarModal(true);
+        // Load recommended products from the recomendacion
+        if ((labor as any).recomendacion_id) {
+            try {
+                const rec = await recomendacionService.obtenerRecomendacionPorId((labor as any).recomendacion_id);
+                const items = (rec as any).items_sugeridos || [];
+                if (items.length > 0) {
+                    setProductosRecomendados(items);
+                } else if ((rec as any).inventario_item_id) {
+                    setProductosRecomendados([{
+                        id: (rec as any).inventario_item_id,
+                        inventario_item_id: (rec as any).inventario_item_id,
+                        inventario_item_nombre: (rec as any).inventario_item_nombre,
+                        inventario_item_unidad: (rec as any).inventario_item_unidad,
+                        cantidad_sugerida: (rec as any).cantidad_sugerida,
+                    }]);
+                }
+            } catch { /* no products */ }
+        }
     };
 
     // FILTRO POR ROL
@@ -446,6 +472,7 @@ const GestionLaboresPage: React.FC = () => {
                     }}
                     onCompletar={handleCompletarLabor}
                     tituloLabor={`Labor #${laborACompletar.id}`}
+                    productosRecomendados={productosRecomendados}
                 />
             )}
         </div>
