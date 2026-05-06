@@ -56,6 +56,7 @@ def _enriquecer(obj: Diagnostico) -> None:
     obj.lote_nombre = obj.lote.nombre if obj.lote else None
     obj.granja_nombre = getattr(obj.lote.granja, "nombre", None) if obj.lote else None
     obj.usuario_nombre = obj.usuario.nombre if obj.usuario else None
+    # diagnostico_tipo_id already on the model, just ensure it's accessible
 
 
 def _cargar_plantas(db: Session, diagnostico: Diagnostico) -> List[PlantaSimpleResponse]:
@@ -132,6 +133,7 @@ def listar_diagnosticos(
     lote_id: Optional[int] = None,
     usuario_id: Optional[int] = None,
     tipo_diagnostico: Optional[str] = None,
+    estado_revision: Optional[str] = None,
     db: Session = Depends(get_db),
     user: Usuario = Depends(require_any_role(["admin", "docente", "asesor", "estudiante"]))
 ):
@@ -148,6 +150,8 @@ def listar_diagnosticos(
         query = query.filter(Diagnostico.usuario_id == usuario_id)
     if tipo_diagnostico:
         query = query.filter(Diagnostico.tipo_diagnostico == tipo_diagnostico)
+    if estado_revision:
+        query = query.filter(Diagnostico.estado_revision == estado_revision)
 
     total = query.count()
     items = query.order_by(Diagnostico.fecha_creacion.desc()).offset(skip).limit(limit).all()
@@ -244,7 +248,20 @@ async def crear_diagnostico(
         formulario=formulario,
         plantas_ids=plantas_ids
     )
+    # optional: diagnostico_tipo_id from form
+    diagnostico_tipo_id_raw = form_data.get("diagnostico_tipo_id")
     obj = crud.create_diagnostico(db, data)
+    if diagnostico_tipo_id_raw:
+        try:
+            obj.diagnostico_tipo_id = int(diagnostico_tipo_id_raw)
+            db.commit()
+            db.refresh(obj)
+        except (ValueError, TypeError):
+            pass
+    # Always start as pendiente_revision
+    obj.estado_revision = "pendiente_revision"
+    db.commit()
+    db.refresh(obj)
 
     if plantas_ids:
         obj.plantas = plantas

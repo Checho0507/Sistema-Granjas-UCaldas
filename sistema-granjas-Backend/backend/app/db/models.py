@@ -205,6 +205,7 @@ class Diagnostico(Base):
     tipo_diagnostico = Column(String(100), nullable=False)
     condiciones_dia = Column(String(50), nullable=False)
     formulario = Column(JSON, nullable=True)
+    estado_revision = Column(String(30), default="pendiente_revision", nullable=False)
     fecha_creacion = Column(DateTime, default=colombia_now)
     diagnostico_tipo = relationship("DiagnosticoTipo", back_populates="diagnosticos")
     programa = relationship("Programa", back_populates="diagnosticos")

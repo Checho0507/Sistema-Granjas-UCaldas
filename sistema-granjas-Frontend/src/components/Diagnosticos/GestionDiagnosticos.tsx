@@ -243,9 +243,9 @@ const GestionDiagnosticos: React.FC = () => {
       {tabActivo === 'diagnosticos' && (
         <>
           <div className="bg-white p-4 rounded-lg shadow mb-6">
-            <h3 className="font-semibold mb-3">Filtros</h3>
+            <h3 className="font-semibold mb-3 text-sm text-gray-700">Filtros</h3>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <select className="border rounded p-2" value={(filtros as any).tipo_diagnostico || ''} onChange={(e) => setFiltros({ ...filtros, tipo_diagnostico: e.target.value || undefined } as any)}>
+              <select className="border rounded p-2 text-sm" value={(filtros as any).tipo_diagnostico || ''} onChange={(e) => setFiltros({ ...filtros, tipo_diagnostico: e.target.value || undefined } as any)}>
                 <option value="">Todos los tipos</option>
                 <option value="censo_poblacional">Censo Poblacional</option>
                 <option value="monitoreo_fenologico">Monitoreo Fenológico</option>
@@ -255,15 +255,16 @@ const GestionDiagnosticos: React.FC = () => {
                 <option value="controladores_biologicos">Controladores Biológicos</option>
                 <option value="polinizadores">Polinizadores</option>
               </select>
-              <select className="border rounded p-2" value={(filtros as any).programa_id || ''} onChange={(e) => setFiltros({ ...filtros, programa_id: e.target.value ? parseInt(e.target.value) : undefined } as any)}>
+              <select className="border rounded p-2 text-sm" value={(filtros as any).programa_id || ''} onChange={(e) => setFiltros({ ...filtros, programa_id: e.target.value ? parseInt(e.target.value) : undefined } as any)}>
                 <option value="">Todos los programas</option>
                 {programas.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
               </select>
-              <select className="border rounded p-2" value={(filtros as any).lote_id || ''} onChange={(e) => setFiltros({ ...filtros, lote_id: e.target.value ? parseInt(e.target.value) : undefined } as any)}>
-                <option value="">Todos los lotes</option>
-                {lotes.map(lote => <option key={lote.id} value={lote.id}>{lote.nombre} {lote.granja_nombre ? `(${lote.granja_nombre})` : ''}</option>)}
+              <select className="border rounded p-2 text-sm" value={(filtros as any).estado_revision || ''} onChange={(e) => setFiltros({ ...filtros, estado_revision: e.target.value || undefined } as any)}>
+                <option value="">Todos (revisión)</option>
+                <option value="pendiente_revision">⏳ Pendientes</option>
+                <option value="revisado">✅ Revisados</option>
               </select>
-              <button onClick={() => setFiltros({})} className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded">Limpiar Filtros</button>
+              <button onClick={() => setFiltros({})} className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded text-sm">Limpiar Filtros</button>
             </div>
           </div>
 

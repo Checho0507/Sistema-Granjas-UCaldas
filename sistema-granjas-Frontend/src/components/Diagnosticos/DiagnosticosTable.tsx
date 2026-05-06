@@ -24,25 +24,19 @@ const DiagnosticosTable: React.FC<DiagnosticosTableProps> = ({
     onCrearRecomendacion,
     currentUser
 }) => {
-
-    const getEstadoBadge = (estado?: string) => {
-        if (!estado) {
+    const getBadgeRevision = (estado?: string) => {
+        if (!estado || estado === 'pendiente_revision') {
             return (
-                <span className="px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-600">
-                    Sin estado
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"></span>
+                    Pendiente
                 </span>
             );
         }
-
-        const estados: Record<string, string> = {
-            abierto: 'bg-green-100 text-green-800',
-            en_revision: 'bg-yellow-100 text-yellow-800',
-            cerrado: 'bg-red-100 text-red-800'
-        };
-
         return (
-            <span className={`px-2 py-1 rounded-full text-xs ${estados[estado] || 'bg-gray-100'}`}>
-                {estado}
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>
+                Revisado
             </span>
         );
     };
@@ -53,102 +47,94 @@ const DiagnosticosTable: React.FC<DiagnosticosTableProps> = ({
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Tipo</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Programa</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Monitoreo</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Lote</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Usuario</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Fecha</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Acciones</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo / Subtipo</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Programa</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monitoreo</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lote</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usuario</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Revisión</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                         </tr>
                     </thead>
 
                     <tbody className="divide-y divide-gray-200">
                         {diagnosticos.length === 0 ? (
                             <tr>
-                                <td colSpan={8} className="text-center py-6 text-gray-500">
+                                <td colSpan={8} className="text-center py-8 text-gray-400">
+                                    <i className="fas fa-microscope text-3xl mb-2 block"></i>
                                     No hay diagnósticos
                                 </td>
                             </tr>
                         ) : (
-                            diagnosticos.map((d) => (
-                                <tr key={d.id} className="hover:bg-gray-50">
-                                    {/* Tipo */}
-                                    <td className="px-4 py-3 text-sm">
-                                        {d.tipo_diagnostico?.replace(/_/g, ' ')}
-                                    </td>
+                            diagnosticos.map((d) => {
+                                const pendiente = !d.estado_revision || d.estado_revision === 'pendiente_revision';
+                                return (
+                                    <tr key={d.id} className="hover:bg-gray-50 transition-colors">
+                                        {/* Tipo */}
+                                        <td className="px-4 py-3 text-sm">
+                                            <div className="font-medium text-gray-900">{d.tipo_diagnostico?.replace(/_/g, ' ') || d.tipo?.replace(/_/g, ' ') || '—'}</div>
+                                        </td>
 
-                                    {/* Programa */}
-                                    <td className="px-4 py-3 text-sm">
-                                        {d.programa_nombre || 'N/A'}
-                                    </td>
+                                        {/* Programa */}
+                                        <td className="px-4 py-3 text-sm text-gray-700">
+                                            {d.programa_nombre || 'N/A'}
+                                        </td>
 
-                                    {/* Monitoreo */}
-                                    <td className="px-4 py-3 text-sm">
-                                        {d.tipo_monitoreo_nombre || 'N/A'}
-                                    </td>
+                                        {/* Monitoreo */}
+                                        <td className="px-4 py-3 text-sm text-gray-700">
+                                            {d.tipo_monitoreo_nombre || 'N/A'}
+                                        </td>
 
-                                    {/* Lote */}
-                                    <td className="px-4 py-3 text-sm">
-                                        <div>{d.lote_nombre || `Lote ${d.lote_id}`}</div>
-                                        <div className="text-xs text-gray-500">
-                                            {d.granja_nombre}
-                                        </div>
-                                    </td>
+                                        {/* Lote */}
+                                        <td className="px-4 py-3 text-sm">
+                                            <div className="font-medium">{d.lote_nombre || `Lote ${d.lote_id}`}</div>
+                                            <div className="text-xs text-gray-500">{d.granja_nombre}</div>
+                                        </td>
 
-                                    {/* Usuario */}
-                                    <td className="px-4 py-3 text-sm">
-                                        {d.usuario_nombre || 'N/A'}
-                                    </td>
+                                        {/* Usuario */}
+                                        <td className="px-4 py-3 text-sm text-gray-700">
+                                            {d.usuario_nombre || 'N/A'}
+                                        </td>
 
-                                    {/* Fecha */}
-                                    <td className="px-4 py-3 text-sm">
-                                        {new Date(d.fecha_creacion).toLocaleDateString()}
-                                    </td>
+                                        {/* Fecha */}
+                                        <td className="px-4 py-3 text-sm text-gray-700">
+                                            {new Date(d.fecha_creacion).toLocaleDateString('es-CO')}
+                                        </td>
 
-                                    {/* Acciones */}
-                                    <td className="px-4 py-3 text-sm">
-                                        <div className="flex gap-2 flex-wrap">
+                                        {/* Revisión badge */}
+                                        <td className="px-4 py-3">
+                                            {getBadgeRevision(d.estado_revision)}
+                                        </td>
 
-                                            <button
-                                                onClick={() => onVerDetalles(d)}
-                                                className="text-blue-600 hover:text-blue-800"
-                                                title="Ver detalles"
-                                            >
-                                                👁
-                                            </button>
-
-                                            <button
-                                                onClick={() => onEditar(d)}
-                                                className="text-yellow-600 hover:text-yellow-800"
-                                                title="Editar"
-                                            >
-                                                ✏️
-                                            </button>
-
-                                            <button
-                                                onClick={() => onEliminar(d.id)}
-                                                className="text-red-600 hover:text-red-800"
-                                                title="Eliminar"
-                                            >
-                                                🗑
-                                            </button>
-
-                                            {onCrearRecomendacion && (
-                                                <button
-                                                    onClick={() => onCrearRecomendacion(d)}
-                                                    className="text-green-600 hover:text-green-800 text-xs font-semibold border border-green-300 rounded px-2 py-0.5 bg-green-50 hover:bg-green-100"
-                                                    title="Crear recomendación desde este diagnóstico"
-                                                >
-                                                    + Rec.
+                                        {/* Acciones */}
+                                        <td className="px-4 py-3 text-sm">
+                                            <div className="flex gap-2 flex-wrap items-center">
+                                                <button onClick={() => onVerDetalles(d)} className="text-blue-600 hover:text-blue-800" title="Ver detalles">
+                                                    👁
                                                 </button>
-                                            )}
+                                                <button onClick={() => onEditar(d)} className="text-yellow-600 hover:text-yellow-800" title="Editar">
+                                                    ✏️
+                                                </button>
+                                                <button onClick={() => onEliminar(d.id)} className="text-red-600 hover:text-red-800" title="Eliminar">
+                                                    🗑
+                                                </button>
 
-                                        </div>
-                                    </td>
-
-                                </tr>
-                            ))
+                                                {/* Solo mostrar si está pendiente de revisión */}
+                                                {onCrearRecomendacion && pendiente && (
+                                                    <button
+                                                        onClick={() => onCrearRecomendacion(d)}
+                                                        className="text-xs font-semibold border border-orange-300 rounded px-2 py-0.5 bg-orange-50 hover:bg-orange-100 text-orange-700 hover:text-orange-900 transition-colors"
+                                                        title="Crear recomendación para este diagnóstico"
+                                                    >
+                                                        + Rec.
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })
                         )}
                     </tbody>
                 </table>

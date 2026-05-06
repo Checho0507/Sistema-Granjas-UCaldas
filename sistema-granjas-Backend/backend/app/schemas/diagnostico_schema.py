@@ -65,12 +65,14 @@ class DiagnosticoUpdate(BaseModel):
 class DiagnosticoResponse(BaseModel):
     id:               int
     programa_id:      int
-    tipo_monitoreo_id: int
+    tipo_monitoreo_id: Optional[int] = None
     lote_id:          int
     usuario_id:       int
+    diagnostico_tipo_id: Optional[int] = None
     tipo_diagnostico: str
     condiciones_dia:  str
     formulario:       Optional[Dict[str, Any]] = None
+    estado_revision:  str = "pendiente_revision"
     fecha_creacion:   datetime
 
     programa_nombre:       Optional[str] = None

@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from datetime import datetime, timedelta
-from app.db.models import Recomendacion, RecomendacionItem, Labor, Usuario, Lote, Diagnostico, ItemInventarioPrograma, DiagnosticoTipo
+from app.db.models import Recomendacion, RecomendacionItem, Labor, Usuario, Lote, Diagnostico, ItemInventarioPrograma, DiagnosticoTipo  # noqa: F401
 from app.schemas.recomendacion_schema import RecomendacionCreate, RecomendacionUpdate, AprobacionRecomendacionRequest
 from fastapi import HTTPException
 
@@ -74,6 +74,12 @@ def crear_recomendacion(db: Session, data: RecomendacionCreate, usuario_id: int)
     )
     db.add(rec)
     db.flush()
+
+    # Mark the linked diagnosis as revisado
+    if data.diagnostico_id:
+        diag = db.query(Diagnostico).filter(Diagnostico.id == data.diagnostico_id).first()
+        if diag:
+            diag.estado_revision = "revisado"
 
     for item_data in (data.items_sugeridos or []):
         ri = RecomendacionItem(
