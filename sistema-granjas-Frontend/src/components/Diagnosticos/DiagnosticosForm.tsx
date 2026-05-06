@@ -111,6 +111,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     const [tipoDiagnostico, setTipoDiagnostico] = useState('');
     const [condicionesDia, setCondicionesDia] = useState('');
     const [caracterizacion, setCaracterizacion] = useState<Record<string, string>>({});
+    const [formulariosPorPlanta, setFormulariosPorPlanta] = useState<Record<number, Record<string, string>>>({});
 
     // Referencias
     const arthropodRef = useRef<ArthropodSectionRef>(null);
@@ -125,6 +126,14 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         } else {
             setCaracterizacion(prev => ({ ...prev, [campo]: valor }));
         }
+    };
+
+    // ── Helper para cambios por planta (formulario dinámico) ─────────────────
+    const handleCambioPorPlanta = (plantaId: number, campo: string, valor: string) => {
+        setFormulariosPorPlanta(prev => ({
+            ...prev,
+            [plantaId]: { ...(prev[plantaId] || {}), [campo]: valor },
+        }));
     };
 
     // ── Parsear caracterización al cargar edición ────────────────────────────
@@ -178,6 +187,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                     planta: p.numero,
                 }));
                 setPlantas(plantasFormateadas);
+                setFormulariosPorPlanta({});
                 if (data.advertencias && data.advertencias.length) {
                     toast.warning(data.advertencias.join(' '));
                 } else {
@@ -285,6 +295,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         setTipoDiagnostico('');
         setCondicionesDia('');
         setCaracterizacion({});
+        setFormulariosPorPlanta({});
         setPlantas([]);
         setErrorPlantas(null);
     };
@@ -411,6 +422,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         const formulario = {
             plantas: tipoSeccion !== 'arvenses' ? plantas : [],
             caracterizacion,
+            formularios_por_planta: camposDinamicos.length > 0 ? formulariosPorPlanta : undefined,
             porcentaje_muestreo: porcentajeMuestreo,
             total_plantas_lote: estructuraLote?.total_plantas || 0,
             plantas_totales_lote: plantasOriginales.length,
@@ -646,38 +658,76 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         {/* Secciones — dinámicas si el subtipo tiene campos, estáticas como fallback */}
                         {tipoDiagnostico && (() => {
                             const tipoSeccion = normalizarTipo(tipoDiagnostico);
+                            const mostrarPorPlanta = camposDinamicos.length > 0
+                                && tipoSeccion !== 'arvenses'
+                                && tipoSeccion !== 'generico';
 
                             // Si el subtipo tiene campos dinámicos configurados → usarlos
                             if (camposDinamicos.length > 0) {
                                 return (
-                                    <div>
+                                    <div className="space-y-4">
+                                        {/* Loading / errores de plantas */}
                                         {tipoSeccion !== 'arvenses' && tipoSeccion !== 'generico' && (
                                             <>
                                                 {cargandoPlantas && (
-                                                    <div className="bg-blue-50 p-4 rounded-lg text-blue-700 mb-4 flex items-center">
+                                                    <div className="bg-blue-50 p-4 rounded-lg text-blue-700 flex items-center">
                                                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
                                                         Cargando plantas elegibles...
                                                     </div>
                                                 )}
-                                                {!cargandoPlantas && plantas.length > 0 && (
-                                                    <div className="mb-3 text-sm text-gray-600">
-                                                        <i className="fas fa-info-circle mr-1"></i>
-                                                        Evaluando {plantas.length} plantas
+                                                {!cargandoPlantas && errorPlantas && (
+                                                    <div className="bg-red-50 p-4 rounded-lg text-red-700">{errorPlantas}</div>
+                                                )}
+                                                {!cargandoPlantas && plantas.length === 0 && !errorPlantas && (
+                                                    <div className="bg-yellow-50 p-4 rounded-lg text-yellow-700">
+                                                        No hay plantas elegibles para este diagnóstico.
                                                     </div>
                                                 )}
                                             </>
                                         )}
-                                        <div className="border border-blue-200 rounded-xl p-4 bg-blue-50 mb-2">
-                                            <p className="text-xs text-blue-700 font-semibold mb-3">
-                                                <i className="fas fa-wpforms mr-1"></i>
-                                                Formulario dinámico: {subtipoSeleccionado?.nombre}
-                                            </p>
-                                            <FormularioDinamicoSection
-                                                campos={camposDinamicos}
-                                                valores={caracterizacion}
-                                                onChange={handleCaracterizacionChange}
-                                            />
-                                        </div>
+
+                                        {/* Una tarjeta por planta */}
+                                        {mostrarPorPlanta && plantas.length > 0 && (
+                                            <div className="space-y-4">
+                                                <p className="text-sm text-gray-600 font-medium">
+                                                    <i className="fas fa-seedling mr-1 text-green-600"></i>
+                                                    Evaluando <strong>{plantas.length} plantas</strong> — completa el formulario para cada una:
+                                                </p>
+                                                {plantas.map((planta, idx) => (
+                                                    <div key={planta.id} className="border border-green-200 rounded-xl overflow-hidden shadow-sm">
+                                                        <div className="bg-green-100 px-4 py-2 flex items-center gap-2">
+                                                            <span className="bg-green-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shrink-0">
+                                                                {idx + 1}
+                                                            </span>
+                                                            <span className="font-medium text-sm text-green-900">{planta.label}</span>
+                                                            <span className="text-xs text-green-600 ml-auto">Cód: {planta.codigo}</span>
+                                                        </div>
+                                                        <div className="p-4 bg-green-50">
+                                                            <FormularioDinamicoSection
+                                                                campos={camposDinamicos}
+                                                                valores={formulariosPorPlanta[planta.id] || {}}
+                                                                onChange={(campo, valor) => handleCambioPorPlanta(planta.id, campo, valor)}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Sin plantas → formulario global (arvenses / generico) */}
+                                        {!mostrarPorPlanta && (
+                                            <div className="border border-blue-200 rounded-xl p-4 bg-blue-50">
+                                                <p className="text-xs text-blue-700 font-semibold mb-3">
+                                                    <i className="fas fa-wpforms mr-1"></i>
+                                                    Formulario dinámico: {subtipoSeleccionado?.nombre}
+                                                </p>
+                                                <FormularioDinamicoSection
+                                                    campos={camposDinamicos}
+                                                    valores={caracterizacion}
+                                                    onChange={handleCaracterizacionChange}
+                                                />
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             }
