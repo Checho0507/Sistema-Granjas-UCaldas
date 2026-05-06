@@ -51,12 +51,12 @@ def get_or_404(db: Session, model, id: int, msg: str = "Recurso no encontrado"):
 
 
 def _enriquecer(obj: Diagnostico) -> None:
+    """Agrega atributos legibles al objeto ORM (solo para uso interno)."""
     obj.programa_nombre = obj.programa.nombre if obj.programa else None
     obj.tipo_monitoreo_nombre = obj.tipo_monitoreo.nombre if obj.tipo_monitoreo else None
     obj.lote_nombre = obj.lote.nombre if obj.lote else None
     obj.granja_nombre = getattr(obj.lote.granja, "nombre", None) if obj.lote else None
     obj.usuario_nombre = obj.usuario.nombre if obj.usuario else None
-    # diagnostico_tipo_id already on the model, just ensure it's accessible
 
 
 def _cargar_plantas(db: Session, diagnostico: Diagnostico) -> List[PlantaSimpleResponse]:
@@ -66,13 +66,16 @@ def _cargar_plantas(db: Session, diagnostico: Diagnostico) -> List[PlantaSimpleR
     ).filter(
         diagnostico_planta.c.diagnostico_id == diagnostico.id
     ).all()
-    return [PlantaSimpleResponse(
-        id=p.id,
-        codigo=p.codigo,
-        surco=p.surco,
-        numero=p.numero,
-        lote_id=p.lote_id
-    ) for p in plantas]
+    return [
+        PlantaSimpleResponse(
+            id=p.id,
+            codigo=p.codigo,
+            surco=p.surco,
+            numero=p.numero,
+            lote_id=p.lote_id
+        )
+        for p in plantas
+    ]
 
 
 # ── NUEVO ENDPOINT: GENERAR PLANTAS ALEATORIAS ──────────────────────────────
@@ -155,9 +158,40 @@ def listar_diagnosticos(
 
     total = query.count()
     items = query.order_by(Diagnostico.fecha_creacion.desc()).offset(skip).limit(limit).all()
+
+    # Convertir a diccionarios para la respuesta, incluyendo plantas
+    response_items = []
     for d in items:
         _enriquecer(d)
-    return DiagnosticoListResponse(items=items, total=total, paginas=(total + limit - 1) // limit)
+        plantas = _cargar_plantas(db, d)
+        # Construir un diccionario que coincida con DiagnosticoResponse
+        diag_dict = {
+            "id": d.id,
+            "programa_id": d.programa_id,
+            "tipo_monitoreo_id": d.tipo_monitoreo_id,
+            "lote_id": d.lote_id,
+            "usuario_id": d.usuario_id,
+            "tipo_diagnostico": d.tipo_diagnostico,
+            "condiciones_dia": d.condiciones_dia,
+            "formulario": d.formulario,
+            "estado_revision": d.estado_revision,
+            "fecha_creacion": d.fecha_creacion,
+            "fecha_actualizacion": d.fecha_actualizacion,
+            "programa_nombre": d.programa_nombre,
+            "tipo_monitoreo_nombre": d.tipo_monitoreo_nombre,
+            "lote_nombre": d.lote_nombre,
+            "granja_nombre": d.granja_nombre,
+            "usuario_nombre": d.usuario_nombre,
+            "diagnostico_tipo_id": getattr(d, "diagnostico_tipo_id", None),
+            "plantas": plantas
+        }
+        response_items.append(diag_dict)
+
+    return DiagnosticoListResponse(
+        items=response_items,
+        total=total,
+        paginas=(total + limit - 1) // limit
+    )
 
 
 @router.post("/", response_model=DiagnosticoResponse, status_code=201)
@@ -186,6 +220,7 @@ async def crear_diagnostico(
     except ValueError as e:
         raise HTTPException(400, f"Error en tipo de dato: {str(e)}")
 
+    # Procesar plantas_ids (opcional)
     plantas_ids_raw = form_data.get("plantas_ids")
     plantas_ids = None
     if plantas_ids_raw:
@@ -196,24 +231,30 @@ async def crear_diagnostico(
         except json.JSONDecodeError:
             raise HTTPException(400, "plantas_ids debe ser un JSON válido")
 
+    # Validar formulario JSON
     try:
         formulario = json.loads(formulario_json)
     except json.JSONDecodeError:
         raise HTTPException(400, "El campo 'formulario' debe ser un JSON válido")
 
+    # Procesar archivos y añadir al formulario
     fotos_por_prefix = procesar_archivos_r2(form_data)
     if fotos_por_prefix:
         formulario["fotos_subidas"] = fotos_por_prefix
         logger.info(f"Archivos subidos: {list(fotos_por_prefix.keys())}")
 
+    # Verificar permisos de usuario
     if user.rol.nombre == "estudiante" and usuario_id != user.id:
         raise HTTPException(403, "Solo puede crear diagnósticos para su propio usuario")
 
+    # Verificar existencia de entidades
     get_or_404(db, Programa, programa_id, "Programa no encontrado")
     get_or_404(db, Monitoreo, tipo_monitoreo_id, "Tipo de monitoreo no encontrado")
     lote = get_or_404(db, Lote, lote_id, "Lote no encontrado")
     get_or_404(db, Usuario, usuario_id, "Usuario no encontrado")
 
+    # Validar plantas si fueron enviadas
+    plantas = []
     if plantas_ids:
         hace_un_mes = datetime.utcnow() - timedelta(days=30)
         subquery = db.query(diagnostico_planta.c.planta_id).join(
@@ -235,9 +276,8 @@ async def crear_diagnostico(
                 400,
                 "Alguna planta no existe, no pertenece al lote, no está productiva o ya fue evaluada con este diagnóstico en el último mes"
             )
-    else:
-        plantas = []
 
+    # Crear el diagnóstico
     data = DiagnosticoCreate(
         programa_id=programa_id,
         tipo_monitoreo_id=tipo_monitoreo_id,
@@ -245,12 +285,22 @@ async def crear_diagnostico(
         usuario_id=usuario_id,
         tipo_diagnostico=tipo_diagnostico,
         condiciones_dia=condiciones_dia,
-        formulario=formulario,
-        plantas_ids=plantas_ids
+        formulario=formulario
     )
-    # optional: diagnostico_tipo_id from form
-    diagnostico_tipo_id_raw = form_data.get("diagnostico_tipo_id")
     obj = crud.create_diagnostico(db, data)
+
+    # Asignar estado inicial
+    obj.estado_revision = "pendiente_revision"
+    db.commit()
+
+    # Asignar plantas al objeto ORM (esto es válido aquí, solo para la relación)
+    if plantas:
+        obj.plantas = plantas
+        db.commit()
+        db.refresh(obj)
+
+    # Procesar diagnostico_tipo_id opcional
+    diagnostico_tipo_id_raw = form_data.get("diagnostico_tipo_id")
     if diagnostico_tipo_id_raw:
         try:
             obj.diagnostico_tipo_id = int(diagnostico_tipo_id_raw)
@@ -258,19 +308,31 @@ async def crear_diagnostico(
             db.refresh(obj)
         except (ValueError, TypeError):
             pass
-    # Always start as pendiente_revision
-    obj.estado_revision = "pendiente_revision"
-    db.commit()
-    db.refresh(obj)
 
-    if plantas_ids:
-        obj.plantas = plantas
-        db.commit()
-        db.refresh(obj)
-
+    # Construir la respuesta
     _enriquecer(obj)
-    obj.plantas = _cargar_plantas(db, obj)
-    return obj
+    plantas_resp = _cargar_plantas(db, obj)
+
+    return {
+        "id": obj.id,
+        "programa_id": obj.programa_id,
+        "tipo_monitoreo_id": obj.tipo_monitoreo_id,
+        "lote_id": obj.lote_id,
+        "usuario_id": obj.usuario_id,
+        "tipo_diagnostico": obj.tipo_diagnostico,
+        "condiciones_dia": obj.condiciones_dia,
+        "formulario": obj.formulario,
+        "estado_revision": obj.estado_revision,
+        "fecha_creacion": obj.fecha_creacion,
+        "fecha_actualizacion": obj.fecha_actualizacion,
+        "programa_nombre": obj.programa_nombre,
+        "tipo_monitoreo_nombre": obj.tipo_monitoreo_nombre,
+        "lote_nombre": obj.lote_nombre,
+        "granja_nombre": obj.granja_nombre,
+        "usuario_nombre": obj.usuario_nombre,
+        "diagnostico_tipo_id": getattr(obj, "diagnostico_tipo_id", None),
+        "plantas": plantas_resp
+    }
 
 
 @router.get("/{id}", response_model=DiagnosticoWithRecomendacionesResponse)
@@ -282,10 +344,32 @@ def obtener_diagnostico(
     obj = get_or_404(db, Diagnostico, id)
     if user.rol.nombre == "estudiante" and obj.usuario_id != user.id:
         raise HTTPException(403, "No puede ver este diagnóstico")
+
     _enriquecer(obj)
-    obj.recomendaciones = db.query(Recomendacion).filter_by(diagnostico_id=id).all()
-    obj.plantas = _cargar_plantas(db, obj)
-    return obj
+    plantas_resp = _cargar_plantas(db, obj)
+    recomendaciones = db.query(Recomendacion).filter_by(diagnostico_id=id).all()
+
+    return {
+        "id": obj.id,
+        "programa_id": obj.programa_id,
+        "tipo_monitoreo_id": obj.tipo_monitoreo_id,
+        "lote_id": obj.lote_id,
+        "usuario_id": obj.usuario_id,
+        "tipo_diagnostico": obj.tipo_diagnostico,
+        "condiciones_dia": obj.condiciones_dia,
+        "formulario": obj.formulario,
+        "estado_revision": obj.estado_revision,
+        "fecha_creacion": obj.fecha_creacion,
+        "fecha_actualizacion": obj.fecha_actualizacion,
+        "programa_nombre": obj.programa_nombre,
+        "tipo_monitoreo_nombre": obj.tipo_monitoreo_nombre,
+        "lote_nombre": obj.lote_nombre,
+        "granja_nombre": obj.granja_nombre,
+        "usuario_nombre": obj.usuario_nombre,
+        "diagnostico_tipo_id": getattr(obj, "diagnostico_tipo_id", None),
+        "plantas": plantas_resp,
+        "recomendaciones": recomendaciones
+    }
 
 
 @router.put("/{id}", response_model=DiagnosticoResponse)
@@ -302,6 +386,7 @@ async def actualizar_diagnostico(
     form_data = await request.form()
     update_data = {}
 
+    # Campos opcionales a actualizar
     if "tipo_diagnostico" in form_data:
         update_data["tipo_diagnostico"] = form_data["tipo_diagnostico"]
     if "condiciones_dia" in form_data:
@@ -313,6 +398,7 @@ async def actualizar_diagnostico(
         except json.JSONDecodeError:
             raise HTTPException(400, "El campo 'formulario' debe ser JSON válido")
 
+    # Procesar nuevas plantas_ids
     plantas_ids_raw = form_data.get("plantas_ids")
     plantas_ids = None
     if plantas_ids_raw:
@@ -324,6 +410,7 @@ async def actualizar_diagnostico(
         except json.JSONDecodeError:
             raise HTTPException(400, "plantas_ids debe ser un JSON válido")
 
+    # Procesar nuevos archivos
     fotos_por_prefix = procesar_archivos_r2(form_data)
     if fotos_por_prefix:
         formulario_actual = update_data.get("formulario", obj.formulario or {})
@@ -334,6 +421,8 @@ async def actualizar_diagnostico(
         update_data["formulario"] = formulario_actual
         logger.info(f"Nuevos archivos añadidos en actualización: {list(fotos_por_prefix.keys())}")
 
+    # Validar plantas si se enviaron
+    plantas = []
     if plantas_ids:
         hace_un_mes = datetime.utcnow() - timedelta(days=30)
         subquery = db.query(diagnostico_planta.c.planta_id).join(
@@ -341,7 +430,7 @@ async def actualizar_diagnostico(
         ).filter(
             Diagnostico.tipo_diagnostico == obj.tipo_diagnostico,
             Diagnostico.fecha_creacion >= hace_un_mes,
-            Diagnostico.id != id
+            Diagnostico.id != id  # excluir el diagnóstico actual
         ).subquery()
 
         plantas = db.query(Planta).filter(
@@ -356,21 +445,42 @@ async def actualizar_diagnostico(
                 400,
                 "Alguna planta no existe, no pertenece al lote, no está productiva o ya fue evaluada con este diagnóstico en el último mes"
             )
-    else:
-        plantas = []
 
+    # Actualizar el objeto ORM
     if update_data:
         data_update = DiagnosticoUpdate(**update_data)
         obj = crud.update_diagnostico(db, obj, data_update)
 
+        # Si se enviaron plantas, actualizar la relación (solo en ORM)
         if plantas_ids is not None:
             obj.plantas = plantas
             db.commit()
             db.refresh(obj)
 
+    # Respuesta final
     _enriquecer(obj)
-    obj.plantas = _cargar_plantas(db, obj)
-    return obj
+    plantas_resp = _cargar_plantas(db, obj)
+
+    return {
+        "id": obj.id,
+        "programa_id": obj.programa_id,
+        "tipo_monitoreo_id": obj.tipo_monitoreo_id,
+        "lote_id": obj.lote_id,
+        "usuario_id": obj.usuario_id,
+        "tipo_diagnostico": obj.tipo_diagnostico,
+        "condiciones_dia": obj.condiciones_dia,
+        "formulario": obj.formulario,
+        "estado_revision": obj.estado_revision,
+        "fecha_creacion": obj.fecha_creacion,
+        "fecha_actualizacion": obj.fecha_actualizacion,
+        "programa_nombre": obj.programa_nombre,
+        "tipo_monitoreo_nombre": obj.tipo_monitoreo_nombre,
+        "lote_nombre": obj.lote_nombre,
+        "granja_nombre": obj.granja_nombre,
+        "usuario_nombre": obj.usuario_nombre,
+        "diagnostico_tipo_id": getattr(obj, "diagnostico_tipo_id", None),
+        "plantas": plantas_resp
+    }
 
 
 @router.delete("/{id}", status_code=200)
@@ -484,14 +594,14 @@ def obtener_estadisticas(
 
     total = query.count()
 
-    # Group by tipo_diagnostico (free string, derived from Monitoreo.nombre)
+    # Group by tipo_diagnostico
     por_tipo: Dict[str, int] = {}
     for row in db.query(Diagnostico.tipo_diagnostico).distinct():
         t = row[0]
         if t:
             por_tipo[t] = query.filter(Diagnostico.tipo_diagnostico == t).count()
 
-    # Group by tipo_monitoreo (Monitoreo.nombre) — dynamic per program
+    # Group by tipo_monitoreo
     por_monitoreo: Dict[str, int] = {}
     for d in query.all():
         nombre_mon = d.tipo_monitoreo.nombre if d.tipo_monitoreo else f"monitoreo_{d.tipo_monitoreo_id}"
