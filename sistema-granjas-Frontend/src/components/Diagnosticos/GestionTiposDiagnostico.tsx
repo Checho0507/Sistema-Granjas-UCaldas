@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { diagnosticoDinamicoService, type DiagnosticoTipo, type DiagnosticoCampo } from '../../services/diagnosticoDinamicoService';
+import {
+  diagnosticoDinamicoService,
+  type DiagnosticoTipo,
+  type DiagnosticoCampo,
+  type CampoRecomendacion,
+} from '../../services/diagnosticoDinamicoService';
+import { monitoreoService, type Monitoreo } from '../../services/monitoreoService';
 
 interface Props {
   programaId: number;
@@ -12,309 +18,482 @@ const TIPOS_DATO_LABELS: Record<string, string> = {
   textarea: 'Texto largo',
   number: 'Número',
   date: 'Fecha',
-  select: 'Lista de opciones',
+  select: 'Lista',
   boolean: 'Sí / No',
 };
 
+type CampoTab = 'diagnostico' | 'recomendacion';
+
 const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre }) => {
-  const [tipos, setTipos] = useState<DiagnosticoTipo[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [tipoSeleccionado, setTipoSeleccionado] = useState<DiagnosticoTipo | null>(null);
-  const [campos, setCampos] = useState<DiagnosticoCampo[]>([]);
+  // ── Monitoreos (nivel 1) ──────────────────────────────────────────────────
+  const [monitoreos, setMonitoreos] = useState<Monitoreo[]>([]);
+  const [loadingMonitoreos, setLoadingMonitoreos] = useState(false);
+  const [monitoreoSel, setMonitoreoSel] = useState<Monitoreo | null>(null);
+  const [modalMonitoreo, setModalMonitoreo] = useState(false);
+  const [editMonitoreo, setEditMonitoreo] = useState<Monitoreo | null>(null);
+  const [formMonitoreo, setFormMonitoreo] = useState({ nombre: '' });
+
+  // ── Subtipos (nivel 2) ────────────────────────────────────────────────────
+  const [subtipos, setSubtipos] = useState<DiagnosticoTipo[]>([]);
+  const [loadingSubtipos, setLoadingSubtipos] = useState(false);
+  const [subtipoSel, setSubtipoSel] = useState<DiagnosticoTipo | null>(null);
+  const [modalSubtipo, setModalSubtipo] = useState(false);
+  const [editSubtipo, setEditSubtipo] = useState<DiagnosticoTipo | null>(null);
+  const [formSubtipo, setFormSubtipo] = useState({ nombre: '', descripcion: '', orden: 0, activo: true });
+
+  // ── Campos (nivel 3) ──────────────────────────────────────────────────────
+  const [campoTab, setCampoTab] = useState<CampoTab>('diagnostico');
+  const [camposDiag, setCamposDiag] = useState<DiagnosticoCampo[]>([]);
+  const [camposRec, setCamposRec] = useState<CampoRecomendacion[]>([]);
   const [loadingCampos, setLoadingCampos] = useState(false);
 
-  // Formulario tipo
-  const [modalTipo, setModalTipo] = useState(false);
-  const [editTipo, setEditTipo] = useState<DiagnosticoTipo | null>(null);
-  const [formTipo, setFormTipo] = useState({ nombre: '', descripcion: '', orden: 0, activo: true });
-
-  // Formulario campo
   const [modalCampo, setModalCampo] = useState(false);
-  const [editCampo, setEditCampo] = useState<DiagnosticoCampo | null>(null);
+  const [editCampo, setEditCampo] = useState<DiagnosticoCampo | CampoRecomendacion | null>(null);
   const [formCampo, setFormCampo] = useState({
-    nombre_campo: '', etiqueta: '', tipo_dato: 'text', requerido: false,
-    opciones_texto: '', orden: 0,
+    nombre_campo: '', etiqueta: '', tipo_dato: 'text', requerido: false, opciones_texto: '', orden: 0,
   });
 
+  // ── Load monitoreos ───────────────────────────────────────────────────────
   useEffect(() => {
-    if (programaId) cargarTipos();
+    if (programaId) cargarMonitoreos();
   }, [programaId]);
 
-  const cargarTipos = async () => {
-    setLoading(true);
+  const cargarMonitoreos = async () => {
+    setLoadingMonitoreos(true);
     try {
-      const data = await diagnosticoDinamicoService.listarTiposPorPrograma(programaId);
-      setTipos(data);
-    } catch { toast.error('Error al cargar tipos de diagnóstico'); }
-    finally { setLoading(false); }
+      const data = await monitoreoService.obtenerMonitoreosPorPrograma(programaId);
+      setMonitoreos(Array.isArray(data) ? data : []);
+    } catch { toast.error('Error al cargar tipos de monitoreo'); }
+    finally { setLoadingMonitoreos(false); }
   };
 
-  const cargarCampos = async (tipoId: number) => {
+  const seleccionarMonitoreo = (m: Monitoreo) => {
+    setMonitoreoSel(m);
+    setSubtipoSel(null);
+    setCamposDiag([]);
+    setCamposRec([]);
+    cargarSubtipos(m.id);
+  };
+
+  // ── Monitoreo CRUD ────────────────────────────────────────────────────────
+  const abrirModalMonitoreo = (m?: Monitoreo) => {
+    setEditMonitoreo(m || null);
+    setFormMonitoreo({ nombre: m?.nombre || '' });
+    setModalMonitoreo(true);
+  };
+
+  const guardarMonitoreo = async () => {
+    if (!formMonitoreo.nombre.trim()) { toast.warning('El nombre es requerido'); return; }
+    try {
+      if (editMonitoreo) {
+        await monitoreoService.actualizarMonitoreo(editMonitoreo.id, { nombre: formMonitoreo.nombre, programa_id: programaId });
+        toast.success('Tipo de monitoreo actualizado');
+      } else {
+        await monitoreoService.crearMonitoreo({ nombre: formMonitoreo.nombre, programa_id: programaId });
+        toast.success('Tipo de monitoreo creado');
+      }
+      setModalMonitoreo(false);
+      cargarMonitoreos();
+    } catch (e: any) { toast.error(e?.response?.data?.detail || 'Error al guardar'); }
+  };
+
+  const eliminarMonitoreo = async (m: Monitoreo) => {
+    if (!confirm(`¿Eliminar el tipo de monitoreo "${m.nombre}"?`)) return;
+    try {
+      await monitoreoService.eliminarMonitoreo(m.id);
+      toast.success('Eliminado');
+      if (monitoreoSel?.id === m.id) { setMonitoreoSel(null); setSubtipos([]); setSubtipoSel(null); }
+      cargarMonitoreos();
+    } catch (e: any) { toast.error(e?.response?.data?.detail || 'Error al eliminar'); }
+  };
+
+  // ── Subtipos ──────────────────────────────────────────────────────────────
+  const cargarSubtipos = async (monitoreoId: number) => {
+    setLoadingSubtipos(true);
+    try {
+      const data = await diagnosticoDinamicoService.listarSubtiposPorMonitoreo(monitoreoId);
+      setSubtipos(data);
+    } catch { toast.error('Error al cargar subtipos'); }
+    finally { setLoadingSubtipos(false); }
+  };
+
+  const seleccionarSubtipo = (s: DiagnosticoTipo) => {
+    setSubtipoSel(s);
+    cargarCampos(s.id);
+  };
+
+  const abrirModalSubtipo = (s?: DiagnosticoTipo) => {
+    setEditSubtipo(s || null);
+    setFormSubtipo({ nombre: s?.nombre || '', descripcion: s?.descripcion || '', orden: s?.orden || 0, activo: s?.activo ?? true });
+    setModalSubtipo(true);
+  };
+
+  const guardarSubtipo = async () => {
+    if (!formSubtipo.nombre.trim()) { toast.warning('El nombre es requerido'); return; }
+    if (!monitoreoSel) return;
+    try {
+      if (editSubtipo) {
+        await diagnosticoDinamicoService.actualizarTipo(editSubtipo.id, formSubtipo);
+        toast.success('Subtipo actualizado');
+      } else {
+        await diagnosticoDinamicoService.crearTipo({
+          ...formSubtipo,
+          programa_id: programaId,
+          monitoreo_id: monitoreoSel.id,
+        });
+        toast.success('Subtipo creado');
+      }
+      setModalSubtipo(false);
+      cargarSubtipos(monitoreoSel.id);
+    } catch (e: any) { toast.error(e?.response?.data?.detail || 'Error al guardar'); }
+  };
+
+  const eliminarSubtipo = async (s: DiagnosticoTipo) => {
+    if (!confirm(`¿Eliminar el subtipo "${s.nombre}"? Se eliminarán todos sus campos.`)) return;
+    try {
+      await diagnosticoDinamicoService.eliminarTipo(s.id);
+      toast.success('Subtipo eliminado');
+      if (subtipoSel?.id === s.id) { setSubtipoSel(null); setCamposDiag([]); setCamposRec([]); }
+      if (monitoreoSel) cargarSubtipos(monitoreoSel.id);
+    } catch (e: any) { toast.error(e?.response?.data?.detail || 'Error al eliminar'); }
+  };
+
+  // ── Campos ────────────────────────────────────────────────────────────────
+  const cargarCampos = async (subtipoId: number) => {
     setLoadingCampos(true);
     try {
-      const data = await diagnosticoDinamicoService.listarCampos(tipoId);
-      setCampos(data);
+      const [diag, rec] = await Promise.all([
+        diagnosticoDinamicoService.listarCampos(subtipoId),
+        diagnosticoDinamicoService.listarCamposRecomendacion(subtipoId),
+      ]);
+      setCamposDiag(diag);
+      setCamposRec(rec);
     } catch { toast.error('Error al cargar campos'); }
     finally { setLoadingCampos(false); }
   };
 
-  const seleccionarTipo = (tipo: DiagnosticoTipo) => {
-    setTipoSeleccionado(tipo);
-    cargarCampos(tipo.id);
-  };
-
-  const abrirModalTipo = (tipo?: DiagnosticoTipo) => {
-    if (tipo) {
-      setEditTipo(tipo);
-      setFormTipo({ nombre: tipo.nombre, descripcion: tipo.descripcion || '', orden: tipo.orden, activo: tipo.activo });
-    } else {
-      setEditTipo(null);
-      setFormTipo({ nombre: '', descripcion: '', orden: 0, activo: true });
-    }
-    setModalTipo(true);
-  };
-
-  const guardarTipo = async () => {
-    if (!formTipo.nombre.trim()) { toast.warning('El nombre es requerido'); return; }
-    try {
-      if (editTipo) {
-        await diagnosticoDinamicoService.actualizarTipo(editTipo.id, formTipo);
-        toast.success('Tipo actualizado');
-      } else {
-        await diagnosticoDinamicoService.crearTipo({ ...formTipo, programa_id: programaId });
-        toast.success('Tipo creado');
-      }
-      setModalTipo(false);
-      cargarTipos();
-    } catch (e: any) { toast.error(e?.response?.data?.detail || 'Error al guardar'); }
-  };
-
-  const eliminarTipo = async (tipo: DiagnosticoTipo) => {
-    if (!confirm(`¿Eliminar el tipo "${tipo.nombre}"? Se eliminarán todos sus campos.`)) return;
-    try {
-      await diagnosticoDinamicoService.eliminarTipo(tipo.id);
-      toast.success('Tipo eliminado');
-      if (tipoSeleccionado?.id === tipo.id) { setTipoSeleccionado(null); setCampos([]); }
-      cargarTipos();
-    } catch (e: any) { toast.error(e?.response?.data?.detail || 'Error al eliminar'); }
-  };
-
-  const abrirModalCampo = (campo?: DiagnosticoCampo) => {
+  const abrirModalCampo = (campo?: DiagnosticoCampo | CampoRecomendacion) => {
+    setEditCampo(campo || null);
     if (campo) {
-      setEditCampo(campo);
+      const opciones = campo.opciones || [];
       setFormCampo({
-        nombre_campo: campo.nombre_campo, etiqueta: campo.etiqueta,
-        tipo_dato: campo.tipo_dato, requerido: campo.requerido,
-        opciones_texto: (campo.opciones || []).join(', '), orden: campo.orden,
+        nombre_campo: campo.nombre_campo,
+        etiqueta: campo.etiqueta,
+        tipo_dato: campo.tipo_dato,
+        requerido: campo.requerido,
+        opciones_texto: opciones.join(', '),
+        orden: campo.orden,
       });
     } else {
-      setEditCampo(null);
       setFormCampo({ nombre_campo: '', etiqueta: '', tipo_dato: 'text', requerido: false, opciones_texto: '', orden: 0 });
     }
     setModalCampo(true);
   };
 
   const guardarCampo = async () => {
-    if (!tipoSeleccionado) return;
+    if (!subtipoSel) return;
     if (!formCampo.etiqueta.trim()) { toast.warning('La etiqueta es requerida'); return; }
     const opciones = formCampo.tipo_dato === 'select'
       ? formCampo.opciones_texto.split(',').map(s => s.trim()).filter(Boolean)
       : undefined;
     if (formCampo.tipo_dato === 'select' && (!opciones || opciones.length === 0)) {
-      toast.warning('Agrega al menos una opción para el campo de lista'); return;
+      toast.warning('Agrega al menos una opción'); return;
     }
-    const nombre = formCampo.nombre_campo.trim() || formCampo.etiqueta.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    const nombre = formCampo.nombre_campo.trim() ||
+      formCampo.etiqueta.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+
     try {
-      if (editCampo) {
-        await diagnosticoDinamicoService.actualizarCampo(editCampo.id, { ...formCampo, nombre_campo: nombre, opciones });
-        toast.success('Campo actualizado');
+      if (campoTab === 'diagnostico') {
+        if (editCampo && 'tipo_id' in editCampo) {
+          await diagnosticoDinamicoService.actualizarCampo(editCampo.id, { ...formCampo, nombre_campo: nombre, opciones });
+        } else {
+          await diagnosticoDinamicoService.crearCampo({ ...formCampo, nombre_campo: nombre, opciones, tipo_id: subtipoSel.id });
+        }
       } else {
-        await diagnosticoDinamicoService.crearCampo({ ...formCampo, nombre_campo: nombre, opciones, tipo_id: tipoSeleccionado.id });
-        toast.success('Campo creado');
+        if (editCampo && 'subtipo_id' in editCampo) {
+          await diagnosticoDinamicoService.actualizarCampoRecomendacion(editCampo.id, { ...formCampo, nombre_campo: nombre, opciones });
+        } else {
+          await diagnosticoDinamicoService.crearCampoRecomendacion({ ...formCampo, nombre_campo: nombre, opciones, subtipo_id: subtipoSel.id });
+        }
       }
+      toast.success('Campo guardado');
       setModalCampo(false);
-      cargarCampos(tipoSeleccionado.id);
+      cargarCampos(subtipoSel.id);
     } catch (e: any) { toast.error(e?.response?.data?.detail || 'Error al guardar campo'); }
   };
 
-  const eliminarCampo = async (campo: DiagnosticoCampo) => {
+  const eliminarCampo = async (campo: DiagnosticoCampo | CampoRecomendacion, tab: CampoTab) => {
     if (!confirm(`¿Eliminar el campo "${campo.etiqueta}"?`)) return;
     try {
-      await diagnosticoDinamicoService.eliminarCampo(campo.id);
+      if (tab === 'diagnostico') {
+        await diagnosticoDinamicoService.eliminarCampo(campo.id);
+      } else {
+        await diagnosticoDinamicoService.eliminarCampoRecomendacion(campo.id);
+      }
       toast.success('Campo eliminado');
-      if (tipoSeleccionado) cargarCampos(tipoSeleccionado.id);
+      if (subtipoSel) cargarCampos(subtipoSel.id);
     } catch (e: any) { toast.error(e?.response?.data?.detail || 'Error al eliminar campo'); }
   };
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Panel izquierdo: Tipos */}
+  // ── Render ────────────────────────────────────────────────────────────────
+  const renderCampoCard = (campo: DiagnosticoCampo | CampoRecomendacion, tab: CampoTab) => (
+    <div key={campo.id} className="border border-gray-200 rounded-lg p-3 bg-white flex items-center justify-between">
       <div>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-gray-800">
-            Tipos de Diagnóstico {programaNombre && <span className="text-gray-500 font-normal">— {programaNombre}</span>}
-          </h3>
-          <button onClick={() => abrirModalTipo()} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1">
-            <i className="fas fa-plus"></i> Nuevo Tipo
-          </button>
+        <p className="font-medium text-sm text-gray-800">{campo.etiqueta}</p>
+        <div className="flex gap-2 mt-1">
+          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{TIPOS_DATO_LABELS[campo.tipo_dato] || campo.tipo_dato}</span>
+          {campo.requerido && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Requerido</span>}
+          {campo.tipo_dato === 'select' && campo.opciones && <span className="text-xs text-gray-500">{campo.opciones.length} opciones</span>}
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button onClick={() => abrirModalCampo(campo)} className="text-blue-600 hover:text-blue-800 p-1.5 rounded"><i className="fas fa-edit text-sm"></i></button>
+        <button onClick={() => eliminarCampo(campo, tab)} className="text-red-500 hover:text-red-700 p-1.5 rounded"><i className="fas fa-trash text-sm"></i></button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <p className="text-sm text-gray-500 mb-6">
+        <i className="fas fa-info-circle mr-1"></i>
+        Define la jerarquía de monitoreo para <strong>{programaNombre}</strong>: Tipos → Subtipos → Campos (Diagnóstico y Recomendación).
+      </p>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+        {/* ── PANEL 1: Tipos de Monitoreo ────────────────────────────────── */}
+        <div className="bg-white border rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-gray-800 text-sm">
+              <i className="fas fa-leaf text-green-500 mr-1"></i> Tipos de Monitoreo
+            </h3>
+            <button onClick={() => abrirModalMonitoreo()}
+              className="bg-green-600 hover:bg-green-700 text-white px-2.5 py-1 rounded-lg text-xs flex items-center gap-1">
+              <i className="fas fa-plus"></i> Nuevo
+            </button>
+          </div>
+          {loadingMonitoreos ? (
+            <div className="flex justify-center py-6"><div className="animate-spin h-5 w-5 border-2 border-green-600 border-t-transparent rounded-full"></div></div>
+          ) : monitoreos.length === 0 ? (
+            <div className="text-center py-8 text-gray-400 text-sm">
+              <i className="fas fa-seedling text-2xl mb-2 block"></i>
+              Sin tipos.<br/>
+              <button onClick={() => abrirModalMonitoreo()} className="text-green-600 hover:underline mt-1">Crear el primero</button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {monitoreos.map(m => (
+                <div key={m.id} onClick={() => seleccionarMonitoreo(m)}
+                  className={`border rounded-lg p-3 cursor-pointer transition ${monitoreoSel?.id === m.id ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'}`}>
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-sm text-gray-800">{m.nombre}</p>
+                    <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                      <button onClick={() => abrirModalMonitoreo(m)} className="text-blue-500 hover:text-blue-700 p-1"><i className="fas fa-edit text-xs"></i></button>
+                      <button onClick={() => eliminarMonitoreo(m)} className="text-red-400 hover:text-red-600 p-1"><i className="fas fa-trash text-xs"></i></button>
+                    </div>
+                  </div>
+                  {monitoreoSel?.id !== m.id && <p className="text-xs text-gray-400 mt-1">Click para ver subtipos</p>}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {loading ? (
-          <div className="flex justify-center py-8"><div className="animate-spin h-6 w-6 border-2 border-blue-600 border-t-transparent rounded-full"></div></div>
-        ) : tipos.length === 0 ? (
-          <div className="bg-gray-50 border border-dashed border-gray-300 rounded-lg p-8 text-center text-gray-500">
-            <i className="fas fa-microscope text-3xl mb-3 block text-gray-300"></i>
-            No hay tipos de diagnóstico aún.<br/>
-            <button onClick={() => abrirModalTipo()} className="mt-3 text-blue-600 hover:underline text-sm">Crear el primero</button>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {tipos.map(tipo => (
-              <div key={tipo.id}
-                onClick={() => seleccionarTipo(tipo)}
-                className={`border rounded-lg p-4 cursor-pointer transition ${tipoSeleccionado?.id === tipo.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300 bg-white'}`}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-gray-800">{tipo.nombre}</p>
-                    {tipo.descripcion && <p className="text-xs text-gray-500 mt-0.5">{tipo.descripcion}</p>}
-                    <span className={`text-xs px-2 py-0.5 rounded-full mt-1 inline-block ${tipo.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {tipo.activo ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </div>
-                  <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-                    <button onClick={() => abrirModalTipo(tipo)} className="text-blue-600 hover:text-blue-800 p-1.5 rounded" title="Editar">
-                      <i className="fas fa-edit text-sm"></i>
-                    </button>
-                    <button onClick={() => eliminarTipo(tipo)} className="text-red-500 hover:text-red-700 p-1.5 rounded" title="Eliminar">
-                      <i className="fas fa-trash text-sm"></i>
-                    </button>
-                  </div>
-                </div>
-                <p className="text-xs text-blue-500 mt-1">
-                  <i className="fas fa-arrow-right mr-1"></i>Click para ver campos
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Panel derecho: Campos */}
-      <div>
-        {tipoSeleccionado ? (
-          <>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-800">
-                Campos: <span className="text-blue-600">{tipoSeleccionado.nombre}</span>
-              </h3>
-              <button onClick={() => abrirModalCampo()} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1">
-                <i className="fas fa-plus"></i> Nuevo Campo
+        {/* ── PANEL 2: Subtipos ─────────────────────────────────────────────── */}
+        <div className="bg-white border rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-gray-800 text-sm">
+              <i className="fas fa-sitemap text-blue-500 mr-1"></i>
+              {monitoreoSel ? <>Subtipos: <span className="text-blue-600">{monitoreoSel.nombre}</span></> : 'Subtipos'}
+            </h3>
+            {monitoreoSel && (
+              <button onClick={() => abrirModalSubtipo()}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded-lg text-xs flex items-center gap-1">
+                <i className="fas fa-plus"></i> Nuevo
               </button>
+            )}
+          </div>
+          {!monitoreoSel ? (
+            <div className="flex items-center justify-center h-32 text-gray-400 text-sm text-center">
+              <div><i className="fas fa-hand-pointer text-2xl mb-2 block"></i>Selecciona un tipo de monitoreo</div>
             </div>
-            {loadingCampos ? (
-              <div className="flex justify-center py-8"><div className="animate-spin h-6 w-6 border-2 border-blue-600 border-t-transparent rounded-full"></div></div>
-            ) : campos.length === 0 ? (
-              <div className="bg-gray-50 border border-dashed border-gray-300 rounded-lg p-8 text-center text-gray-500">
-                <i className="fas fa-th-list text-3xl mb-3 block text-gray-300"></i>
-                No hay campos definidos.<br/>
-                <button onClick={() => abrirModalCampo()} className="mt-3 text-blue-600 hover:underline text-sm">Agregar primer campo</button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {campos.map(campo => (
-                  <div key={campo.id} className="border border-gray-200 rounded-lg p-3 bg-white flex items-center justify-between">
+          ) : loadingSubtipos ? (
+            <div className="flex justify-center py-6"><div className="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full"></div></div>
+          ) : subtipos.length === 0 ? (
+            <div className="text-center py-8 text-gray-400 text-sm">
+              <i className="fas fa-clipboard-list text-2xl mb-2 block"></i>
+              Sin subtipos.<br/>
+              <button onClick={() => abrirModalSubtipo()} className="text-blue-600 hover:underline mt-1">Crear el primero</button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {subtipos.map(s => (
+                <div key={s.id} onClick={() => seleccionarSubtipo(s)}
+                  className={`border rounded-lg p-3 cursor-pointer transition ${subtipoSel?.id === s.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}>
+                  <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-sm text-gray-800">{campo.etiqueta}</p>
-                      <div className="flex gap-2 mt-1">
-                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{TIPOS_DATO_LABELS[campo.tipo_dato] || campo.tipo_dato}</span>
-                        {campo.requerido && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Requerido</span>}
-                        {campo.tipo_dato === 'select' && campo.opciones && (
-                          <span className="text-xs text-gray-500">{campo.opciones.length} opciones</span>
-                        )}
-                      </div>
+                      <p className="font-medium text-sm text-gray-800">{s.nombre}</p>
+                      {s.descripcion && <p className="text-xs text-gray-500 mt-0.5">{s.descripcion}</p>}
+                      <span className={`text-xs px-1.5 py-0.5 rounded mt-1 inline-block ${s.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {s.activo ? 'Activo' : 'Inactivo'}
+                      </span>
                     </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => abrirModalCampo(campo)} className="text-blue-600 hover:text-blue-800 p-1.5 rounded">
-                        <i className="fas fa-edit text-sm"></i>
-                      </button>
-                      <button onClick={() => eliminarCampo(campo)} className="text-red-500 hover:text-red-700 p-1.5 rounded">
-                        <i className="fas fa-trash text-sm"></i>
-                      </button>
+                    <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                      <button onClick={() => abrirModalSubtipo(s)} className="text-blue-500 hover:text-blue-700 p-1"><i className="fas fa-edit text-xs"></i></button>
+                      <button onClick={() => eliminarSubtipo(s)} className="text-red-400 hover:text-red-600 p-1"><i className="fas fa-trash text-xs"></i></button>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="flex items-center justify-center h-full min-h-[200px] bg-gray-50 border border-dashed border-gray-300 rounded-lg text-gray-500 text-sm">
-            <div className="text-center">
-              <i className="fas fa-hand-pointer text-3xl mb-3 block text-gray-300"></i>
-              Selecciona un tipo de diagnóstico<br/>para ver y editar sus campos
+                  {subtipoSel?.id !== s.id && <p className="text-xs text-gray-400 mt-1">Click para ver campos</p>}
+                </div>
+              ))}
             </div>
+          )}
+        </div>
+
+        {/* ── PANEL 3: Campos ───────────────────────────────────────────────── */}
+        <div className="bg-white border rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-gray-800 text-sm">
+              <i className="fas fa-th-list text-purple-500 mr-1"></i>
+              {subtipoSel ? <>Campos: <span className="text-purple-600">{subtipoSel.nombre}</span></> : 'Campos'}
+            </h3>
+            {subtipoSel && (
+              <button onClick={() => abrirModalCampo()}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-2.5 py-1 rounded-lg text-xs flex items-center gap-1">
+                <i className="fas fa-plus"></i> Nuevo
+              </button>
+            )}
           </div>
-        )}
+
+          {!subtipoSel ? (
+            <div className="flex items-center justify-center h-32 text-gray-400 text-sm text-center">
+              <div><i className="fas fa-hand-pointer text-2xl mb-2 block"></i>Selecciona un subtipo</div>
+            </div>
+          ) : (
+            <>
+              {/* Tabs */}
+              <div className="flex border-b border-gray-200 mb-3">
+                <button onClick={() => setCampoTab('diagnostico')}
+                  className={`flex-1 py-1.5 text-xs font-medium border-b-2 transition ${campoTab === 'diagnostico' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}>
+                  <i className="fas fa-microscope mr-1"></i>Diagnóstico
+                </button>
+                <button onClick={() => setCampoTab('recomendacion')}
+                  className={`flex-1 py-1.5 text-xs font-medium border-b-2 transition ${campoTab === 'recomendacion' ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-500'}`}>
+                  <i className="fas fa-lightbulb mr-1"></i>Recomendación
+                </button>
+              </div>
+
+              {loadingCampos ? (
+                <div className="flex justify-center py-6"><div className="animate-spin h-5 w-5 border-2 border-purple-600 border-t-transparent rounded-full"></div></div>
+              ) : campoTab === 'diagnostico' ? (
+                camposDiag.length === 0 ? (
+                  <div className="text-center py-6 text-gray-400 text-sm">
+                    <i className="fas fa-inbox text-2xl mb-2 block"></i>
+                    Sin campos de diagnóstico.<br/>
+                    <button onClick={() => abrirModalCampo()} className="text-blue-600 hover:underline mt-1">Agregar campo</button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">{camposDiag.map(c => renderCampoCard(c, 'diagnostico'))}</div>
+                )
+              ) : (
+                camposRec.length === 0 ? (
+                  <div className="text-center py-6 text-gray-400 text-sm">
+                    <i className="fas fa-inbox text-2xl mb-2 block"></i>
+                    Sin campos de recomendación.<br/>
+                    <button onClick={() => abrirModalCampo()} className="text-orange-600 hover:underline mt-1">Agregar campo</button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">{camposRec.map(c => renderCampoCard(c, 'recomendacion'))}</div>
+                )
+              )}
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Modal Tipo */}
-      {modalTipo && (
+      {/* ── Modal Tipo de Monitoreo ─────────────────────────────────────────── */}
+      {modalMonitoreo && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl w-full max-w-md p-6">
-            <h3 className="font-bold text-lg mb-4">{editTipo ? 'Editar Tipo' : 'Nuevo Tipo de Diagnóstico'}</h3>
+          <div className="bg-white rounded-xl w-full max-w-sm p-6">
+            <h3 className="font-bold text-lg mb-4">{editMonitoreo ? 'Editar Tipo de Monitoreo' : 'Nuevo Tipo de Monitoreo'}</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Nombre *</label>
-                <input value={formTipo.nombre} onChange={e => setFormTipo(p => ({ ...p, nombre: e.target.value }))}
-                  className="w-full border rounded-lg p-2.5" placeholder="Ej: Artropodos, Enfermedades foliares..." />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Descripción</label>
-                <textarea value={formTipo.descripcion} onChange={e => setFormTipo(p => ({ ...p, descripcion: e.target.value }))}
-                  className="w-full border rounded-lg p-2.5" rows={2} placeholder="Descripción opcional..." />
-              </div>
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium mb-1">Orden</label>
-                  <input type="number" value={formTipo.orden} onChange={e => setFormTipo(p => ({ ...p, orden: parseInt(e.target.value) || 0 }))}
-                    className="w-full border rounded-lg p-2.5" min={0} />
-                </div>
-                <div className="flex items-end gap-2 pb-1">
-                  <input type="checkbox" id="activo_tipo" checked={formTipo.activo} onChange={e => setFormTipo(p => ({ ...p, activo: e.target.checked }))}
-                    className="w-4 h-4" />
-                  <label htmlFor="activo_tipo" className="text-sm">Activo</label>
-                </div>
+                <input value={formMonitoreo.nombre} onChange={e => setFormMonitoreo({ nombre: e.target.value })}
+                  className="w-full border rounded-lg p-2.5" placeholder="Ej: Cítricos, Plátano, Aguacate..." autoFocus />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={guardarTipo} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-medium">
-                {editTipo ? 'Guardar cambios' : 'Crear tipo'}
+              <button onClick={guardarMonitoreo} className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-medium">
+                {editMonitoreo ? 'Guardar' : 'Crear'}
               </button>
-              <button onClick={() => setModalTipo(false)} className="flex-1 bg-gray-100 hover:bg-gray-200 py-2 rounded-lg font-medium">
-                Cancelar
-              </button>
+              <button onClick={() => setModalMonitoreo(false)} className="flex-1 bg-gray-100 hover:bg-gray-200 py-2 rounded-lg font-medium">Cancelar</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal Campo */}
+      {/* ── Modal Subtipo ────────────────────────────────────────────────────── */}
+      {modalSubtipo && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-md p-6">
+            <h3 className="font-bold text-lg mb-4">{editSubtipo ? 'Editar Subtipo' : 'Nuevo Subtipo'}</h3>
+            <p className="text-xs text-gray-500 mb-4">Subtipo de <strong>{monitoreoSel?.nombre}</strong></p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Nombre *</label>
+                <input value={formSubtipo.nombre} onChange={e => setFormSubtipo(p => ({ ...p, nombre: e.target.value }))}
+                  className="w-full border rounded-lg p-2.5" placeholder="Ej: Fenológico, Arvenses, Plagas..." autoFocus />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Descripción</label>
+                <textarea value={formSubtipo.descripcion} onChange={e => setFormSubtipo(p => ({ ...p, descripcion: e.target.value }))}
+                  className="w-full border rounded-lg p-2.5" rows={2} />
+              </div>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium mb-1">Orden</label>
+                  <input type="number" value={formSubtipo.orden} onChange={e => setFormSubtipo(p => ({ ...p, orden: parseInt(e.target.value) || 0 }))}
+                    className="w-full border rounded-lg p-2.5" min={0} />
+                </div>
+                <div className="flex items-end gap-2 pb-1">
+                  <input type="checkbox" id="activo_sub" checked={formSubtipo.activo} onChange={e => setFormSubtipo(p => ({ ...p, activo: e.target.checked }))} className="w-4 h-4" />
+                  <label htmlFor="activo_sub" className="text-sm">Activo</label>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={guardarSubtipo} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-medium">
+                {editSubtipo ? 'Guardar' : 'Crear'}
+              </button>
+              <button onClick={() => setModalSubtipo(false)} className="flex-1 bg-gray-100 hover:bg-gray-200 py-2 rounded-lg font-medium">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Campo ──────────────────────────────────────────────────────── */}
       {modalCampo && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
-            <h3 className="font-bold text-lg mb-4">{editCampo ? 'Editar Campo' : 'Nuevo Campo'}</h3>
+            <h3 className="font-bold text-lg mb-1">
+              {editCampo ? 'Editar Campo' : 'Nuevo Campo'}
+            </h3>
+            <p className="text-xs text-gray-500 mb-4">
+              {campoTab === 'diagnostico' ? 'Campo de Diagnóstico' : 'Campo de Recomendación'} — {subtipoSel?.nombre}
+            </p>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Etiqueta (lo que ve el usuario) *</label>
+                <label className="block text-sm font-medium mb-1">Etiqueta (visible al usuario) *</label>
                 <input value={formCampo.etiqueta} onChange={e => setFormCampo(p => ({ ...p, etiqueta: e.target.value }))}
-                  className="w-full border rounded-lg p-2.5" placeholder="Ej: Número de ácaros, Color de hoja..." />
+                  className="w-full border rounded-lg p-2.5" placeholder="Ej: Número de ácaros..." autoFocus />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Tipo de dato *</label>
                 <select value={formCampo.tipo_dato} onChange={e => setFormCampo(p => ({ ...p, tipo_dato: e.target.value as any }))}
                   className="w-full border rounded-lg p-2.5">
-                  {Object.entries(TIPOS_DATO_LABELS).map(([k, v]) => (
-                    <option key={k} value={k}>{v}</option>
-                  ))}
+                  {Object.entries(TIPOS_DATO_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </div>
               {formCampo.tipo_dato === 'select' && (
@@ -322,7 +501,6 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre }
                   <label className="block text-sm font-medium mb-1">Opciones (separadas por coma) *</label>
                   <input value={formCampo.opciones_texto} onChange={e => setFormCampo(p => ({ ...p, opciones_texto: e.target.value }))}
                     className="w-full border rounded-lg p-2.5" placeholder="Ej: Alto, Medio, Bajo" />
-                  <p className="text-xs text-gray-400 mt-1">Escribe las opciones separadas por comas</p>
                 </div>
               )}
               <div className="flex gap-4">
@@ -332,19 +510,16 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre }
                     className="w-full border rounded-lg p-2.5" min={0} />
                 </div>
                 <div className="flex items-end gap-2 pb-1">
-                  <input type="checkbox" id="requerido_campo" checked={formCampo.requerido} onChange={e => setFormCampo(p => ({ ...p, requerido: e.target.checked }))}
-                    className="w-4 h-4" />
-                  <label htmlFor="requerido_campo" className="text-sm">Requerido</label>
+                  <input type="checkbox" id="req_campo" checked={formCampo.requerido} onChange={e => setFormCampo(p => ({ ...p, requerido: e.target.checked }))} className="w-4 h-4" />
+                  <label htmlFor="req_campo" className="text-sm">Requerido</label>
                 </div>
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={guardarCampo} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-medium">
+              <button onClick={guardarCampo} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg font-medium">
                 {editCampo ? 'Guardar cambios' : 'Crear campo'}
               </button>
-              <button onClick={() => setModalCampo(false)} className="flex-1 bg-gray-100 hover:bg-gray-200 py-2 rounded-lg font-medium">
-                Cancelar
-              </button>
+              <button onClick={() => setModalCampo(false)} className="flex-1 bg-gray-100 hover:bg-gray-200 py-2 rounded-lg font-medium">Cancelar</button>
             </div>
           </div>
         </div>

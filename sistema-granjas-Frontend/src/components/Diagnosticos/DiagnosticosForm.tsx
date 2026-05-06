@@ -3,6 +3,7 @@ import type { DiagnosticoItem } from '../../types/diagnosticoTypes';
 import { monitoreoService, type Monitoreo } from '../../services/monitoreoService';
 import { loteService, type EstructuraLote } from '../../services/loteService';
 import { api } from '../../services/api';
+import { diagnosticoDinamicoService, type DiagnosticoTipo, type DiagnosticoCampo } from '../../services/diagnosticoDinamicoService';
 import { CensoSection } from './CensoSection';
 import { FenologicoSection, type FenologicoSectionRef } from './FenologicoSection';
 import { ArthropodSection, type ArthropodSectionRef } from './ArthropodSection';
@@ -11,6 +12,7 @@ import { EnfermedadesSection, type EnfermedadesSectionRef } from './Enfermedades
 import { ControladoresSection } from './ControladoresSection';
 import { PolinizadoresSection } from './PolinizadoresSection';
 import GenericDynamicSection from './GenericDynamicSection';
+import FormularioDinamicoSection from './FormularioDinamicoSection';
 import { toast } from 'react-toastify';
 
 // ── Normaliza el nombre de un monitoreo al tipo de sección interno ────────────
@@ -89,8 +91,12 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     // Paso 1
     const [programaId, setProgramaId] = useState<number | null>(null);
     const [tipoMonitoreoId, setTipoMonitoreoId] = useState<number | null>(null);
+    const [subtipoId, setSubtipoId] = useState<number | null>(null);
     const [loteId, setLoteId] = useState<number | null>(null);
     const [monitoreos, setMonitoreos] = useState<Monitoreo[]>(externalMonitoreos || []);
+    const [subtipos, setSubtipos] = useState<DiagnosticoTipo[]>([]);
+    const [camposDinamicos, setCamposDinamicos] = useState<DiagnosticoCampo[]>([]);
+    const [loadingSubtipos, setLoadingSubtipos] = useState(false);
     const [estructuraLote, setEstructuraLote] = useState<EstructuraLote | null>(null);
     const [cargandoEstructura, setCargandoEstructura] = useState(false);
 
@@ -202,6 +208,25 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             .catch(() => toast.error('Error al cargar tipos de monitoreo'));
     }, [programaId]);
 
+    // ── Cargar subtipos cuando cambia el monitoreo ───────────────────────────
+    useEffect(() => {
+        if (!tipoMonitoreoId) { setSubtipos([]); setSubtipoId(null); return; }
+        setLoadingSubtipos(true);
+        setSubtipoId(null);
+        diagnosticoDinamicoService.listarSubtiposPorMonitoreo(tipoMonitoreoId)
+            .then(data => setSubtipos(data.filter(s => s.activo)))
+            .catch(() => toast.error('Error al cargar subtipos'))
+            .finally(() => setLoadingSubtipos(false));
+    }, [tipoMonitoreoId]);
+
+    // ── Cargar campos dinámicos cuando cambia el subtipo ─────────────────────
+    useEffect(() => {
+        if (!subtipoId) { setCamposDinamicos([]); return; }
+        diagnosticoDinamicoService.listarCampos(subtipoId)
+            .then(data => setCamposDinamicos([...data].sort((a, b) => a.orden - b.orden)))
+            .catch(() => setCamposDinamicos([]));
+    }, [subtipoId]);
+
     // ── Cargar estructura del lote ───────────────────────────────────────────
     useEffect(() => {
         const cargar = async () => {
@@ -272,6 +297,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     const programaSeleccionado = useMemo(() => programas.find(p => p.id === programaId) || null, [programas, programaId]);
     const loteSeleccionado = useMemo(() => lotesFiltrados.find(l => l.id === loteId) || null, [lotesFiltrados, loteId]);
     const monitoreoSeleccionado = useMemo(() => monitoreos.find(m => m.id === tipoMonitoreoId) || null, [monitoreos, tipoMonitoreoId]);
+    const subtipoSeleccionado = useMemo(() => subtipos.find(s => s.id === subtipoId) || null, [subtipos, subtipoId]);
 
     // Cargar edición
     useEffect(() => {
@@ -301,6 +327,9 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         const id = e.target.value ? parseInt(e.target.value) : null;
         setProgramaId(id);
         setTipoMonitoreoId(null);
+        setSubtipoId(null);
+        setSubtipos([]);
+        setCamposDinamicos([]);
         setLoteId(null);
         setEstructuraLote(null);
         setPlantasOriginales([]);
@@ -317,6 +346,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     const handleSiguiente = () => {
         if (!programaId) { toast.warning('Selecciona programa'); return; }
         if (!tipoMonitoreoId) { toast.warning('Selecciona tipo de monitoreo'); return; }
+        if (!subtipoId) { toast.warning('Selecciona un subtipo de monitoreo'); return; }
         if (!loteId) { toast.warning('Selecciona lote'); return; }
         if (!lotesFiltrados.find(l => l.id === loteId)) {
             toast.error('El lote no pertenece al programa elegido');
@@ -326,9 +356,9 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             toast.error('Lote sin plantas configuradas');
             return;
         }
-        // Auto-derive tipo_diagnostico from Monitoreo.nombre
-        const nombreMonitoreo = monitoreoSeleccionado?.nombre || '';
-        setTipoDiagnostico(nombreMonitoreo);
+        // Use subtipo name as tipo_diagnostico (for backward-compat + normalizarTipo)
+        const nombreSubtipo = subtipoSeleccionado?.nombre || monitoreoSeleccionado?.nombre || '';
+        setTipoDiagnostico(nombreSubtipo);
         setCaracterizacion({});
         setPlantas([]);
         setErrorPlantas(null);
@@ -371,6 +401,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         formData.append('usuario_id', String(currentUser?.id));
         formData.append('tipo_diagnostico', tipoDiagnostico);
         formData.append('condiciones_dia', condicionesDia);
+        if (subtipoId) formData.append('diagnostico_tipo_id', String(subtipoId));
 
         if (tipoSeccion !== 'arvenses' && tipoSeccion !== 'generico' && plantas.length > 0) {
             const plantasIds = plantas.map(p => p.id);
@@ -458,23 +489,54 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                             {monitoreos.length > 0 ? (
                                 <div className="grid grid-cols-2 gap-3">
                                     {monitoreos.map(m => (
-                                        <button key={m.id} type="button" onClick={() => setTipoMonitoreoId(m.id)}
+                                        <button key={m.id} type="button"
+                                            onClick={() => { setTipoMonitoreoId(m.id); setSubtipoId(null); }}
                                             className={`p-4 border-2 rounded-lg text-center transition ${tipoMonitoreoId === m.id ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-blue-300'}`}
                                             disabled={esEdicion}>
-                                            <i className="fas fa-chart-line mr-2"></i>
+                                            <i className="fas fa-leaf mr-2"></i>
                                             <span className="font-medium">{m.nombre}</span>
                                         </button>
                                     ))}
                                 </div>
                             ) : (
                                 <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
-                                    <p className="text-sm text-yellow-700">Este programa no tiene tipos de monitoreo configurados.</p>
+                                    <p className="text-sm text-yellow-700">Este programa no tiene tipos de monitoreo configurados. Agrégalos en la pestaña "Tipos de Diagnóstico".</p>
                                 </div>
                             )}
                         </div>
                     )}
 
                     {tipoMonitoreoId && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Subtipo de Monitoreo *</label>
+                            {loadingSubtipos ? (
+                                <div className="flex items-center text-gray-500 text-sm py-2">
+                                    <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full mr-2"></div>
+                                    Cargando subtipos...
+                                </div>
+                            ) : subtipos.length > 0 ? (
+                                <div className="grid grid-cols-2 gap-3">
+                                    {subtipos.map(s => (
+                                        <button key={s.id} type="button" onClick={() => setSubtipoId(s.id)}
+                                            className={`p-3 border-2 rounded-lg text-left transition ${subtipoId === s.id ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-indigo-300'}`}
+                                            disabled={esEdicion}>
+                                            <p className="font-medium text-sm">{s.nombre}</p>
+                                            {s.descripcion && <p className="text-xs text-gray-500 mt-0.5">{s.descripcion}</p>}
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
+                                    <p className="text-sm text-yellow-700">
+                                        <strong>{monitoreoSeleccionado?.nombre}</strong> no tiene subtipos configurados.
+                                        Créalos en la pestaña "Tipos de Diagnóstico".
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {subtipoId && (
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Lote *</label>
                             {lotesFiltrados.length > 0 ? (
@@ -515,7 +577,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
 
                     <div className="flex justify-end">
                         <button type="button" onClick={handleSiguiente}
-                            disabled={!programaId || !tipoMonitoreoId || !loteId || !estructuraLote?.total_plantas}
+                            disabled={!programaId || !tipoMonitoreoId || !subtipoId || !loteId || !estructuraLote?.total_plantas}
                             className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400">
                             Siguiente <i className="fas fa-arrow-right ml-2"></i>
                         </button>
@@ -532,9 +594,10 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                             <div className="flex justify-between items-start">
                                 <div>
                                     <h3 className="text-sm font-semibold mb-2">Resumen</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                                         <span><strong>Programa:</strong> {programaSeleccionado?.nombre || '—'}</span>
-                                        <span><strong>Monitoreo:</strong> {monitoreoSeleccionado?.nombre || tipoMonitoreoId || '—'}</span>
+                                        <span><strong>Monitoreo:</strong> {monitoreoSeleccionado?.nombre || '—'}</span>
+                                        <span><strong>Subtipo:</strong> {subtipoSeleccionado?.nombre || '—'}</span>
                                         <span><strong>Lote:</strong> {loteSeleccionado?.nombre || '—'}</span>
                                     </div>
                                     {estructuraLote && (
@@ -580,9 +643,46 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                             </select>
                         </div>
 
-                        {/* Secciones específicas — basadas en normalizarTipo(monitoreo.nombre) */}
+                        {/* Secciones — dinámicas si el subtipo tiene campos, estáticas como fallback */}
                         {tipoDiagnostico && (() => {
                             const tipoSeccion = normalizarTipo(tipoDiagnostico);
+
+                            // Si el subtipo tiene campos dinámicos configurados → usarlos
+                            if (camposDinamicos.length > 0) {
+                                return (
+                                    <div>
+                                        {tipoSeccion !== 'arvenses' && tipoSeccion !== 'generico' && (
+                                            <>
+                                                {cargandoPlantas && (
+                                                    <div className="bg-blue-50 p-4 rounded-lg text-blue-700 mb-4 flex items-center">
+                                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                                                        Cargando plantas elegibles...
+                                                    </div>
+                                                )}
+                                                {!cargandoPlantas && plantas.length > 0 && (
+                                                    <div className="mb-3 text-sm text-gray-600">
+                                                        <i className="fas fa-info-circle mr-1"></i>
+                                                        Evaluando {plantas.length} plantas
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
+                                        <div className="border border-blue-200 rounded-xl p-4 bg-blue-50 mb-2">
+                                            <p className="text-xs text-blue-700 font-semibold mb-3">
+                                                <i className="fas fa-wpforms mr-1"></i>
+                                                Formulario dinámico: {subtipoSeleccionado?.nombre}
+                                            </p>
+                                            <FormularioDinamicoSection
+                                                campos={camposDinamicos}
+                                                valores={caracterizacion}
+                                                onChange={handleCaracterizacionChange}
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            // Fallback: secciones estáticas basadas en normalizarTipo
                             return (
                                 <div>
                                     {tipoSeccion !== 'arvenses' && tipoSeccion !== 'generico' && (

@@ -140,6 +140,8 @@ class Recomendacion(Base):
     docente_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     lote_id = Column(Integer, ForeignKey("lotes.id"), nullable=False)
     diagnostico_id = Column(Integer, ForeignKey("diagnosticos.id"), nullable=True)
+    subtipo_id = Column(Integer, ForeignKey("diagnostico_tipos.id"), nullable=True)
+    formulario_recomendacion = Column(JSON, nullable=True)
     inventario_item_id = Column(Integer, ForeignKey("items_inventario_programa.id"), nullable=True)
     cantidad_sugerida = Column(Float, nullable=True)
     fecha_creacion = Column(DateTime, default=colombia_now)
@@ -149,6 +151,7 @@ class Recomendacion(Base):
     lote = relationship("Lote", back_populates="recomendaciones")
     labores = relationship("Labor", back_populates="recomendacion")
     diagnostico = relationship("Diagnostico", back_populates="recomendaciones", foreign_keys=[diagnostico_id])
+    subtipo = relationship("DiagnosticoTipo", foreign_keys=[subtipo_id])
     inventario_item = relationship("ItemInventarioPrograma", foreign_keys=[inventario_item_id])
     items_sugeridos = relationship("RecomendacionItem", back_populates="recomendacion", cascade="all, delete-orphan")
 
@@ -220,6 +223,7 @@ class Monitoreo(Base):
     created_at = Column(Date, default=colombia_now().date())
     programa = relationship("Programa", back_populates="monitoreos")
     diagnosticos = relationship("Diagnostico", back_populates="tipo_monitoreo")
+    subtipos = relationship("DiagnosticoTipo", back_populates="monitoreo")
 
 class CultivoEspecie(Base):
     __tablename__ = "cultivos_especies"
@@ -250,6 +254,7 @@ class DiagnosticoTipo(Base):
     __tablename__ = "diagnostico_tipos"
     id = Column(Integer, primary_key=True, index=True)
     programa_id = Column(Integer, ForeignKey("programas.id", ondelete="CASCADE"), nullable=False)
+    monitoreo_id = Column(Integer, ForeignKey("monitoreos.id", ondelete="SET NULL"), nullable=True)
     nombre = Column(String(100), nullable=False)
     descripcion = Column(Text)
     orden = Column(Integer, default=0)
@@ -257,7 +262,9 @@ class DiagnosticoTipo(Base):
     created_at = Column(DateTime, default=colombia_now)
     updated_at = Column(DateTime, default=colombia_now, onupdate=colombia_now)
     programa = relationship("Programa", back_populates="tipos_diagnostico")
+    monitoreo = relationship("Monitoreo", back_populates="subtipos")
     campos = relationship("DiagnosticoCampo", back_populates="tipo", cascade="all, delete-orphan")
+    campos_recomendacion = relationship("CampoRecomendacion", back_populates="subtipo", cascade="all, delete-orphan")
     diagnosticos = relationship("Diagnostico", back_populates="diagnostico_tipo")
 
 class DiagnosticoCampo(Base):
@@ -272,6 +279,19 @@ class DiagnosticoCampo(Base):
     orden = Column(Integer, default=0)
     created_at = Column(DateTime, default=colombia_now)
     tipo = relationship("DiagnosticoTipo", back_populates="campos")
+
+class CampoRecomendacion(Base):
+    __tablename__ = "campos_recomendacion"
+    id = Column(Integer, primary_key=True, index=True)
+    subtipo_id = Column(Integer, ForeignKey("diagnostico_tipos.id", ondelete="CASCADE"), nullable=False)
+    nombre_campo = Column(String(100), nullable=False)
+    etiqueta = Column(String(150), nullable=False)
+    tipo_dato = Column(String(20), nullable=False)
+    requerido = Column(Boolean, default=False)
+    opciones = Column(JSON, nullable=True)
+    orden = Column(Integer, default=0)
+    created_at = Column(DateTime, default=colombia_now)
+    subtipo = relationship("DiagnosticoTipo", back_populates="campos_recomendacion")
 
 # ---------- Inventario dinámico ----------
 class ProgramaInventarioTipo(Base):

@@ -32,6 +32,8 @@ class RecomendacionBase(BaseModel):
     estado: str = Field("pendiente")
     lote_id: int = Field(..., gt=0)
     diagnostico_id: Optional[int] = Field(None, gt=0)
+    subtipo_id: Optional[int] = Field(None, gt=0)
+    formulario_recomendacion: Optional[dict] = None
     inventario_item_id: Optional[int] = Field(None, gt=0)
     cantidad_sugerida: Optional[float] = Field(None, gt=0)
 
@@ -96,6 +98,8 @@ class RecomendacionResponse(RecomendacionBase):
     programa_nombre: Optional[str] = None
     programa_id: Optional[int] = None
     diagnostico_tipo: Optional[str] = None
+    subtipo_nombre: Optional[str] = None
+    tipo_monitoreo_nombre: Optional[str] = None
     inventario_item_nombre: Optional[str] = None
     inventario_item_unidad: Optional[str] = None
     inventario_item_disponible: Optional[float] = None

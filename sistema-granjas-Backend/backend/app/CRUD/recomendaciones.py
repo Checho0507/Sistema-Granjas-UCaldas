@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from datetime import datetime, timedelta
-from app.db.models import Recomendacion, RecomendacionItem, Labor, Usuario, Lote, Diagnostico, ItemInventarioPrograma
+from app.db.models import Recomendacion, RecomendacionItem, Labor, Usuario, Lote, Diagnostico, ItemInventarioPrograma, DiagnosticoTipo
 from app.schemas.recomendacion_schema import RecomendacionCreate, RecomendacionUpdate, AprobacionRecomendacionRequest
 from fastapi import HTTPException
 
@@ -44,6 +44,10 @@ def _cargar_relaciones_recomendacion(recomendacion: Recomendacion):
             recomendacion.programa_id = recomendacion.lote.programa.id
     if recomendacion.diagnostico:
         recomendacion.diagnostico_tipo = recomendacion.diagnostico.tipo_diagnostico
+    if recomendacion.subtipo:
+        recomendacion.subtipo_nombre = recomendacion.subtipo.nombre
+        if recomendacion.subtipo.monitoreo:
+            recomendacion.tipo_monitoreo_nombre = recomendacion.subtipo.monitoreo.nombre
     if recomendacion.inventario_item:
         item = recomendacion.inventario_item
         recomendacion.inventario_item_nombre = _nombre_item(item)
@@ -62,6 +66,8 @@ def crear_recomendacion(db: Session, data: RecomendacionCreate, usuario_id: int)
         estado=data.estado,
         lote_id=data.lote_id,
         diagnostico_id=data.diagnostico_id,
+        subtipo_id=data.subtipo_id,
+        formulario_recomendacion=data.formulario_recomendacion,
         docente_id=data.docente_id,
         inventario_item_id=data.inventario_item_id,
         cantidad_sugerida=data.cantidad_sugerida,
