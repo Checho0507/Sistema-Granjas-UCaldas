@@ -587,7 +587,7 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre }
               )}
 
               {/* Dependencia: solo si no es un campo de tipo lista Y hay campos padre disponibles */}
-              {!esTipoListaActual && (
+              {true && (
                 <div className="border border-yellow-200 bg-yellow-50 rounded-lg p-3 space-y-3">
                   <p className="text-xs font-semibold text-yellow-700 flex items-center gap-1">
                     <i className="fas fa-code-branch"></i> Visibilidad condicional (opcional)

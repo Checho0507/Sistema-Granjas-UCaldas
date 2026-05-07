@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.db.models import Diagnostico
+from app.db.models import Diagnostico, diagnostico_planta
 from app.schemas.diagnostico_schema import DiagnosticoCreate, DiagnosticoUpdate
 
 
@@ -59,5 +59,9 @@ def update_diagnostico(db: Session, diagnostico: Diagnostico, data: DiagnosticoU
 
 
 def delete_diagnostico(db: Session, diagnostico: Diagnostico) -> None:
+    db.query(diagnostico_planta).filter(
+        diagnostico_planta.c.diagnostico_id == diagnostico.id
+    ).delete(synchronize_session=False)
+
     db.delete(diagnostico)
     db.commit()
