@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import type { DiagnosticoCampo } from '../../services/diagnosticoDinamicoService';
 
 interface Props {
@@ -17,19 +17,89 @@ const FormularioDinamicoSection: React.FC<Props> = ({ campos, valores, onChange 
     );
   }
 
-  // Determinar qué campos son visibles según dependencias
-  const camposVisibles = campos.filter(campo => {
+  // Helper: saber si un campo es visible según el valor actual de su padre
+  const esCampoVisible = (campo: DiagnosticoCampo): boolean => {
     if (!campo.campo_padre_id) return true;
     const padre = campos.find(c => c.id === campo.campo_padre_id);
     if (!padre) return true;
     const valorPadre = valores[padre.nombre_campo];
     if (!valorPadre || !campo.opciones_padre) return false;
+    
     // Soporta multiselect (array) y select (string)
     if (Array.isArray(valorPadre)) {
       return campo.opciones_padre.some(op => valorPadre.includes(op));
     }
     return campo.opciones_padre.includes(valorPadre);
-  });
+  };
+
+  // Helper: obtener todos los IDs de campos que dependen de un campo (directa o indirectamente)
+  const obtenerDependientes = (campoId: number): number[] => {
+    const hijos = campos.filter(c => c.campo_padre_id === campoId);
+    let todos: number[] = [];
+    hijos.forEach(hijo => {
+      todos.push(hijo.id);
+      todos = [...todos, ...obtenerDependientes(hijo.id)];
+    });
+    return todos;
+  };
+
+  // Limpiar valores de campos que se vuelven invisibles
+  useEffect(() => {
+    campos.forEach(campo => {
+      if (!esCampoVisible(campo)) {
+        // Si el campo no es visible y tiene un valor, lo limpiamos
+        if (valores[campo.nombre_campo] !== undefined && valores[campo.nombre_campo] !== '') {
+          onChange(campo.nombre_campo, '');
+        }
+        
+        // Limpiar también todos sus dependientes en cascada
+        const dependientes = obtenerDependientes(campo.id);
+        dependientes.forEach(depId => {
+          const depCampo = campos.find(c => c.id === depId);
+          if (depCampo && valores[depCampo.nombre_campo] !== undefined && valores[depCampo.nombre_campo] !== '') {
+            onChange(depCampo.nombre_campo, '');
+          }
+        });
+      }
+    });
+  }, [campos, valores, onChange]);
+
+  // Manejar cambio en campo padre (select/multiselect) limpiando hijos que ya no aplican
+  const handleSelectChange = (campo: DiagnosticoCampo, nuevoValor: any) => {
+    // Primero actualizar el valor del campo actual
+    onChange(campo.nombre_campo, nuevoValor);
+    
+    // Obtener todos los dependientes directos
+    const hijosDirectos = campos.filter(c => c.campo_padre_id === campo.id);
+    
+    hijosDirectos.forEach(hijo => {
+      if (hijo.opciones_padre) {
+        // Verificar si el nuevo valor del padre aún incluye a este hijo
+        const valorArray = Array.isArray(nuevoValor) ? nuevoValor : [nuevoValor];
+        const hijoVisible = hijo.opciones_padre.some(op => valorArray.includes(op));
+        
+        if (!hijoVisible) {
+          // Si el hijo ya no es visible, limpiar su valor y todos sus dependientes
+          onChange(hijo.nombre_campo, '');
+          limpiarDependientes(hijo.id);
+        }
+      }
+    });
+  };
+
+  // Función recursiva para limpiar dependientes en cascada
+  const limpiarDependientes = (campoId: number) => {
+    const dependientes = campos.filter(c => c.campo_padre_id === campoId);
+    dependientes.forEach(dep => {
+      if (valores[dep.nombre_campo] !== undefined && valores[dep.nombre_campo] !== '') {
+        onChange(dep.nombre_campo, '');
+      }
+      limpiarDependientes(dep.id);
+    });
+  };
+
+  // Filtrar campos visibles
+  const camposVisibles = campos.filter(esCampoVisible);
 
   const renderCampo = (campo: DiagnosticoCampo) => {
     const valor = valores[campo.nombre_campo] ?? '';
@@ -75,18 +145,8 @@ const FormularioDinamicoSection: React.FC<Props> = ({ campos, valores, onChange 
       case 'select':
         return (
           <select
-            value={valor}
-            onChange={e => {
-              onChange(campo.nombre_campo, e.target.value);
-              // Limpiar valores de hijos que ya no aplican al cambiar el padre
-              campos.forEach(hijo => {
-                if (hijo.campo_padre_id === campo.id) {
-                  if (!hijo.opciones_padre?.includes(e.target.value)) {
-                    onChange(hijo.nombre_campo, '');
-                  }
-                }
-              });
-            }}
+            value={Array.isArray(valor) ? '' : valor}
+            onChange={e => handleSelectChange(campo, e.target.value)}
             className={baseClass}
             required={campo.requerido}
           >
@@ -110,7 +170,7 @@ const FormularioDinamicoSection: React.FC<Props> = ({ campos, valores, onChange 
                     const nuevo = e.target.checked
                       ? [...seleccionados, op]
                       : seleccionados.filter(v => v !== op);
-                    onChange(campo.nombre_campo, nuevo);
+                    handleSelectChange(campo, nuevo);
                   }}
                   className="w-4 h-4 rounded"
                 />
