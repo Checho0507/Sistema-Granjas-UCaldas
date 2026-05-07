@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { DiagnosticoItem } from '../../types/diagnosticoTypes';
 import { monitoreoService, type Monitoreo } from '../../services/monitoreoService';
 import { loteService, type EstructuraLote } from '../../services/loteService';
 import { api } from '../../services/api';
 import { diagnosticoDinamicoService, type DiagnosticoTipo, type DiagnosticoCampo } from '../../services/diagnosticoDinamicoService';
+import GenericDynamicSection from './GenericDynamicSection';
 import FormularioDinamicoSection from './FormularioDinamicoSection';
 import { toast } from 'react-toastify';
 
@@ -89,42 +90,37 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     const [caracterizacion, setCaracterizacion] = useState<Record<string, string>>({});
     const [formulariosPorPlanta, setFormulariosPorPlanta] = useState<Record<number, Record<string, string>>>({});
 
-    // Determinar si se muestra formulario por planta
+    // ── Determinar modo de visualización ──────────────────────────────────────
     const mostrarPorPlanta = useMemo(() => {
         return camposDinamicos.length > 0 && plantas.length > 0;
     }, [camposDinamicos, plantas]);
 
-    // ── Helper para cambios en caracterización global ─────────────────────────
-    const handleCaracterizacionChange = (campo: string, valor: string | string[]) => {
-        if (Array.isArray(valor)) {
-            setCaracterizacion(prev => ({ ...prev, [campo]: JSON.stringify(valor) }));
-        } else {
-            setCaracterizacion(prev => ({ ...prev, [campo]: valor }));
-        }
-    };
+    // ── Helper para cambios en caracterización ────────────────────────────────
+    const handleCaracterizacionChange = useCallback((campo: string, valor: string | string[]) => {
+        setCaracterizacion(prev => ({
+            ...prev,
+            [campo]: Array.isArray(valor) ? JSON.stringify(valor) : valor,
+        }));
+    }, []);
 
     // ── Helper para cambios por planta ───────────────────────────────────────
-    const handleCambioPorPlanta = (plantaId: number, campo: string, valor: string) => {
+    const handleCambioPorPlanta = useCallback((plantaId: number, campo: string, valor: string) => {
         setFormulariosPorPlanta(prev => ({
             ...prev,
             [plantaId]: { ...(prev[plantaId] || {}), [campo]: valor },
         }));
-    };
+    }, []);
 
     // ── Parsear caracterización al cargar edición ────────────────────────────
     const parseCaracterizacion = (raw: Record<string, any>): Record<string, string> => {
         const parsed: Record<string, string> = {};
         Object.entries(raw).forEach(([key, value]) => {
             if (typeof value === 'string' && (value.startsWith('[') || value.startsWith('{'))) {
-                try {
-                    parsed[key] = value;
-                } catch {
-                    parsed[key] = value;
-                }
+                try { parsed[key] = value; } catch { parsed[key] = value; }
             } else if (Array.isArray(value)) {
                 parsed[key] = JSON.stringify(value);
             } else {
-                parsed[key] = String(value);
+                parsed[key] = String(value || '');
             }
         });
         return parsed;
@@ -149,9 +145,10 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             const response = await api.post('/diagnosticos/generar-plantas', {
                 lote_id: loteId,
                 tipo_diagnostico: tipoDiagnostico,
-                cantidad: cantidad,
+                cantidad,
             });
             const data = response.data;
+
             if (data.plantas && data.plantas.length > 0) {
                 const plantasFormateadas: PlantaBase[] = data.plantas.map((p: any) => ({
                     id: p.id,
@@ -162,10 +159,11 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                 }));
                 setPlantas(plantasFormateadas);
                 setFormulariosPorPlanta({});
-                if (data.advertencias && data.advertencias.length) {
+
+                if (data.advertencias?.length) {
                     toast.warning(data.advertencias.join(' '));
                 } else {
-                    toast.success(`Se generaron ${plantasFormateadas.length} plantas elegibles (${porcentajeMuestreo}% de ${estructuraLote.total_plantas})`);
+                    toast.success(`${plantasFormateadas.length} plantas elegibles (${porcentajeMuestreo}% de ${estructuraLote.total_plantas})`);
                 }
             } else {
                 setPlantas([]);
@@ -195,7 +193,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             .catch(() => toast.error('Error al cargar tipos de monitoreo'));
     }, [programaId]);
 
-    // ── Cargar subtipos cuando cambia el monitoreo ───────────────────────────
+    // ── Cargar subtipos ──────────────────────────────────────────────────────
     useEffect(() => {
         if (!tipoMonitoreoId) {
             setSubtipos([]);
@@ -210,7 +208,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             .finally(() => setLoadingSubtipos(false));
     }, [tipoMonitoreoId]);
 
-    // ── Cargar campos dinámicos cuando cambia el subtipo ─────────────────────
+    // ── Cargar campos dinámicos ──────────────────────────────────────────────
     useEffect(() => {
         if (!subtipoId) {
             setCamposDinamicos([]);
@@ -223,16 +221,15 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
 
     // ── Cargar estructura del lote ───────────────────────────────────────────
     useEffect(() => {
-        const cargar = async () => {
-            if (!loteId) {
-                setEstructuraLote(null);
-                setPlantasOriginales([]);
-                setPlantas([]);
-                return;
-            }
-            setCargandoEstructura(true);
-            try {
-                const estructura = await loteService.obtenerEstructuraLote(loteId);
+        if (!loteId) {
+            setEstructuraLote(null);
+            setPlantasOriginales([]);
+            setPlantas([]);
+            return;
+        }
+        setCargandoEstructura(true);
+        loteService.obtenerEstructuraLote(loteId)
+            .then(estructura => {
                 setEstructuraLote(estructura);
                 if (estructura.plantas?.length) {
                     setPlantasOriginales(estructura.plantas);
@@ -242,30 +239,29 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                     setPlantasOriginales([]);
                     setPlantas([]);
                 }
-            } catch (error) {
+            })
+            .catch(error => {
                 console.error(error);
                 toast.error('Error al cargar estructura del lote');
                 setPlantasOriginales([]);
                 setPlantas([]);
-            } finally {
-                setCargandoEstructura(false);
-            }
-        };
-        cargar();
+            })
+            .finally(() => setCargandoEstructura(false));
     }, [loteId]);
 
-    // ── Cargar plantas elegibles cuando cambia tipoDiagnostico ────────────────
+    // ── Cargar plantas elegibles ─────────────────────────────────────────────
     useEffect(() => {
         if (paso === 2 && loteId && tipoDiagnostico && estructuraLote?.total_plantas) {
             cargarPlantasElegibles();
         }
     }, [tipoDiagnostico, paso, loteId, estructuraLote, cargarPlantasElegibles]);
 
-    // ── Regenerar manual ─────────────────────────────────────────────────────
+    // ── Regenerar selección manual ───────────────────────────────────────────
     const regenerarSeleccionPlantas = () => {
         cargarPlantasElegibles();
     };
 
+    // ── Resetear paso 2 ──────────────────────────────────────────────────────
     const resetearPaso2 = () => {
         setTipoDiagnostico('');
         setCondicionesDia('');
@@ -275,17 +271,17 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         setErrorPlantas(null);
     };
 
+    // ── Memorizar filtrados ──────────────────────────────────────────────────
     const lotesFiltrados = useMemo(
         () => (programaId ? lotes.filter(l => l.programa_id === programaId) : []),
         [lotes, programaId]
     );
-
     const programaSeleccionado = useMemo(() => programas.find(p => p.id === programaId) || null, [programas, programaId]);
     const loteSeleccionado = useMemo(() => lotesFiltrados.find(l => l.id === loteId) || null, [lotesFiltrados, loteId]);
     const monitoreoSeleccionado = useMemo(() => monitoreos.find(m => m.id === tipoMonitoreoId) || null, [monitoreos, tipoMonitoreoId]);
     const subtipoSeleccionado = useMemo(() => subtipos.find(s => s.id === subtipoId) || null, [subtipos, subtipoId]);
 
-    // Cargar edición
+    // ── Cargar edición ───────────────────────────────────────────────────────
     useEffect(() => {
         if (!esEdicion || !diagnostico) return;
         setPaso(2);
@@ -296,15 +292,11 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         if (d.tipo_diagnostico) setTipoDiagnostico(d.tipo_diagnostico);
         if (d.condiciones_dia) setCondicionesDia(d.condiciones_dia);
         if (d.formulario?.plantas) setPlantas(d.formulario.plantas);
-        if (d.formulario?.caracterizacion) {
-            setCaracterizacion(parseCaracterizacion(d.formulario.caracterizacion));
-        }
-        if (d.formulario?.formularios_por_planta) {
-            setFormulariosPorPlanta(d.formulario.formularios_por_planta);
-        }
+        if (d.formulario?.caracterizacion) setCaracterizacion(parseCaracterizacion(d.formulario.caracterizacion));
+        if (d.formulario?.formularios_por_planta) setFormulariosPorPlanta(d.formulario.formularios_por_planta);
     }, [esEdicion, diagnostico]);
 
-    // Auto‑selección lote único
+    // ── Auto‑selección lote único ────────────────────────────────────────────
     useEffect(() => {
         if (!esEdicion && lotesFiltrados.length === 1 && !loteId && isOpen) {
             setLoteId(lotesFiltrados[0].id);
@@ -312,6 +304,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         }
     }, [lotesFiltrados, esEdicion, loteId, isOpen]);
 
+    // ── Handlers ─────────────────────────────────────────────────────────────
     const handleProgramaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const id = e.target.value ? parseInt(e.target.value) : null;
         setProgramaId(id);
@@ -359,11 +352,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         if (!tipoDiagnostico) { toast.error('No se pudo determinar el tipo de diagnóstico'); return; }
         if (!condicionesDia) { toast.error('Selecciona condiciones del día'); return; }
 
-        if (plantas.length === 0 && mostrarPorPlanta) {
-            toast.error('No hay plantas elegibles para este diagnóstico');
-            return;
-        }
-
         setSubmitting(true);
         const formData = new FormData();
 
@@ -376,12 +364,11 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         if (subtipoId) formData.append('diagnostico_tipo_id', String(subtipoId));
 
         if (plantas.length > 0) {
-            const plantasIds = plantas.map(p => p.id);
-            formData.append('plantas_ids', JSON.stringify(plantasIds));
+            formData.append('plantas_ids', JSON.stringify(plantas.map(p => p.id)));
         }
 
         const formulario = {
-            plantas: plantas,
+            plantas,
             caracterizacion,
             formularios_por_planta: camposDinamicos.length > 0 ? formulariosPorPlanta : undefined,
             porcentaje_muestreo: porcentajeMuestreo,
@@ -403,12 +390,14 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         }
     };
 
+    // ── Render ────────────────────────────────────────────────────────────────
     return (
         <div className="p-6 max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4 border-b pb-3">
                 {esEdicion ? 'Editar Diagnóstico' : 'Nuevo Diagnóstico'}
             </h2>
 
+            {/* Indicador de paso */}
             <div className="flex mb-6">
                 <div className={`flex-1 text-center py-2 rounded-l-lg text-sm font-medium ${paso === 1 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
                     Paso 1: Programa, monitoreo y lote
@@ -418,9 +407,10 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                 </div>
             </div>
 
-            {/* PASO 1 */}
+            {/* ===== PASO 1 ===== */}
             {paso === 1 && (
                 <div className="space-y-6">
+                    {/* Programa */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Programa *</label>
                         <select
@@ -437,6 +427,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         )}
                     </div>
 
+                    {/* Tipo de Monitoreo */}
                     {programaId && (
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Monitoreo *</label>
@@ -463,6 +454,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         </div>
                     )}
 
+                    {/* Subtipo */}
                     {tipoMonitoreoId && (
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Subtipo de Monitoreo *</label>
@@ -496,6 +488,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         </div>
                     )}
 
+                    {/* Lote */}
                     {subtipoId && (
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Lote *</label>
@@ -524,17 +517,13 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                                     Cargando estructura...
                                                 </div>
                                             ) : estructuraLote ? (
-                                                <div className="space-y-2">
-                                                    <div className="flex justify-between items-start">
-                                                        <div>
-                                                            <p className="text-sm text-gray-700">
-                                                                <strong>Configuración:</strong> {estructuraLote.surcos} surcos × {estructuraLote.plantas_por_surco} plantas/surco
-                                                            </p>
-                                                            <p className="text-sm text-green-600">
-                                                                <strong>Total plantas:</strong> {estructuraLote.total_plantas.toLocaleString()}
-                                                            </p>
-                                                        </div>
-                                                    </div>
+                                                <div>
+                                                    <p className="text-sm text-gray-700">
+                                                        <strong>Configuración:</strong> {estructuraLote.surcos} surcos × {estructuraLote.plantas_por_surco} plantas/surco
+                                                    </p>
+                                                    <p className="text-sm text-green-600">
+                                                        <strong>Total plantas:</strong> {estructuraLote.total_plantas.toLocaleString()}
+                                                    </p>
                                                 </div>
                                             ) : (
                                                 <p className="text-sm text-red-600">Lote sin surcos o plantas configurados</p>
@@ -548,6 +537,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         </div>
                     )}
 
+                    {/* Botón siguiente */}
                     <div className="flex justify-end">
                         <button
                             type="button"
@@ -561,7 +551,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                 </div>
             )}
 
-            {/* PASO 2 */}
+            {/* ===== PASO 2 ===== */}
             {paso === 2 && (
                 <form onSubmit={handleSubmit}>
                     <div className="space-y-6">
@@ -626,9 +616,9 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         </div>
 
                         {/* Formulario dinámico */}
-                        {tipoDiagnostico && camposDinamicos.length > 0 && (
+                        {tipoDiagnostico && (
                             <div className="space-y-4">
-                                {/* Loading / errores de plantas */}
+                                {/* Estados de carga */}
                                 {cargandoPlantas && (
                                     <div className="bg-blue-50 p-4 rounded-lg text-blue-700 flex items-center">
                                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
@@ -640,12 +630,12 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                 )}
                                 {!cargandoPlantas && plantas.length === 0 && !errorPlantas && (
                                     <div className="bg-yellow-50 p-4 rounded-lg text-yellow-700">
-                                        No hay plantas elegibles para este diagnóstico.
+                                        No hay plantas elegibles para este diagnóstico. Esto puede deberse a que no hay plantas productivas en el lote o ya fueron evaluadas recientemente.
                                     </div>
                                 )}
 
                                 {/* Formulario por planta */}
-                                {mostrarPorPlanta && (
+                                {camposDinamicos.length > 0 && mostrarPorPlanta && (
                                     <div className="space-y-4">
                                         <p className="text-sm text-gray-600 font-medium">
                                             <i className="fas fa-seedling mr-1 text-green-600"></i>
@@ -672,8 +662,8 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                     </div>
                                 )}
 
-                                {/* Formulario global (sin plantas) */}
-                                {!mostrarPorPlanta && (
+                                {/* Formulario global o fallback con GenericDynamicSection */}
+                                {!mostrarPorPlanta && camposDinamicos.length > 0 && (
                                     <div className="border border-blue-200 rounded-xl p-4 bg-blue-50">
                                         <p className="text-xs text-blue-700 font-semibold mb-3">
                                             <i className="fas fa-wpforms mr-1"></i>
@@ -686,6 +676,15 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                         />
                                     </div>
                                 )}
+
+                                {/* Fallback: GenericDynamicSection cuando no hay campos configurados */}
+                                {camposDinamicos.length === 0 && (
+                                    <GenericDynamicSection
+                                        tipoNombre={tipoDiagnostico}
+                                        caracterizacion={caracterizacion}
+                                        onCampoChange={handleCaracterizacionChange}
+                                    />
+                                )}
                             </div>
                         )}
 
@@ -694,6 +693,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         )}
                     </div>
 
+                    {/* Botones de acción */}
                     <div className="flex justify-end gap-3 mt-8 pt-5 border-t">
                         <button
                             type="button"
