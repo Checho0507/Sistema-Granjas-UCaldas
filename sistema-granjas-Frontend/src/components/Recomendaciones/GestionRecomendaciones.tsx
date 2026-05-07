@@ -251,7 +251,7 @@ const GestionRecomendaciones: React.FC = () => {
             {/* HEADER */}
             <div className="mb-4">
                 <div className="flex justify-between items-center mb-4">
-                    <h1 className="text-2xl font-bold text-gray-800">Gestión de Recomendaciones</h1>
+                    <h1 className="text-2xl font-bold text-gray-800">Recomendaciones</h1>
                     <div className="flex items-center gap-3">
                         {exportMessage && (
                             <span className={`text-sm px-3 py-1 rounded ${exportMessage.includes('Error') ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>

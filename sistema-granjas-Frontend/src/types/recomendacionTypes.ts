@@ -1,7 +1,7 @@
 // src/types/recomendacionTypes.ts
 export interface Recomendacion {
   id: number;
-  titulo: string;
+  titulo: "Gestión de Recomendaciones";
   descripcion: string;
   tipo: string;
   estado: 'pendiente' | 'aprobada' | 'rechazada' | 'en_ejecucion' | 'completada' | 'cancelada';
