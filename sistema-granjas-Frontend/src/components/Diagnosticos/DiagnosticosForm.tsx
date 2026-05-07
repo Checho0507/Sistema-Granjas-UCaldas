@@ -127,6 +127,8 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     };
 
     // ── Función para obtener plantas elegibles ────────────────────────────────
+    const NOMBRE_ARVENSES = 'Monirotero de Arvenses';
+
     const cargarPlantasElegibles = useCallback(async () => {
         if (!loteId || !tipoDiagnostico) {
             setPlantas([]);
@@ -140,12 +142,17 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         setCargandoPlantas(true);
         setErrorPlantas(null);
 
-        const cantidad = Math.max(1, Math.floor(estructuraLote.total_plantas * porcentajeMuestreo / 100));
+        const esArvenses = subtipoId != null && subtipos.find(s => s.id === subtipoId)?.nombre === NOMBRE_ARVENSES;
+        const cantidad = esArvenses
+            ? 5
+            : Math.max(1, Math.floor(estructuraLote.total_plantas * porcentajeMuestreo / 100));
+
         try {
             const response = await api.post('/diagnosticos/generar-plantas', {
                 lote_id: loteId,
                 tipo_diagnostico: tipoDiagnostico,
                 cantidad,
+                ...(esArvenses && { patron_arvenses: true }),
             });
             const data = response.data;
 
@@ -162,6 +169,8 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
 
                 if (data.advertencias?.length) {
                     toast.warning(data.advertencias.join(' '));
+                } else if (esArvenses) {
+                    toast.success(`${plantasFormateadas.length} puntos de muestreo generados (Monitoreo de Arvenses)`);
                 } else {
                     toast.success(`${plantasFormateadas.length} plantas elegibles (${porcentajeMuestreo}% de ${estructuraLote.total_plantas})`);
                 }
@@ -180,7 +189,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             setCargandoPlantas(false);
             loadingPlantsRef.current = false;
         }
-    }, [loteId, tipoDiagnostico, estructuraLote, porcentajeMuestreo]);
+    }, [loteId, tipoDiagnostico, estructuraLote, porcentajeMuestreo, subtipoId, subtipos]);
 
     // ── Cargar monitoreos ────────────────────────────────────────────────────
     useEffect(() => {

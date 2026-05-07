@@ -89,6 +89,91 @@ def generar_plantas_aleatorias(
     if not lote:
         raise HTTPException(404, "Lote no encontrado")
 
+    total_plantas_lote = db.query(Planta).filter(Planta.lote_id == data.lote_id).count()
+    productivas = db.query(Planta).filter(Planta.lote_id == data.lote_id, Planta.estado == "productivo").count()
+    advertencias = []
+
+    # ── Lógica especial: Monitoreo de Arvenses ────────────────────────────────
+    if data.patron_arvenses:
+        surcos = lote.surcos or 1
+        ppsr = lote.plantas_por_surco or 1
+
+        # X-pattern (< 100 plantas): 4 esquinas + centro
+        # W-pattern (>= 100 plantas): extremos superiores, valles inferiores + cima interior
+        if total_plantas_lote < 100:
+            patron = 'X'
+            s_mid = max(1, round(surcos / 2))
+            p_mid = max(1, round(ppsr / 2))
+            objetivos = [
+                (1,      1),
+                (1,      ppsr),
+                (s_mid,  p_mid),
+                (surcos, 1),
+                (surcos, ppsr),
+            ]
+        else:
+            patron = 'W'
+            s_mid  = max(1, round(surcos / 2))
+            p_mid  = max(1, round(ppsr / 2))
+            p_q1   = max(1, round(ppsr / 4))
+            p_q3   = max(1, min(ppsr, round(3 * ppsr / 4)))
+            objetivos = [
+                (1,      1),
+                (surcos, p_q1),
+                (s_mid,  p_mid),
+                (surcos, p_q3),
+                (1,      ppsr),
+            ]
+
+        # Obtener todas las plantas productivas del lote
+        todas_productivas = db.query(Planta).filter(
+            Planta.lote_id == data.lote_id,
+            Planta.estado == "productivo"
+        ).all()
+
+        if not todas_productivas:
+            return GenerarPlantasResponse(
+                plantas=[],
+                total_plantas_lote=total_plantas_lote,
+                productivas=0,
+                elegibles=0,
+                advertencias=["No hay plantas productivas en este lote."]
+            )
+
+        # Para cada objetivo, encontrar la planta más cercana (distancia euclidiana)
+        seleccionadas: list = []
+        ids_usados: set = set()
+        for (obj_surco, obj_numero) in objetivos:
+            mejor = None
+            mejor_dist = float('inf')
+            for p in todas_productivas:
+                if p.id in ids_usados:
+                    continue
+                dist = ((p.surco - obj_surco) ** 2 + (p.numero - obj_numero) ** 2) ** 0.5
+                if dist < mejor_dist:
+                    mejor_dist = dist
+                    mejor = p
+            if mejor:
+                seleccionadas.append(mejor)
+                ids_usados.add(mejor.id)
+
+        if len(seleccionadas) < 5:
+            advertencias.append(f"Solo se encontraron {len(seleccionadas)} plantas para el patrón en {patron}.")
+
+        advertencias.append(
+            f"Patrón en {patron} aplicado: {len(seleccionadas)} puntos representativos "
+            f"({'< 100 plantas' if patron == 'X' else '>= 100 plantas'})."
+        )
+
+        return GenerarPlantasResponse(
+            plantas=[PlantaGenerada(id=p.id, codigo=p.codigo, surco=p.surco, numero=p.numero, lote_id=p.lote_id) for p in seleccionadas],
+            total_plantas_lote=total_plantas_lote,
+            productivas=productivas,
+            elegibles=len(todas_productivas),
+            advertencias=advertencias
+        )
+
+    # ── Lógica estándar: 10% aleatorio ───────────────────────────────────────
     hace_un_mes = datetime.utcnow() - timedelta(days=30)
 
     subquery = db.query(diagnostico_planta.c.planta_id).join(
@@ -104,13 +189,9 @@ def generar_plantas_aleatorias(
         ~Planta.id.in_(subquery)
     )
 
-    total_plantas_lote = db.query(Planta).filter(Planta.lote_id == data.lote_id).count()
-    productivas = db.query(Planta).filter(Planta.lote_id == data.lote_id, Planta.estado == "productivo").count()
     elegibles = query.count()
-
     plantas_elegibles = query.order_by(func.random()).limit(data.cantidad).all()
 
-    advertencias = []
     if elegibles < data.cantidad:
         advertencias.append(f"Solo se encontraron {elegibles} plantas que cumplen los criterios. Se generarán {len(plantas_elegibles)}.")
     if productivas == 0:
