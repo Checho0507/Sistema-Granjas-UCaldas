@@ -1,9 +1,11 @@
 from pydantic import BaseModel, Field, validator
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Union, Dict
 from datetime import datetime
 
 TIPOS_DATO_PERMITIDOS = ["text", "number", "date", "select", "multiselect", "boolean", "textarea", "matrix"]
 
+
+# ---------- DiagnosticoCampo ----------
 
 class DiagnosticoCampoCreate(BaseModel):
     tipo_id: int = Field(..., gt=0)
@@ -11,7 +13,7 @@ class DiagnosticoCampoCreate(BaseModel):
     etiqueta: str = Field(..., min_length=1, max_length=150)
     tipo_dato: str = Field(..., description=f"Uno de: {', '.join(TIPOS_DATO_PERMITIDOS)}")
     requerido: bool = False
-    opciones: Optional[List[str]] = None
+    opciones: Optional[Union[List[str], Dict[str, Any]]] = None  # ← Acepta lista o dict (matrix)
     orden: int = 0
     campo_padre_id: Optional[int] = None
     opciones_padre: Optional[List[str]] = None
@@ -29,8 +31,14 @@ class DiagnosticoCampoCreate(BaseModel):
     @validator("opciones")
     def validar_opciones(cls, v, values):
         tipo = values.get("tipo_dato")
-        if tipo in ("select", "multiselect") and (not v or len(v) == 0):
-            raise ValueError(f"Para tipo '{tipo}', las opciones son requeridas")
+        if tipo in ("select", "multiselect"):
+            if not v or (isinstance(v, list) and len(v) == 0):
+                raise ValueError(f"Para tipo '{tipo}', las opciones son requeridas y deben ser una lista no vacía")
+            if not isinstance(v, list):
+                raise ValueError(f"Para tipo '{tipo}', las opciones deben ser una lista de strings")
+        if tipo == "matrix":
+            if v is not None and not isinstance(v, dict):
+                raise ValueError(f"Para tipo 'matrix', las opciones deben ser un objeto con filas, columnas y tipo_celda")
         return v
 
 
@@ -39,7 +47,7 @@ class DiagnosticoCampoUpdate(BaseModel):
     etiqueta: Optional[str] = Field(None, min_length=1, max_length=150)
     tipo_dato: Optional[str] = None
     requerido: Optional[bool] = None
-    opciones: Optional[List[str]] = None
+    opciones: Optional[Union[List[str], Dict[str, Any]]] = None  # ← Acepta lista o dict
     orden: Optional[int] = None
     campo_padre_id: Optional[int] = None
     opciones_padre: Optional[List[str]] = None
@@ -58,7 +66,7 @@ class DiagnosticoCampoResponse(BaseModel):
     etiqueta: str
     tipo_dato: str
     requerido: bool
-    opciones: Optional[List[str]] = None
+    opciones: Optional[Union[List[str], Dict[str, Any]]] = None  # ← Acepta lista o dict
     orden: int
     campo_padre_id: Optional[int] = None
     opciones_padre: Optional[List[str]] = None
@@ -75,7 +83,7 @@ class CampoRecomendacionCreate(BaseModel):
     etiqueta: str = Field(..., min_length=1, max_length=150)
     tipo_dato: str = Field(..., description=f"Uno de: {', '.join(TIPOS_DATO_PERMITIDOS)}")
     requerido: bool = False
-    opciones: Optional[List[str]] = None
+    opciones: Optional[Union[List[str], Dict[str, Any]]] = None  # ← Acepta lista o dict
     orden: int = 0
     campo_padre_id: Optional[int] = None
     opciones_padre: Optional[List[str]] = None
@@ -93,8 +101,14 @@ class CampoRecomendacionCreate(BaseModel):
     @validator("opciones")
     def validar_opciones(cls, v, values):
         tipo = values.get("tipo_dato")
-        if tipo in ("select", "multiselect") and (not v or len(v) == 0):
-            raise ValueError(f"Para tipo '{tipo}', las opciones son requeridas")
+        if tipo in ("select", "multiselect"):
+            if not v or (isinstance(v, list) and len(v) == 0):
+                raise ValueError(f"Para tipo '{tipo}', las opciones son requeridas y deben ser una lista no vacía")
+            if not isinstance(v, list):
+                raise ValueError(f"Para tipo '{tipo}', las opciones deben ser una lista de strings")
+        if tipo == "matrix":
+            if v is not None and not isinstance(v, dict):
+                raise ValueError(f"Para tipo 'matrix', las opciones deben ser un objeto con filas, columnas y tipo_celda")
         return v
 
 
@@ -103,7 +117,7 @@ class CampoRecomendacionUpdate(BaseModel):
     etiqueta: Optional[str] = Field(None, min_length=1, max_length=150)
     tipo_dato: Optional[str] = None
     requerido: Optional[bool] = None
-    opciones: Optional[List[str]] = None
+    opciones: Optional[Union[List[str], Dict[str, Any]]] = None  # ← Acepta lista o dict
     orden: Optional[int] = None
     campo_padre_id: Optional[int] = None
     opciones_padre: Optional[List[str]] = None
@@ -122,7 +136,7 @@ class CampoRecomendacionResponse(BaseModel):
     etiqueta: str
     tipo_dato: str
     requerido: bool
-    opciones: Optional[List[str]] = None
+    opciones: Optional[Union[List[str], Dict[str, Any]]] = None  # ← Acepta lista o dict
     orden: int
     campo_padre_id: Optional[int] = None
     opciones_padre: Optional[List[str]] = None
@@ -183,7 +197,7 @@ class CampoLaborCreate(BaseModel):
     etiqueta: str = Field(..., min_length=1, max_length=150)
     tipo_dato: str = Field(..., description=f"Uno de: {', '.join(TIPOS_DATO_PERMITIDOS)}")
     requerido: bool = False
-    opciones: Optional[List[str]] = None
+    opciones: Optional[Union[List[str], Dict[str, Any]]] = None  # ← Acepta lista o dict
     orden: int = 0
     campo_padre_id: Optional[int] = None
     opciones_padre: Optional[List[str]] = None
@@ -201,8 +215,14 @@ class CampoLaborCreate(BaseModel):
     @validator("opciones")
     def validar_opciones(cls, v, values):
         tipo = values.get("tipo_dato")
-        if tipo in ("select", "multiselect") and (not v or len(v) == 0):
-            raise ValueError(f"Para tipo '{tipo}', las opciones son requeridas")
+        if tipo in ("select", "multiselect"):
+            if not v or (isinstance(v, list) and len(v) == 0):
+                raise ValueError(f"Para tipo '{tipo}', las opciones son requeridas y deben ser una lista no vacía")
+            if not isinstance(v, list):
+                raise ValueError(f"Para tipo '{tipo}', las opciones deben ser una lista de strings")
+        if tipo == "matrix":
+            if v is not None and not isinstance(v, dict):
+                raise ValueError(f"Para tipo 'matrix', las opciones deben ser un objeto con filas, columnas y tipo_celda")
         return v
 
 
@@ -211,7 +231,7 @@ class CampoLaborUpdate(BaseModel):
     etiqueta: Optional[str] = Field(None, min_length=1, max_length=150)
     tipo_dato: Optional[str] = None
     requerido: Optional[bool] = None
-    opciones: Optional[List[str]] = None
+    opciones: Optional[Union[List[str], Dict[str, Any]]] = None  # ← Acepta lista o dict
     orden: Optional[int] = None
     campo_padre_id: Optional[int] = None
     opciones_padre: Optional[List[str]] = None
@@ -230,7 +250,7 @@ class CampoLaborResponse(BaseModel):
     etiqueta: str
     tipo_dato: str
     requerido: bool
-    opciones: Optional[List[str]] = None
+    opciones: Optional[Union[List[str], Dict[str, Any]]] = None  # ← Acepta lista o dict
     orden: int
     campo_padre_id: Optional[int] = None
     opciones_padre: Optional[List[str]] = None
