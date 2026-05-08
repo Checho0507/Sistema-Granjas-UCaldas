@@ -662,6 +662,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                                         campos={camposDinamicos}
                                                         valores={formulariosPorPlanta[planta.id] || {}}
                                                         onChange={(campo, valor) => handleCambioPorPlanta(planta.id, campo, valor)}
+                                                        prefix={`planta_${planta.id}`}
                                                     />
                                                 </div>
                                             </div>

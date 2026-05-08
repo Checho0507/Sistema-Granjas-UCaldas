@@ -1,13 +1,19 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect } from 'react';
 import type { DiagnosticoCampo } from '../../services/diagnosticoDinamicoService';
 
 interface Props {
   campos: DiagnosticoCampo[];
   valores: Record<string, any>;
   onChange: (nombre: string, valor: any) => void;
+  prefix?: string; // Para diferenciar instancias (ej: planta.id)
 }
 
-const FormularioDinamicoSection: React.FC<Props> = ({ campos, valores, onChange }) => {
+const FormularioDinamicoSection: React.FC<Props> = ({ 
+  campos, 
+  valores, 
+  onChange,
+  prefix = '' 
+}) => {
   if (!campos || campos.length === 0) {
     return (
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-yellow-700 text-sm">
@@ -29,16 +35,6 @@ const FormularioDinamicoSection: React.FC<Props> = ({ campos, valores, onChange 
       return campo.opciones_padre.some(op => valorPadre.includes(op));
     }
     return campo.opciones_padre.includes(valorPadre);
-  };
-
-  // Helper: obtener el valor de un campo en formato legible
-  const getValorLegible = (campo: DiagnosticoCampo): string => {
-    const valor = valores[campo.nombre_campo];
-    if (!valor) return 'No seleccionado';
-    if (Array.isArray(valor)) {
-      return valor.length > 0 ? valor.join(', ') : 'No seleccionado';
-    }
-    return String(valor);
   };
 
   // Helper: obtener todos los IDs de campos que dependen de un campo (directa o indirectamente)
@@ -101,23 +97,6 @@ const FormularioDinamicoSection: React.FC<Props> = ({ campos, valores, onChange 
     });
   };
 
-  // Obtener el nivel de anidación de un campo
-  const getNivelAnidacion = (campo: DiagnosticoCampo): number => {
-    let nivel = 0;
-    let currentCampo = campo;
-    let visited = new Set<number>();
-    
-    while (currentCampo.campo_padre_id && !visited.has(currentCampo.id)) {
-      visited.add(currentCampo.id);
-      nivel++;
-      const padre = campos.find(c => c.id === currentCampo.campo_padre_id);
-      if (!padre) break;
-      currentCampo = padre;
-    }
-    
-    return nivel;
-  };
-
   // Encontrar el padre directo de un campo y el valor que lo activa
   const getPadreYValor = (campo: DiagnosticoCampo): { padre: DiagnosticoCampo | null; valorActivador: string } => {
     if (!campo.campo_padre_id) return { padre: null, valorActivador: '' };
@@ -145,7 +124,6 @@ const FormularioDinamicoSection: React.FC<Props> = ({ campos, valores, onChange 
     valorCelda: any,
     tipoCelda: string,
     onChangeCelda: (nuevoValor: any) => void,
-    // Parámetros adicionales para radio
     fila: string,
     columna: string,
     nombreCampo: string,
@@ -176,18 +154,21 @@ const FormularioDinamicoSection: React.FC<Props> = ({ campos, valores, onChange 
           />
         );
 
-      case 'radio':
-        // Radio button: el valor guardado por fila es la columna seleccionada
+      case 'radio': {
         const seleccionado = valorMatriz[fila]?.['_selected'] || '';
+        const radioName = prefix 
+          ? `${prefix}_${nombreCampo}_${fila.replace(/\s+/g, '_')}` 
+          : `${nombreCampo}_${fila.replace(/\s+/g, '_')}`;
         return (
           <input
             type="radio"
-            name={`${nombreCampo}_${fila}`}  // Mismo name por fila = solo uno seleccionable
+            name={radioName}
             checked={seleccionado === columna}
-            onChange={() => onChangeCelda(columna)}  // Guarda el nombre de la columna como valor
+            onChange={() => onChangeCelda(columna)}
             className="w-4 h-4 text-blue-600 focus:ring-blue-500 mx-auto block"
           />
         );
+      }
 
       default:
         return (
@@ -317,13 +298,10 @@ const FormularioDinamicoSection: React.FC<Props> = ({ campos, valores, onChange 
           }
 
           if (tipo_celda === 'radio') {
-            // Para radio, guardamos la columna seleccionada en un campo especial '_selected'
             if (nuevoValor === columna) {
               nuevaMatriz[fila]['_selected'] = columna;
             }
-            // No guardamos nada en la columna específica, solo el _selected
           } else {
-            // Para otros tipos, guardamos en la columna correspondiente
             if (nuevoValor === '' || nuevoValor === false || nuevoValor === undefined) {
               delete nuevaMatriz[fila][columna];
             } else {
@@ -331,7 +309,6 @@ const FormularioDinamicoSection: React.FC<Props> = ({ campos, valores, onChange 
             }
           }
           
-          // Limpiar fila vacía
           if (Object.keys(nuevaMatriz[fila]).length === 0) {
             delete nuevaMatriz[fila];
           }
