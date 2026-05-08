@@ -5,14 +5,14 @@ interface Props {
   campos: DiagnosticoCampo[];
   valores: Record<string, any>;
   onChange: (nombre: string, valor: any) => void;
-  prefix?: string; // Para diferenciar instancias (ej: planta.id)
+  prefix?: string;
 }
 
-const FormularioDinamicoSection: React.FC<Props> = ({
-  campos,
-  valores,
+const FormularioDinamicoSection: React.FC<Props> = ({ 
+  campos, 
+  valores, 
   onChange,
-  prefix = ''
+  prefix = '' 
 }) => {
   if (!campos || campos.length === 0) {
     return (
@@ -30,14 +30,14 @@ const FormularioDinamicoSection: React.FC<Props> = ({
     if (!padre) return true;
     const valorPadre = valores[padre.nombre_campo];
     if (!valorPadre || !campo.opciones_padre) return false;
-
+    
     if (Array.isArray(valorPadre)) {
       return campo.opciones_padre.some(op => valorPadre.includes(op));
     }
     return campo.opciones_padre.includes(valorPadre);
   };
 
-  // Helper: obtener todos los IDs de campos que dependen de un campo (directa o indirectamente)
+  // Helper: obtener todos los IDs de campos que dependen de un campo
   const obtenerDependientes = (campoId: number): number[] => {
     const hijos = campos.filter(c => c.campo_padre_id === campoId);
     let todos: number[] = [];
@@ -55,7 +55,7 @@ const FormularioDinamicoSection: React.FC<Props> = ({
         if (valores[campo.nombre_campo] !== undefined && valores[campo.nombre_campo] !== '') {
           onChange(campo.nombre_campo, '');
         }
-
+        
         const dependientes = obtenerDependientes(campo.id);
         dependientes.forEach(depId => {
           const depCampo = campos.find(c => c.id === depId);
@@ -67,17 +67,17 @@ const FormularioDinamicoSection: React.FC<Props> = ({
     });
   }, [campos, valores, onChange]);
 
-  // Manejar cambio en campo padre (select/multiselect) limpiando hijos que ya no aplican
+  // Manejar cambio en campo padre limpiando hijos que ya no aplican
   const handleSelectChange = (campo: DiagnosticoCampo, nuevoValor: any) => {
     onChange(campo.nombre_campo, nuevoValor);
-
+    
     const hijosDirectos = campos.filter(c => c.campo_padre_id === campo.id);
-
+    
     hijosDirectos.forEach(hijo => {
       if (hijo.opciones_padre) {
         const valorArray = Array.isArray(nuevoValor) ? nuevoValor : [nuevoValor];
         const hijoVisible = hijo.opciones_padre.some(op => valorArray.includes(op));
-
+        
         if (!hijoVisible) {
           onChange(hijo.nombre_campo, '');
           limpiarDependientes(hijo.id);
@@ -86,7 +86,6 @@ const FormularioDinamicoSection: React.FC<Props> = ({
     });
   };
 
-  // Función recursiva para limpiar dependientes en cascada
   const limpiarDependientes = (campoId: number) => {
     const dependientes = campos.filter(c => c.campo_padre_id === campoId);
     dependientes.forEach(dep => {
@@ -97,29 +96,7 @@ const FormularioDinamicoSection: React.FC<Props> = ({
     });
   };
 
-  // Encontrar el padre directo de un campo y el valor que lo activa
-  const getPadreYValor = (campo: DiagnosticoCampo): { padre: DiagnosticoCampo | null; valorActivador: string } => {
-    if (!campo.campo_padre_id) return { padre: null, valorActivador: '' };
-    const padre = campos.find(c => c.id === campo.campo_padre_id);
-    if (!padre) return { padre: null, valorActivador: '' };
-
-    const valorPadre = valores[padre.nombre_campo];
-    let valorActivador = '';
-
-    if (campo.opciones_padre && campo.opciones_padre.length > 0) {
-      if (Array.isArray(valorPadre)) {
-        valorActivador = campo.opciones_padre
-          .filter(op => valorPadre.includes(op))
-          .join(', ');
-      } else {
-        valorActivador = campo.opciones_padre[0] || '';
-      }
-    }
-
-    return { padre, valorActivador };
-  };
-
-  // ── Render de celda de matriz ───────────────────────────────────────────────
+  // Render de celda de matriz
   const renderCeldaMatriz = (
     valorCelda: any,
     tipoCelda: string,
@@ -130,7 +107,7 @@ const FormularioDinamicoSection: React.FC<Props> = ({
     valorMatriz: Record<string, Record<string, any>>
   ) => {
     const inputBase = "text-center border border-gray-300 rounded p-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500";
-
+    
     switch (tipoCelda) {
       case 'boolean':
         return (
@@ -156,8 +133,8 @@ const FormularioDinamicoSection: React.FC<Props> = ({
 
       case 'radio': {
         const seleccionado = valorMatriz[fila]?.['_selected'] || '';
-        const radioName = prefix
-          ? `${prefix}_${nombreCampo}_${fila.replace(/\s+/g, '_')}`
+        const radioName = prefix 
+          ? `${prefix}_${nombreCampo}_${fila.replace(/\s+/g, '_')}` 
           : `${nombreCampo}_${fila.replace(/\s+/g, '_')}`;
         return (
           <input
@@ -290,7 +267,7 @@ const FormularioDinamicoSection: React.FC<Props> = ({
 
         const handleCeldaChange = (fila: string, columna: string, nuevoValor: any) => {
           const nuevaMatriz = { ...valorMatriz };
-
+          
           if (!nuevaMatriz[fila]) {
             nuevaMatriz[fila] = {};
           } else {
@@ -308,11 +285,11 @@ const FormularioDinamicoSection: React.FC<Props> = ({
               nuevaMatriz[fila][columna] = nuevoValor;
             }
           }
-
+          
           if (Object.keys(nuevaMatriz[fila]).length === 0) {
             delete nuevaMatriz[fila];
           }
-
+          
           onChange(campo.nombre_campo, Object.keys(nuevaMatriz).length > 0 ? nuevaMatriz : '');
         };
 
@@ -340,8 +317,8 @@ const FormularioDinamicoSection: React.FC<Props> = ({
                     {columnas.map((col, colIdx) => (
                       <td key={colIdx} className="px-2 py-1 text-center">
                         {renderCeldaMatriz(
-                          tipo_celda === 'radio'
-                            ? valorMatriz[fila]?.['_selected']
+                          tipo_celda === 'radio' 
+                            ? valorMatriz[fila]?.['_selected'] 
                             : valorMatriz[fila]?.[col] ?? '',
                           tipo_celda,
                           (nuevoValor) => handleCeldaChange(fila, col, nuevoValor),
@@ -374,95 +351,84 @@ const FormularioDinamicoSection: React.FC<Props> = ({
     }
   };
 
-  // ── FUNCIÓN PRINCIPAL: Agrupar campos por jerarquía ────────────────────────
-  // ── FUNCIÓN PRINCIPAL: Agrupar campos por jerarquía ────────────────────────
-  const renderGrupo = (
-    camposRestantes: DiagnosticoCampo[],
-    nivel: number = 0
-  ): React.ReactNode[] => {
-    const elements: React.ReactNode[] = [];
-    const camposProcesados = new Set<number>();
-    const colors = ['border-yellow-300', 'border-orange-300', 'border-pink-300', 'border-purple-300'];
-    const bgColors = ['bg-yellow-50/50', 'bg-orange-50/50', 'bg-pink-50/50', 'bg-purple-50/50'];
+  // Breadcrumb simple por campo
+  const getBreadcrumb = (campo: DiagnosticoCampo): Array<{etiqueta: string; valor: string}> | null => {
+    if (!campo.campo_padre_id) return null;
+    
+    const breadcrumb: Array<{etiqueta: string; valor: string}> = [];
+    let currentCampo: DiagnosticoCampo | undefined = campo;
+    let visited = new Set<number>();
+    
+    while (currentCampo?.campo_padre_id && !visited.has(currentCampo.id)) {
+      visited.add(currentCampo.id);
+      const padre = campos.find(c => c.id === currentCampo!.campo_padre_id);
+      if (!padre) break;
+      
+      const valorPadre = valores[padre.nombre_campo];
+      const valorLegible = Array.isArray(valorPadre) 
+        ? valorPadre.join(', ') 
+        : (valorPadre || 'No seleccionado');
+      
+      breadcrumb.unshift({
+        etiqueta: padre.etiqueta,
+        valor: valorLegible
+      });
+      
+      currentCampo = padre;
+    }
+    
+    return breadcrumb.length > 0 ? breadcrumb : null;
+  };
 
-    for (const campo of camposRestantes) {
-      if (camposProcesados.has(campo.id)) continue;
-      if (!esCampoVisible(campo)) continue;
+  const getNivelAnidacion = (campo: DiagnosticoCampo): number => {
+    let nivel = 0;
+    let currentCampo: DiagnosticoCampo | undefined = campo;
+    let visited = new Set<number>();
+    
+    while (currentCampo?.campo_padre_id && !visited.has(currentCampo.id)) {
+      visited.add(currentCampo.id);
+      nivel++;
+      const padre = campos.find(c => c.id === currentCampo!.campo_padre_id);
+      if (!padre) break;
+      currentCampo = padre;
+    }
+    
+    return nivel;
+  };
 
-      camposProcesados.add(campo.id);
+  // Campos visibles ordenados
+  const camposVisibles = campos.filter(esCampoVisible);
 
-      // Buscar todos los hijos directos visibles de este campo
-      const hijos = campos.filter(c =>
-        c.campo_padre_id === campo.id &&
-        esCampoVisible(c) &&
-        !camposProcesados.has(c.id)
-      );
-
-      if (hijos.length > 0) {
-        // ── Campo CON hijos ──
-        const valorPadre = valores[campo.nombre_campo];
-
-        elements.push(
-          <div key={campo.id} className={nivel > 0 ? `pl-4 border-l-2 ${colors[Math.min(nivel - 1, colors.length - 1)]}` : ''}>
-            {/* El campo padre */}
-            <div className="mb-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {campo.etiqueta}
-                {campo.requerido && <span className="text-red-500 ml-1">*</span>}
-              </label>
-              {renderCampo(campo)}
-            </div>
-
-            {/* Hijos agrupados por el valor que los activa */}
-            {hijos.length > 0 && valorPadre && (
-              <div className="mt-3 space-y-3">
-                {(() => {
-                  // Si el padre es select (valor único), agrupar por la opción seleccionada
-                  // Si el padre es multiselect (array), agrupar por cada opción seleccionada
-                  const valoresPadre = Array.isArray(valorPadre) ? valorPadre : [valorPadre];
-
-                  // Para cada valor seleccionado del padre, encontrar los hijos que aplican
-                  return valoresPadre.map((valor: string) => {
-                    // Filtrar hijos que son visibles para ESTE valor específico
-                    const hijosParaEsteValor = hijos.filter(hijo => {
-                      if (!hijo.opciones_padre || hijo.opciones_padre.length === 0) return false;
-                      return hijo.opciones_padre.includes(valor);
-                    });
-
-                    if (hijosParaEsteValor.length === 0) return null;
-
-                    // Marcar estos hijos como procesados
-                    hijosParaEsteValor.forEach(h => camposProcesados.add(h.id));
-
-                    return (
-                      <div key={`${campo.id}-${valor}`} className={`pl-4 border-l-2 ${colors[Math.min(nivel, colors.length - 1)]} ${bgColors[Math.min(nivel, bgColors.length - 1)]} rounded p-3`}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-gray-400"></div>
-                          <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                            {campo.etiqueta}: {valor}
-                          </span>
-                        </div>
-                        <div className="space-y-3">
-                          {renderGrupo(hijosParaEsteValor, nivel + 1)}
-                        </div>
-                      </div>
-                    );
-                  });
-                })()}
+  return (
+    <div className="space-y-4">
+      {camposVisibles.map(campo => {
+        const breadcrumb = getBreadcrumb(campo);
+        const nivel = getNivelAnidacion(campo);
+        const colors = ['border-yellow-300', 'border-orange-300', 'border-pink-300', 'border-purple-300'];
+        const borderColor = nivel > 0 ? colors[Math.min(nivel - 1, colors.length - 1)] : '';
+        
+        return (
+          <div 
+            key={campo.id} 
+            className={nivel > 0 ? `pl-4 border-l-2 ${borderColor}` : ''}
+          >
+            {/* Breadcrumb de dependencias */}
+            {breadcrumb && breadcrumb.length > 0 && (
+              <div className="mb-2 flex flex-wrap items-center gap-1 text-xs">
+                {breadcrumb.map((item, idx) => (
+                  <React.Fragment key={idx}>
+                    {idx > 0 && (
+                      <i className="fas fa-chevron-right text-gray-300 text-[10px]"></i>
+                    )}
+                    <span className="inline-flex items-center gap-1 bg-gray-100 border border-gray-200 rounded-full px-2 py-0.5">
+                      <span className="text-gray-500 font-medium">{item.etiqueta}:</span>
+                      <span className="text-gray-700 font-semibold">{item.valor}</span>
+                    </span>
+                  </React.Fragment>
+                ))}
               </div>
             )}
-
-            {/* Procesar campos siguientes que no son hijos */}
-            {renderGrupo(
-              camposRestantes.filter(c => !camposProcesados.has(c.id)),
-              nivel
-            )}
-          </div>
-        );
-      } else {
-        // ── Campo SIN hijos (hoja) ──
-        elements.push(
-          <div key={campo.id} className={nivel > 0 ? `pl-4 border-l-2 ${colors[Math.min(nivel - 1, colors.length - 1)]}` : ''}>
+            
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {campo.etiqueta}
               {campo.requerido && <span className="text-red-500 ml-1">*</span>}
@@ -470,17 +436,7 @@ const FormularioDinamicoSection: React.FC<Props> = ({
             {renderCampo(campo)}
           </div>
         );
-      }
-    }
-
-    return elements;
-  };
-
-  const camposRaiz = campos.filter(c => !c.campo_padre_id);
-
-  return (
-    <div className="space-y-4">
-      {renderGrupo(camposRaiz)}
+      })}
     </div>
   );
 };
