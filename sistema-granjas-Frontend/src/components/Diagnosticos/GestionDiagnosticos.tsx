@@ -5,6 +5,7 @@ import diagnosticoService from '../../services/diagnosticoService';
 import loteService from '../../services/loteService';
 import programaService from '../../services/programaService';
 import monitoreoService from '../../services/monitoreoService';
+import { diagnosticoDinamicoService } from '../../services/diagnosticoDinamicoService';
 import type { DiagnosticoItem, DiagnosticoFiltros } from '../../types/diagnosticoTypes';
 import Modal from '../Common/Modal';
 import DiagnosticosTable from './DiagnosticosTable';
@@ -34,6 +35,7 @@ const GestionDiagnosticos: React.FC = () => {
   const [lotes, setLotes] = useState<any[]>([]);
   const [programas, setProgramas] = useState<any[]>([]);
   const [monitoreos, setMonitoreos] = useState<any[]>([]);
+  const [tiposDiagnostico, setTiposDiagnostico] = useState<any[]>([]); // ← NUEVO
 
   const [filtros, setFiltros] = useState<DiagnosticoFiltros>({});
   const [estadisticas, setEstadisticas] = useState<any>(null);
@@ -47,27 +49,20 @@ const GestionDiagnosticos: React.FC = () => {
 
   const esAdminODocente = user && (user.rol_id === 1 || user.rol_id === 2 || user.rol_id === 5);
 
-  const handleExportDiagnosticos = async () => {
-    if (exporting) return;
-    setExporting(true);
-    setExportMessage('Exportando diagnósticos...');
-    try {
-      const result = await exportService.exportarDiagnosticos();
-      setExportMessage(`¡Exportación completada! (${result.filename})`);
-      setTimeout(() => setExportMessage(''), 5000);
-    } catch (error) {
-      console.error('❌ Error exportando diagnósticos:', error);
-      setExportMessage('Error al exportar.');
-      setTimeout(() => setExportMessage(''), 5000);
-    } finally {
-      setExporting(false);
-    }
-  };
-
   useEffect(() => {
     cargarDatos();
     cargarEstadisticas();
+    cargarTiposDiagnostico(); // ← NUEVO
   }, [filtros]);
+
+  const cargarTiposDiagnostico = async () => {
+    try {
+      const tipos = await diagnosticoDinamicoService.listarSubtipos();
+      setTiposDiagnostico(tipos || []);
+    } catch {
+      setTiposDiagnostico([]);
+    }
+  };
 
   const cargarDatos = async () => {
     try {
@@ -202,7 +197,7 @@ const GestionDiagnosticos: React.FC = () => {
 
   return (
     <div className="p-6">
-      {/* Tabs */}
+      {/* Header con tabs y botones */}
       <div className="mb-6">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold text-gray-800">Diagnósticos</h1>
@@ -242,32 +237,48 @@ const GestionDiagnosticos: React.FC = () => {
       {/* TAB: Diagnósticos */}
       {tabActivo === 'diagnosticos' && (
         <>
+          {/* Filtros */}
           <div className="bg-white p-4 rounded-lg shadow mb-6">
             <h3 className="font-semibold mb-3 text-sm text-gray-700">Filtros</h3>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <select className="border rounded p-2 text-sm" value={(filtros as any).tipo_diagnostico || ''} onChange={(e) => setFiltros({ ...filtros, tipo_diagnostico: e.target.value || undefined } as any)}>
+              {/* Tipo de diagnóstico - AHORA DINÁMICO */}
+              <select
+                className="border rounded p-2 text-sm"
+                value={(filtros as any).tipo_diagnostico || ''}
+                onChange={(e) => setFiltros({ ...filtros, tipo_diagnostico: e.target.value || undefined } as any)}
+              >
                 <option value="">Todos los tipos</option>
-                <option value="censo_poblacional">Censo Poblacional</option>
-                <option value="monitoreo_fenologico">Monitoreo Fenológico</option>
-                <option value="artropodos">Artrópodos</option>
-                <option value="enfermedades">Enfermedades</option>
-                <option value="arvenses">Arvenses</option>
-                <option value="controladores_biologicos">Controladores Biológicos</option>
-                <option value="polinizadores">Polinizadores</option>
+                {tiposDiagnostico.map(tipo => (
+                  <option key={tipo.id} value={tipo.nombre}>{tipo.nombre}</option>
+                ))}
               </select>
-              <select className="border rounded p-2 text-sm" value={(filtros as any).programa_id || ''} onChange={(e) => setFiltros({ ...filtros, programa_id: e.target.value ? parseInt(e.target.value) : undefined } as any)}>
+
+              <select
+                className="border rounded p-2 text-sm"
+                value={(filtros as any).programa_id || ''}
+                onChange={(e) => setFiltros({ ...filtros, programa_id: e.target.value ? parseInt(e.target.value) : undefined } as any)}
+              >
                 <option value="">Todos los programas</option>
                 {programas.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
               </select>
-              <select className="border rounded p-2 text-sm" value={(filtros as any).estado_revision || ''} onChange={(e) => setFiltros({ ...filtros, estado_revision: e.target.value || undefined } as any)}>
+
+              <select
+                className="border rounded p-2 text-sm"
+                value={(filtros as any).estado_revision || ''}
+                onChange={(e) => setFiltros({ ...filtros, estado_revision: e.target.value || undefined } as any)}
+              >
                 <option value="">Todos (revisión)</option>
                 <option value="pendiente_revision">⏳ Pendientes</option>
                 <option value="revisado">✅ Revisados</option>
               </select>
-              <button onClick={() => setFiltros({})} className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded text-sm">Limpiar Filtros</button>
+
+              <button onClick={() => setFiltros({})} className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded text-sm">
+                Limpiar Filtros
+              </button>
             </div>
           </div>
 
+          {/* Tabla de diagnósticos */}
           {loading ? (
             <div className="text-center py-8"><i className="fas fa-spinner fa-spin text-2xl"></i><p className="mt-2 text-gray-600">Cargando...</p></div>
           ) : error ? (
@@ -314,16 +325,51 @@ const GestionDiagnosticos: React.FC = () => {
         </div>
       )}
 
+      {/* Modales */}
       <Modal isOpen={showCrearModal} onClose={() => setShowCrearModal(false)} width="max-w-2xl">
-        <DiagnosticoForm onSubmit={handleCrearDiagnostico} onCancel={() => setShowCrearModal(false)} lotes={lotes} programas={programas} monitoreos={monitoreos} condiciones_dia={['Soleado', 'Nublado', 'Lluvia']} currentUser={user} />
+        <DiagnosticoForm
+          onSubmit={handleCrearDiagnostico}
+          onCancel={() => setShowCrearModal(false)}
+          lotes={lotes}
+          programas={programas}
+          monitoreos={monitoreos}
+          condiciones_dia={['Soleado', 'Nublado', 'Lluvia']}
+          currentUser={user}
+        />
       </Modal>
 
       <Modal isOpen={showEditarModal} onClose={() => setShowEditarModal(false)} width="max-w-2xl">
-        {selectedDiagnostico && <DiagnosticoForm diagnostico={selectedDiagnostico} onSubmit={(data) => handleActualizarDiagnostico(selectedDiagnostico.id, data)} onCancel={() => setShowEditarModal(false)} lotes={lotes} programas={programas} monitoreos={monitoreos} condiciones_dia={['Soleado', 'Nublado', 'Lluvia']} currentUser={user} esEdicion />}
+        {selectedDiagnostico && (
+          <DiagnosticoForm
+            diagnostico={selectedDiagnostico}
+            onSubmit={(data) => handleActualizarDiagnostico(selectedDiagnostico.id, data)}
+            onCancel={() => setShowEditarModal(false)}
+            lotes={lotes}
+            programas={programas}
+            monitoreos={monitoreos}
+            condiciones_dia={['Soleado', 'Nublado', 'Lluvia']}
+            currentUser={user}
+            esEdicion
+          />
+        )}
       </Modal>
 
-      {showEvidenciaModal && selectedDiagnostico && <AgregarEvidenciaModal isOpen={showEvidenciaModal} onClose={() => setShowEvidenciaModal(false)} diagnostico={selectedDiagnostico} onSubmit={handleAgregarEvidencia} />}
-      {showDetallesModal && selectedDiagnostico && <DetallesDiagnosticoModal isOpen={showDetallesModal} onClose={() => setShowDetallesModal(false)} diagnostico={selectedDiagnostico} />}
+      {showEvidenciaModal && selectedDiagnostico && (
+        <AgregarEvidenciaModal
+          isOpen={showEvidenciaModal}
+          onClose={() => setShowEvidenciaModal(false)}
+          diagnostico={selectedDiagnostico}
+          onSubmit={handleAgregarEvidencia}
+        />
+      )}
+
+      {showDetallesModal && selectedDiagnostico && (
+        <DetallesDiagnosticoModal
+          isOpen={showDetallesModal}
+          onClose={() => setShowDetallesModal(false)}
+          diagnostico={selectedDiagnostico}
+        />
+      )}
     </div>
   );
 };
