@@ -127,8 +127,6 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     };
 
     // ── Función para obtener plantas elegibles ────────────────────────────────
-    const NOMBRE_ARVENSES = 'Monirotero de Arvenses';
-
     const cargarPlantasElegibles = useCallback(async () => {
         if (!loteId || !tipoDiagnostico) {
             setPlantas([]);
@@ -142,7 +140,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         setCargandoPlantas(true);
         setErrorPlantas(null);
 
-        const esArvenses = subtipoId != null && subtipos.find(s => s.id === subtipoId)?.nombre === NOMBRE_ARVENSES;
+        const esArvenses = subtipoId != null && (subtipos.find(s => s.id === subtipoId)?.patron_arvenses === true);
         const cantidad = esArvenses
             ? 5
             : Math.max(1, Math.floor(estructuraLote.total_plantas * porcentajeMuestreo / 100));

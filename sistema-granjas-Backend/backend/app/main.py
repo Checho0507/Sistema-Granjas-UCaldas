@@ -84,6 +84,30 @@ if ENVIRONMENT == "development":
 else:
     logger.info("🏭 Modo producción: asumiendo que las migraciones están manejadas por Alembic")
 
+# ── Migración segura: agregar columnas nuevas si no existen ──────────────────
+def _aplicar_migraciones_seguras():
+    from sqlalchemy import text
+    migraciones = [
+        """
+        ALTER TABLE diagnostico_tipos
+        ADD COLUMN IF NOT EXISTS patron_arvenses BOOLEAN NOT NULL DEFAULT FALSE;
+        """,
+    ]
+    from app.db.database import SessionLocal
+    db = SessionLocal()
+    try:
+        for sql in migraciones:
+            db.execute(text(sql))
+        db.commit()
+        logger.info("✅ Migraciones seguras aplicadas correctamente")
+    except Exception as e:
+        db.rollback()
+        logger.warning(f"⚠️  Error aplicando migraciones seguras: {e}")
+    finally:
+        db.close()
+
+_aplicar_migraciones_seguras()
+
 app = FastAPI(
     title="Sistema Granjas UCaldas",
     description="Sistema de Gestión Agrícola para la Universidad de Caldas",

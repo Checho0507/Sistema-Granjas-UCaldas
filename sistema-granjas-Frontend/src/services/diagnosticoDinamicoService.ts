@@ -8,6 +8,7 @@ export interface DiagnosticoTipo {
   descripcion?: string;
   orden: number;
   activo: boolean;
+  patron_arvenses: boolean;
   created_at: string;
   campos?: DiagnosticoCampo[];
   campos_recomendacion?: CampoRecomendacion[];

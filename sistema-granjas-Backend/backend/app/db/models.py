@@ -260,6 +260,7 @@ class DiagnosticoTipo(Base):
     descripcion = Column(Text)
     orden = Column(Integer, default=0)
     activo = Column(Boolean, default=True)
+    patron_arvenses = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=colombia_now)
     updated_at = Column(DateTime, default=colombia_now, onupdate=colombia_now)
     programa = relationship("Programa", back_populates="tipos_diagnostico")

@@ -140,6 +140,7 @@ class DiagnosticoTipoCreate(BaseModel):
     descripcion: Optional[str] = None
     orden: int = 0
     activo: bool = True
+    patron_arvenses: bool = False
 
 
 class DiagnosticoTipoUpdate(BaseModel):
@@ -148,6 +149,7 @@ class DiagnosticoTipoUpdate(BaseModel):
     monitoreo_id: Optional[int] = None
     orden: Optional[int] = None
     activo: Optional[bool] = None
+    patron_arvenses: Optional[bool] = None
 
 
 class DiagnosticoTipoResponse(BaseModel):
@@ -158,6 +160,7 @@ class DiagnosticoTipoResponse(BaseModel):
     descripcion: Optional[str] = None
     orden: int
     activo: bool
+    patron_arvenses: bool = False
     created_at: datetime
 
     class Config:
