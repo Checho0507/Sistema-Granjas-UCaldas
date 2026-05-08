@@ -273,7 +273,6 @@ def listar_diagnosticos(
         paginas=(total + limit - 1) // limit
     )
 
-
 @router.post("/", response_model=DiagnosticoResponse, status_code=201)
 async def crear_diagnostico(
     request: Request,
@@ -413,7 +412,6 @@ async def crear_diagnostico(
         "plantas": plantas_resp
     }
 
-
 @router.get("/{id}", response_model=DiagnosticoWithRecomendacionesResponse)
 def obtener_diagnostico(
     id: int,
@@ -448,7 +446,6 @@ def obtener_diagnostico(
         "plantas": plantas_resp,
         "recomendaciones": recomendaciones
     }
-
 
 @router.put("/{id}", response_model=DiagnosticoResponse)
 async def actualizar_diagnostico(
@@ -559,7 +556,6 @@ async def actualizar_diagnostico(
         "plantas": plantas_resp
     }
 
-
 @router.delete("/{id}", status_code=200)
 def eliminar_diagnostico(
     id: int,
@@ -578,7 +574,6 @@ def eliminar_diagnostico(
 
     crud.delete_diagnostico(db, obj)
     return {"message": "Diagnóstico eliminado correctamente"}
-
 
 @router.get("/mapa/{lote_id}")
 def obtener_datos_mapa(
@@ -655,7 +650,6 @@ def obtener_datos_mapa(
                 d["tiene_enfermedades"] = True
 
     return {"lote_id": lote_id, "plants": list(plant_data.values())}
-
 
 @router.get("/estadisticas/resumen", response_model=EstadisticasDiagnosticosResponse)
 def obtener_estadisticas(
