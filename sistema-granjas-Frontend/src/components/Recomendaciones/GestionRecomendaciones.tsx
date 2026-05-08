@@ -237,6 +237,12 @@ const GestionRecomendaciones: React.FC = () => {
         setUrlLoteId(undefined);
     };
 
+    const tiposRecomendacion = [...new Set(
+        (Array.isArray(recomendaciones) ? recomendaciones : [])
+            .map(r => r.tipo)
+            .filter((t): t is string => !!t)
+    )].sort();
+
     const recomendacionesFiltradas = Array.isArray(recomendaciones) ? recomendaciones.filter(r => {
         if (!user) return false;
         if (user.rol_id === 1) return true;
@@ -319,12 +325,9 @@ const GestionRecomendaciones: React.FC = () => {
                             <select className="border rounded p-2 text-sm" value={filtros.tipo || ''}
                                 onChange={e => setFiltros({ ...filtros, tipo: e.target.value || undefined })}>
                                 <option value="">Todos los tipos</option>
-                                <option value="riego">Riego</option>
-                                <option value="fertilizacion">Fertilización</option>
-                                <option value="poda">Poda</option>
-                                <option value="cosecha">Cosecha</option>
-                                <option value="proteccion">Protección</option>
-                                <option value="otro">Otro</option>
+                                {tiposRecomendacion.map(t => (
+                                    <option key={t} value={t}>{t}</option>
+                                ))}
                             </select>
                             <select className="border rounded p-2 text-sm" value={filtros.lote_id || ''}
                                 onChange={e => setFiltros({ ...filtros, lote_id: e.target.value ? parseInt(e.target.value) : undefined })}>

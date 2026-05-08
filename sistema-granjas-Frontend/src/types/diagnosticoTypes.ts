@@ -114,6 +114,7 @@ export interface DiagnosticoFiltros {
   tipo_diagnostico?: string;
   programa_id?: number;
   tipo_monitoreo_id?: number;
+  diagnostico_tipo_id?: number;
 }
 
 /* ============================================
