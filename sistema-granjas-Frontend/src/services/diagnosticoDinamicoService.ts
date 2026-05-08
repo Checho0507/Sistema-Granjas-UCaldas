@@ -48,6 +48,11 @@ export const diagnosticoDinamicoService = {
     return res.data;
   },
 
+  listarSubtipos: async (): Promise<DiagnosticoTipo[]> => {
+    const res = await api.get('/diagnosticos-dinamico/tipos');
+    return res.data;
+  },
+
   listarSubtiposPorMonitoreo: async (monitoreoId: number): Promise<DiagnosticoTipo[]> => {
     const res = await api.get(`/diagnosticos-dinamico/monitoreos/${monitoreoId}/subtipos`);
     return res.data;
