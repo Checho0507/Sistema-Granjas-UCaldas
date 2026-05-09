@@ -441,43 +441,138 @@ const FormGeneral: React.FC<{
     submitting: boolean;
     setSubmitting: (v: boolean) => void;
 }> = ({ recomendacion, lotes, docentes, programas, currentUser, esEdicion, onSubmit, onCancel, submitting, setSubmitting }) => {
-    const [programaId, setProgramaId] = useState<number | null>(recomendacion ? (lotes.find(l => l.id === recomendacion.lote_id)?.programa_id || null) : null);
+    const [programaId, setProgramaId] = useState<number | null>(null);
     const [monitoreoId, setMonitoreoId] = useState<number | null>(null);
     const [subtipoId, setSubtipoId] = useState<number | null>(null);
     const [monitoreos, setMonitoreos] = useState<Monitoreo[]>([]);
     const [subtipos, setSubtipos] = useState<DiagnosticoTipo[]>([]);
     const [campos, setCampos] = useState<CampoRecomendacion[]>([]);
-    const [loteId, setLoteId] = useState<number | null>(recomendacion?.lote_id || null);
-    const [titulo, setTitulo] = useState(recomendacion?.titulo || '');
-    const [descripcion, setDescripcion] = useState(recomendacion?.descripcion || '');
-    const [estado, setEstado] = useState(recomendacion?.estado || 'pendiente');
+    const [loteId, setLoteId] = useState<number | null>(null);
+    const [titulo, setTitulo] = useState('');
+    const [descripcion, setDescripcion] = useState('');
+    const [estado, setEstado] = useState('pendiente');
     const [formulario, setFormulario] = useState<Record<string, any>>({});
     const [tiposLabor, setTiposLabor] = useState<any[]>([]);
     const [laboresToCrear, setLaboresToCrear] = useState<LaborRow[]>([]);
+    const [initialLoading, setInitialLoading] = useState(true);
 
     const lotesFiltrados = lotes.filter(l => l.programa_id === programaId);
 
+    // ── Inicializar desde recomendación (modo edición) ────────────────────────
     useEffect(() => {
-        if (!programaId) { setMonitoreos([]); return; }
+        if (!esEdicion || !recomendacion) {
+            setInitialLoading(false);
+            return;
+        }
+
+        const init = async () => {
+            setInitialLoading(true);
+            try {
+                const rec = recomendacion as any;
+
+                setTitulo(rec.titulo || '');
+                setDescripcion(rec.descripcion || '');
+                setEstado(rec.estado || 'pendiente');
+                setLoteId(rec.lote_id || null);
+
+                if (rec.formulario_recomendacion) {
+                    setFormulario(rec.formulario_recomendacion);
+                }
+
+                if (rec.lote_id) {
+                    const lote = lotes.find(l => l.id === rec.lote_id);
+                    if (lote?.programa_id) {
+                        setProgramaId(lote.programa_id);
+
+                        const mons = await monitoreoService.obtenerMonitoreosPorPrograma(lote.programa_id);
+                        const monitoreosArr = Array.isArray(mons) ? mons : [];
+                        setMonitoreos(monitoreosArr);
+
+                        // Buscar a qué monitoreo pertenece el subtipo
+                        if (rec.subtipo_id) {
+                            for (const mon of monitoreosArr) {
+                                const subtiposData = await diagnosticoDinamicoService.listarSubtiposPorMonitoreo(mon.id);
+                                const encontrado = subtiposData.find(s => s.id === rec.subtipo_id);
+                                if (encontrado) {
+                                    // Establecer monitoreoId PRIMERO
+                                    setMonitoreoId(mon.id);
+                                    // Luego establecer subtipoId (el useEffect de subtipos ya tendrá monitoreoId correcto)
+                                    setSubtipoId(rec.subtipo_id);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Error inicializando edición:', e);
+            } finally {
+                setInitialLoading(false);
+            }
+        };
+
+        init();
+    }, [esEdicion, recomendacion, lotes]);
+
+    // ── Cargar monitoreos ────────────────────────────────────────────────────
+    useEffect(() => {
+        if (!programaId) {
+            setMonitoreos([]);
+            return;
+        }
         monitoreoService.obtenerMonitoreosPorPrograma(programaId)
             .then(data => setMonitoreos(Array.isArray(data) ? data : []))
             .catch(() => { });
     }, [programaId]);
 
+    // ── Cargar subtipos ──────────────────────────────────────────────────────
+    // CORRECCIÓN: Sin validación inmediata que cause race condition
     useEffect(() => {
-        if (!monitoreoId) { setSubtipos([]); return; }
-        diagnosticoDinamicoService.listarSubtiposPorMonitoreo(monitoreoId)
-            .then(data => setSubtipos(data.filter(s => s.activo)))
-            .catch(() => { });
-    }, [monitoreoId]);
+        if (!monitoreoId) {
+            setSubtipos([]);
+            // SOLO resetear subtipoId si NO es edición
+            if (!esEdicion) {
+                setSubtipoId(null);
+            }
+            return;
+        }
 
+        // SOLO resetear subtipoId si NO es edición
+        if (!esEdicion) {
+            setSubtipoId(null);
+        }
+
+        diagnosticoDinamicoService
+            .listarSubtiposPorMonitoreo(monitoreoId)
+            .then(data => {
+                setSubtipos(data.filter(s => s.activo));
+                // NO validar subtipoId aquí - se mantiene el valor establecido en init()
+            })
+            .catch(() => {
+                setSubtipos([]);
+            });
+
+    }, [monitoreoId, esEdicion]);
+
+    // ── Cargar campos dinámicos ──────────────────────────────────────────────
     useEffect(() => {
-        if (!subtipoId) { setCampos([]); return; }
+        if (!subtipoId) {
+            setCampos([]);
+            return;
+        }
+
         diagnosticoDinamicoService.listarCamposRecomendacion(subtipoId)
-            .then(data => { setCampos([...data].sort((a, b) => a.orden - b.orden)); setFormulario({}); })
-            .catch(() => { });
-    }, [subtipoId]);
+            .then(data => {
+                setCampos([...data].sort((a, b) => a.orden - b.orden));
+                // Solo resetear formulario si NO es edición
+                if (!esEdicion) {
+                    setFormulario({});
+                }
+            })
+            .catch(() => setCampos([]));
+    }, [subtipoId, esEdicion]);
 
+    // ── Cargar tipos de labor ────────────────────────────────────────────────
     useEffect(() => {
         tipoLaborService.obtenerTiposLabor()
             .then(data => setTiposLabor(Array.isArray(data) ? data : []))
@@ -558,12 +653,22 @@ const FormGeneral: React.FC<{
         }
     };
 
+    if (initialLoading) {
+        return (
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+                <p className="text-gray-500 text-sm">Cargando recomendación...</p>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-5">
             <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Programa *</label>
                 <select value={programaId || ''} onChange={e => { setProgramaId(e.target.value ? parseInt(e.target.value) : null); setMonitoreoId(null); setSubtipoId(null); }}
-                    className="w-full border border-gray-300 rounded-lg p-3 text-sm">
+                    className="w-full border border-gray-300 rounded-lg p-3 text-sm"
+                    disabled={esEdicion}>
                     <option value="">Seleccionar programa...</option>
                     {programas.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                 </select>
@@ -574,30 +679,37 @@ const FormGeneral: React.FC<{
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {monitoreos.map(m => (
                             <button key={m.id} type="button" onClick={() => { setMonitoreoId(m.id); setSubtipoId(null); }}
-                                className={`p-3 border-2 rounded-lg text-sm text-center transition ${monitoreoId === m.id ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium' : 'border-gray-200 hover:border-orange-300'}`}>
+                                className={`p-3 border-2 rounded-lg text-sm text-center transition ${monitoreoId === m.id ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium' : 'border-gray-200 hover:border-orange-300'}`}
+                                disabled={esEdicion}>
                                 <i className="fas fa-leaf block text-lg mb-1"></i>{m.nombre}
                             </button>
                         ))}
                     </div>
                 </div>
             )}
-            {monitoreoId && subtipos.length > 0 && (
+            {monitoreoId && (
                 <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Subtipo</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {subtipos.map(s => (
-                            <button key={s.id} type="button" onClick={() => setSubtipoId(s.id)}
-                                className={`p-3 border-2 rounded-lg text-sm text-center transition ${subtipoId === s.id ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium' : 'border-gray-200 hover:border-orange-300'}`}>
-                                {s.nombre}
-                            </button>
-                        ))}
-                    </div>
+                    {subtipos.length === 0 ? (
+                        <p className="text-sm text-gray-500">No hay subtipos disponibles</p>
+                    ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {subtipos.map(s => (
+                                <button key={s.id} type="button" onClick={() => setSubtipoId(s.id)}
+                                    className={`p-3 border-2 rounded-lg text-sm text-center transition ${subtipoId === s.id ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium' : 'border-gray-200 hover:border-orange-300'}`}
+                                    disabled={esEdicion}>
+                                    {s.nombre}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Lote *</label>
                 <select value={loteId || ''} onChange={e => setLoteId(e.target.value ? parseInt(e.target.value) : null)}
-                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm" required>
+                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm" required
+                    disabled={esEdicion}>
                     <option value="">Seleccionar lote...</option>
                     {lotesFiltrados.map(l => <option key={l.id} value={l.id}>{l.nombre}{l.granja_nombre ? ` (${l.granja_nombre})` : ''}</option>)}
                 </select>
@@ -649,7 +761,7 @@ const FormGeneral: React.FC<{
                         </button>
                     </div>
                     {laboresToCrear.length === 0 ? (
-                        <p className="text-xs text-green-600">No hay labores programadas. Puedes agregar labores que se crearán automáticamente al guardar la recomendación.</p>
+                        <p className="text-xs text-green-600">No hay labores programadas.</p>
                     ) : (
                         <div className="space-y-3">
                             {laboresToCrear.map((labor, idx) => (
@@ -676,7 +788,7 @@ const FormGeneral: React.FC<{
                                         <div>
                                             <label className="block text-xs font-medium text-gray-600 mb-1">Comentario</label>
                                             <input type="text" value={labor.comentario} onChange={e => setLaboresToCrear(prev => prev.map((l, i) => i === idx ? { ...l, comentario: e.target.value } : l))}
-                                                className="w-full border border-gray-300 rounded p-2 text-sm" placeholder="Instrucciones adicionales..." />
+                                                className="w-full border border-gray-300 rounded p-2 text-sm" placeholder="Instrucciones..." />
                                         </div>
                                     </div>
                                     <button type="button" onClick={() => setLaboresToCrear(prev => prev.filter((_, i) => i !== idx))}
