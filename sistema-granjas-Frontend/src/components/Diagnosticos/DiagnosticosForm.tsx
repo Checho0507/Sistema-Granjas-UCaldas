@@ -204,16 +204,16 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     useEffect(() => {
         if (!tipoMonitoreoId) {
             setSubtipos([]);
-            setSubtipoId(null);
+            if (!esEdicion) setSubtipoId(null); // Solo resetear si no es edición
             return;
         }
         setLoadingSubtipos(true);
-        setSubtipoId(null);
+        if (!esEdicion) setSubtipoId(null); // Solo resetear si no es edición
         diagnosticoDinamicoService.listarSubtiposPorMonitoreo(tipoMonitoreoId)
             .then(data => setSubtipos(data.filter(s => s.activo)))
             .catch(() => toast.error('Error al cargar subtipos'))
             .finally(() => setLoadingSubtipos(false));
-    }, [tipoMonitoreoId]);
+    }, [tipoMonitoreoId, esEdicion]);
 
     // ── Cargar campos dinámicos ──────────────────────────────────────────────
     useEffect(() => {
@@ -240,7 +240,9 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                 setEstructuraLote(estructura);
                 if (estructura.plantas?.length) {
                     setPlantasOriginales(estructura.plantas);
-                    toast.success(`Lote cargado: ${estructura.total_plantas.toLocaleString()} plantas.`);
+                    if (!esEdicion) {
+                        toast.success(`Lote cargado: ${estructura.total_plantas.toLocaleString()} plantas.`);
+                    }
                 } else {
                     toast.warning('Lote sin surcos/plantas configurados');
                     setPlantasOriginales([]);
@@ -254,14 +256,14 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                 setPlantas([]);
             })
             .finally(() => setCargandoEstructura(false));
-    }, [loteId]);
+    }, [loteId, esEdicion]);
 
     // ── Cargar plantas elegibles ─────────────────────────────────────────────
     useEffect(() => {
-        if (paso === 2 && loteId && tipoDiagnostico && estructuraLote?.total_plantas) {
+        if (paso === 2 && loteId && tipoDiagnostico && estructuraLote?.total_plantas && !esEdicion) {
             cargarPlantasElegibles();
         }
-    }, [tipoDiagnostico, paso, loteId, estructuraLote, cargarPlantasElegibles]);
+    }, [tipoDiagnostico, paso, loteId, estructuraLote, cargarPlantasElegibles, esEdicion]);
 
     // ── Regenerar selección manual ───────────────────────────────────────────
     const regenerarSeleccionPlantas = () => {
@@ -293,8 +295,13 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         if (!esEdicion || !diagnostico) return;
         setPaso(2);
         const d = diagnostico as any;
+        
+        // Establecer los IDs en orden correcto para que los useEffect los procesen
         if (d.programa_id) setProgramaId(d.programa_id);
         if (d.tipo_monitoreo_id) setTipoMonitoreoId(d.tipo_monitoreo_id);
+        // IMPORTANTE: Establecer subtipoId DESPUÉS de tipoMonitoreoId
+        // pero el useEffect de subtipos se encargará de cargar la lista
+        if (d.diagnostico_tipo_id) setSubtipoId(d.diagnostico_tipo_id);
         if (d.lote_id) setLoteId(d.lote_id);
         if (d.tipo_diagnostico) setTipoDiagnostico(d.tipo_diagnostico);
         if (d.condiciones_dia) setCondicionesDia(d.condiciones_dia);
@@ -549,7 +556,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         <button
                             type="button"
                             onClick={handleSiguiente}
-                            disabled={!programaId || !tipoMonitoreoId || !subtipoId || !loteId || !estructuraLote?.total_plantas}
+                            disabled={!programaId || !tipoMonitoreoId || !subtipoId || !loteId || (!esEdicion && !estructuraLote?.total_plantas)}
                             className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
                         >
                             Siguiente <i className="fas fa-arrow-right ml-2"></i>
@@ -576,19 +583,23 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                     {estructuraLote && (
                                         <div className="mt-2 text-xs text-gray-500">
                                             {estructuraLote.surcos} surcos × {estructuraLote.plantas_por_surco} plantas/surco = {estructuraLote.total_plantas.toLocaleString()} plantas
-                                            <span className="ml-2 text-blue-600">| Elegibles: {plantas.length} ({porcentajeMuestreo}%)</span>
+                                            {!esEdicion && (
+                                                <span className="ml-2 text-blue-600">| Elegibles: {plantas.length} ({porcentajeMuestreo}%)</span>
+                                            )}
                                         </div>
                                     )}
                                 </div>
                                 <div className="flex gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={regenerarSeleccionPlantas}
-                                        disabled={cargandoPlantas}
-                                        className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1 px-2 py-1 bg-blue-50 rounded disabled:opacity-50"
-                                    >
-                                        <i className="fas fa-random"></i> Nueva muestra
-                                    </button>
+                                    {!esEdicion && (
+                                        <button
+                                            type="button"
+                                            onClick={regenerarSeleccionPlantas}
+                                            disabled={cargandoPlantas}
+                                            className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1 px-2 py-1 bg-blue-50 rounded disabled:opacity-50"
+                                        >
+                                            <i className="fas fa-random"></i> Nueva muestra
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={() => setPaso(1)}
@@ -625,17 +636,17 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         {/* Formulario dinámico */}
                         {tipoDiagnostico && (
                             <div className="space-y-4">
-                                {/* Estados de carga */}
-                                {cargandoPlantas && (
+                                {/* Estados de carga (solo en creación) */}
+                                {!esEdicion && cargandoPlantas && (
                                     <div className="bg-blue-50 p-4 rounded-lg text-blue-700 flex items-center">
                                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
                                         Cargando plantas elegibles...
                                     </div>
                                 )}
-                                {!cargandoPlantas && errorPlantas && (
+                                {!esEdicion && !cargandoPlantas && errorPlantas && (
                                     <div className="bg-red-50 p-4 rounded-lg text-red-700">{errorPlantas}</div>
                                 )}
-                                {!cargandoPlantas && plantas.length === 0 && !errorPlantas && (
+                                {!esEdicion && !cargandoPlantas && plantas.length === 0 && !errorPlantas && (
                                     <div className="bg-yellow-50 p-4 rounded-lg text-yellow-700">
                                         No hay plantas elegibles para este diagnóstico. Esto puede deberse a que no hay plantas productivas en el lote o ya fueron evaluadas recientemente.
                                     </div>
@@ -712,7 +723,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                         </button>
                         <button
                             type="submit"
-                            disabled={!tipoDiagnostico || !condicionesDia || (cargandoPlantas && plantas.length === 0) || submitting}
+                            disabled={!tipoDiagnostico || !condicionesDia || (!esEdicion && cargandoPlantas && plantas.length === 0) || submitting}
                             className="bg-green-600 text-white px-5 py-2.5 rounded-lg hover:bg-green-700 disabled:bg-gray-400"
                         >
                             {submitting ? 'Guardando...' : (esEdicion ? 'Actualizar' : 'Crear')}

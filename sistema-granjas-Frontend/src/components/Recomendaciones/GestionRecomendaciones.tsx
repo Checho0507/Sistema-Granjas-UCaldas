@@ -66,7 +66,7 @@ const GestionRecomendaciones: React.FC = () => {
         const cargarProgramas = async () => {
             try {
                 const data = await programaService.obtenerProgramas();
-                setProgramas(Array.isArray(data) ? data : (data?.items || []));
+                setProgramas(Array.isArray(data) ? data : ((data as any)?.items || []));
             } catch (err) {
                 console.error('Error cargando programas:', err);
             }
