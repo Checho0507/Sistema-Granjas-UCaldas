@@ -189,6 +189,7 @@ const GestionRecomendaciones: React.FC = () => {
                                 tipo_labor_id: labor.tipo_labor_id,
                                 recomendacion_id: nueva.id,
                                 lote_id: nueva.lote_id,
+                                trabajador_id: labor.trabajador_id,
                                 comentario: labor.comentario || '',
                             } as any, user);
                             creadas++;
@@ -262,12 +263,6 @@ const GestionRecomendaciones: React.FC = () => {
         setUrlDiagnosticoId(undefined);
         setUrlLoteId(undefined);
     };
-
-    const tiposRecomendacion = [...new Set(
-        (Array.isArray(recomendaciones) ? recomendaciones : [])
-            .map(r => r.tipo)
-            .filter((t): t is string => !!t)
-    )].sort();
 
     const recomendacionesFiltradas = Array.isArray(recomendaciones) ? recomendaciones.filter(r => {
         if (!user) return false;
