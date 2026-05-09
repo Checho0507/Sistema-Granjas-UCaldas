@@ -15,6 +15,7 @@ import tipoLaborService from '../../services/tipoLaboresService';
 
 interface LaborRow {
     tipo_labor_id: number | null;
+    trabajador_id: number | null;
     comentario: string;
 }
 
@@ -47,7 +48,8 @@ const FormVinculadaDiagnostico: React.FC<{
     onCancel: () => void;
     submitting: boolean;
     setSubmitting: (v: boolean) => void;
-}> = ({ diagnosticoId, lotes, programas, currentUser, onSubmit, onCancel, submitting, setSubmitting }) => {
+    docentes: any[];
+}> = ({ diagnosticoId, lotes, programas, currentUser, onSubmit, onCancel, submitting, setSubmitting, docentes }) => {
     const [diagnostico, setDiagnostico] = useState<any>(null);
     const [campos, setCampos] = useState<CampoRecomendacion[]>([]);
     const [formulario, setFormulario] = useState<Record<string, any>>({});
@@ -135,6 +137,15 @@ const FormVinculadaDiagnostico: React.FC<{
             }
         }
 
+        // Validar labores
+        const laboresValidas = laboresToCrear.filter(l => l.tipo_labor_id !== null);
+        for (const labor of laboresValidas) {
+            if (!labor.trabajador_id) {
+                toast.warning('Cada labor debe tener un trabajador asignado');
+                return;
+            }
+        }
+
         const docenteId = currentUser?.id;
         if (!docenteId) { toast.error('No se pudo determinar el autor'); return; }
 
@@ -156,7 +167,11 @@ const FormVinculadaDiagnostico: React.FC<{
                 cantidad_sugerida: aplicarProducto === 'si' && dosis ? parseFloat(dosis) : null,
                 unidad_dosis: aplicarProducto === 'si' ? unidad.trim() : null,
                 items_sugeridos: [],
-                labores_a_crear: laboresToCrear.filter(l => l.tipo_labor_id !== null),
+                labores_a_crear: laboresValidas.map(l => ({
+                    tipo_labor_id: l.tipo_labor_id,
+                    trabajador_id: l.trabajador_id,
+                    comentario: l.comentario,
+                })),
             });
         } catch (e: any) {
             toast.error(e?.message || 'Error al crear la recomendación');
@@ -179,7 +194,9 @@ const FormVinculadaDiagnostico: React.FC<{
                 return (
                     <select value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} required={campo.requerido}>
                         <option value="">Seleccionar...</option>
-                        {(campo.opciones || []).map(op => <option key={op} value={op}>{op}</option>)}
+                        {(Array.isArray(campo.opciones) ? campo.opciones : []).map((op: string) => (
+                            <option key={op} value={op}>{op}</option>
+                        ))}
                     </select>
                 );
             case 'boolean':
@@ -233,7 +250,7 @@ const FormVinculadaDiagnostico: React.FC<{
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     {campo.etiqueta}
                                     {campo.requerido && <span className="text-red-500 ml-1">*</span>}
-                                    <span className="ml-2 text-xs text-gray-400">({TIPOS_DATO_LABELS[campo.tipo_dato]})</span>
+                                    <span className="ml-2 text-xs text-gray-400">({TIPOS_DATO_LABELS[campo.tipo_dato] || campo.tipo_dato})</span>
                                 </label>
                                 {renderCampo(campo)}
                             </div>
@@ -259,7 +276,6 @@ const FormVinculadaDiagnostico: React.FC<{
 
                 {aplicarProducto === 'si' && (
                     <div className="space-y-4 border-t border-gray-200 pt-4">
-                        {/* Tipo inventario */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de inventario *</label>
                             {tiposInventario.length === 0 ? (
@@ -281,7 +297,6 @@ const FormVinculadaDiagnostico: React.FC<{
                             )}
                         </div>
 
-                        {/* Items */}
                         {tipoInventarioId && (
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Producto *</label>
@@ -306,7 +321,6 @@ const FormVinculadaDiagnostico: React.FC<{
                             </div>
                         )}
 
-                        {/* Dosis + Unidad */}
                         {itemId && (
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
@@ -351,7 +365,7 @@ const FormVinculadaDiagnostico: React.FC<{
                         <i className="fas fa-tasks mr-1"></i>
                         Labores a crear (opcional)
                     </h4>
-                    <button type="button" onClick={() => setLaboresToCrear(prev => [...prev, { tipo_labor_id: null, comentario: '' }])}
+                    <button type="button" onClick={() => setLaboresToCrear(prev => [...prev, { tipo_labor_id: null, trabajador_id: null, comentario: '' }])}
                         className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1">
                         <i className="fas fa-plus"></i> Agregar labor
                     </button>
@@ -362,13 +376,23 @@ const FormVinculadaDiagnostico: React.FC<{
                     <div className="space-y-3">
                         {laboresToCrear.map((labor, idx) => (
                             <div key={idx} className="flex gap-2 items-start bg-white border border-green-200 rounded-lg p-3">
-                                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
                                     <div>
                                         <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de labor *</label>
                                         <select value={labor.tipo_labor_id || ''} onChange={e => setLaboresToCrear(prev => prev.map((l, i) => i === idx ? { ...l, tipo_labor_id: e.target.value ? parseInt(e.target.value) : null } : l))}
                                             className="w-full border border-gray-300 rounded p-2 text-sm">
                                             <option value="">Seleccionar...</option>
                                             {tiposLabor.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">Trabajador *</label>
+                                        <select value={labor.trabajador_id || ''} onChange={e => setLaboresToCrear(prev => prev.map((l, i) => i === idx ? { ...l, trabajador_id: e.target.value ? parseInt(e.target.value) : null } : l))}
+                                            className="w-full border border-gray-300 rounded p-2 text-sm">
+                                            <option value="">Seleccionar...</option>
+                                            {docentes.map((doc: any) => (
+                                                <option key={doc.id} value={doc.id}>{doc.nombre} ({doc.email})</option>
+                                            ))}
                                         </select>
                                     </div>
                                     <div>
@@ -474,7 +498,9 @@ const FormGeneral: React.FC<{
                 return (
                     <select value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} required={campo.requerido}>
                         <option value="">Seleccionar...</option>
-                        {(campo.opciones || []).map(op => <option key={op} value={op}>{op}</option>)}
+                        {(Array.isArray(campo.opciones) ? campo.opciones : []).map((op: string) => (
+                            <option key={op} value={op}>{op}</option>
+                        ))}
                     </select>
                 );
             case 'boolean':
@@ -500,6 +526,16 @@ const FormGeneral: React.FC<{
                 return;
             }
         }
+
+        // Validar labores
+        const laboresValidas = laboresToCrear.filter(l => l.tipo_labor_id !== null);
+        for (const labor of laboresValidas) {
+            if (!labor.trabajador_id) {
+                toast.warning('Cada labor debe tener un trabajador asignado');
+                return;
+            }
+        }
+
         const docenteId = currentUser?.id || docentes[0]?.id;
         if (!docenteId) { toast.error('No se pudo determinar el autor'); return; }
         setSubmitting(true);
@@ -509,7 +545,11 @@ const FormGeneral: React.FC<{
                 lote_id: loteId, subtipo_id: subtipoId || null,
                 formulario_recomendacion: Object.keys(formulario).length > 0 ? formulario : null,
                 docente_id: docenteId, diagnostico_id: null, items_sugeridos: [],
-                labores_a_crear: esEdicion ? [] : laboresToCrear.filter(l => l.tipo_labor_id !== null),
+                labores_a_crear: esEdicion ? [] : laboresValidas.map(l => ({
+                    tipo_labor_id: l.tipo_labor_id,
+                    trabajador_id: l.trabajador_id,
+                    comentario: l.comentario,
+                })),
             });
         } catch (e: any) {
             toast.error(e?.message || 'Error');
@@ -603,7 +643,7 @@ const FormGeneral: React.FC<{
                             <i className="fas fa-tasks mr-1"></i>
                             Labores a crear (opcional)
                         </h4>
-                        <button type="button" onClick={() => setLaboresToCrear(prev => [...prev, { tipo_labor_id: null, comentario: '' }])}
+                        <button type="button" onClick={() => setLaboresToCrear(prev => [...prev, { tipo_labor_id: null, trabajador_id: null, comentario: '' }])}
                             className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1">
                             <i className="fas fa-plus"></i> Agregar labor
                         </button>
@@ -614,13 +654,23 @@ const FormGeneral: React.FC<{
                         <div className="space-y-3">
                             {laboresToCrear.map((labor, idx) => (
                                 <div key={idx} className="flex gap-2 items-start bg-white border border-green-200 rounded-lg p-3">
-                                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
                                         <div>
                                             <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de labor *</label>
                                             <select value={labor.tipo_labor_id || ''} onChange={e => setLaboresToCrear(prev => prev.map((l, i) => i === idx ? { ...l, tipo_labor_id: e.target.value ? parseInt(e.target.value) : null } : l))}
                                                 className="w-full border border-gray-300 rounded p-2 text-sm">
                                                 <option value="">Seleccionar...</option>
                                                 {tiposLabor.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-600 mb-1">Trabajador *</label>
+                                            <select value={labor.trabajador_id || ''} onChange={e => setLaboresToCrear(prev => prev.map((l, i) => i === idx ? { ...l, trabajador_id: e.target.value ? parseInt(e.target.value) : null } : l))}
+                                                className="w-full border border-gray-300 rounded p-2 text-sm">
+                                                <option value="">Seleccionar...</option>
+                                                {docentes.map((doc: any) => (
+                                                    <option key={doc.id} value={doc.id}>{doc.nombre} ({doc.email})</option>
+                                                ))}
                                             </select>
                                         </div>
                                         <div>
@@ -691,6 +741,7 @@ const RecomendacionFormSelector: React.FC<Props> = ({
                     onCancel={onCancel}
                     submitting={submitting}
                     setSubmitting={setSubmitting}
+                    docentes={docentes}
                 />
             ) : (
                 <FormGeneral
