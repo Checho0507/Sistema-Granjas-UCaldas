@@ -89,56 +89,56 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
             try {
                 const rec = recomendacion as any;
 
-                // 1. Establecer datos básicos
+                // Establecer datos básicos
                 setTitulo(rec.titulo || '');
                 setDescripcion(rec.descripcion || '');
                 setEstado(rec.estado || 'pendiente');
                 setLoteId(rec.lote_id || null);
 
-                // 2. Cargar formulario guardado
+                // Cargar formulario guardado
                 if (rec.formulario_recomendacion) {
                     setFormulario(rec.formulario_recomendacion);
                 }
 
-                // 3. Determinar programa_id desde el lote
+                // Determinar programa_id desde el lote
                 if (rec.lote_id) {
                     const lote = lotes.find(l => l.id === rec.lote_id);
                     if (lote?.programa_id) {
                         setProgramaId(lote.programa_id);
+                    }
+                }
 
-                        // 4. Cargar monitoreos para este programa
-                        const monitoreosData = await monitoreoService.obtenerMonitoreosPorPrograma(lote.programa_id);
-                        const mons = Array.isArray(monitoreosData) ? monitoreosData : [];
-                        setMonitoreos(mons);
+                // Establecer subtipo y monitoreo
+                if (rec.subtipo_id) {
+                    setSubtipoId(rec.subtipo_id);
+                }
 
-                        // 5. Buscar a qué monitoreo pertenece el subtipo Y cargar subtipos
-                        const subtipoIdFromRec = rec.subtipo_id;
-                        if (subtipoIdFromRec) {
-                            setSubtipoId(subtipoIdFromRec);
+                // IMPORTANTE: usar setMonitoreoId (no setTipoMonitoreoId)
+                // Buscar el monitoreo al que pertenece el subtipo
+                if (rec.lote_id && rec.subtipo_id) {
+                    const lote = lotes.find(l => l.id === rec.lote_id);
+                    if (lote?.programa_id) {
+                        const mons = await monitoreoService.obtenerMonitoreosPorPrograma(lote.programa_id);
+                        const monitoreosArr = Array.isArray(mons) ? mons : [];
+                        setMonitoreos(monitoreosArr);
 
-                            for (const mon of mons) {
-                                const subtiposData = await diagnosticoDinamicoService.listarSubtiposPorMonitoreo(mon.id);
-                                const encontrado = subtiposData.find(s => s.id === subtipoIdFromRec);
-                                if (encontrado) {
-                                    setMonitoreoId(mon.id);
-                                    setSubtipos(subtiposData.filter(s => s.activo));
-                                    break;
-                                }
+                        for (const mon of monitoreosArr) {
+                            const subtiposData = await diagnosticoDinamicoService.listarSubtiposPorMonitoreo(mon.id);
+                            const encontrado = subtiposData.find(s => s.id === rec.subtipo_id);
+                            if (encontrado) {
+                                setMonitoreoId(mon.id);
+                                break;
                             }
-
-                            // 6. Cargar los campos de recomendación para este subtipo
-                            const camposData = await diagnosticoDinamicoService.listarCamposRecomendacion(subtipoIdFromRec);
-                            setCampos([...camposData].sort((a, b) => a.orden - b.orden));
                         }
                     }
                 }
 
-                // 7. Cargar inventario si aplica
-                if ((rec as any).inventario_item_id) {
-                    setItemId((rec as any).inventario_item_id);
+                // Cargar inventario si aplica
+                if (rec.inventario_item_id) {
+                    setItemId(rec.inventario_item_id);
                     setAplicarProducto('si');
-                    if ((rec as any).cantidad_sugerida) {
-                        setDosis(String((rec as any).cantidad_sugerida));
+                    if (rec.cantidad_sugerida) {
+                        setDosis(String(rec.cantidad_sugerida));
                     }
                 }
             } catch (e) {
@@ -164,11 +164,10 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
 
                 if (d.lote_id) setLoteId(d.lote_id);
                 if (d.programa_id) setProgramaId(d.programa_id);
-                if (d.tipo_monitoreo_id) setTipoMonitoreoId(d.tipo_monitoreo_id);
+                // CORRECCIÓN: usar setMonitoreoId (no setTipoMonitoreoId)
+                if (d.tipo_monitoreo_id) setMonitoreoId(d.tipo_monitoreo_id);
                 if (d.diagnostico_tipo_id) {
                     setSubtipoId(d.diagnostico_tipo_id);
-                    const camposData = await diagnosticoDinamicoService.listarCamposRecomendacion(d.diagnostico_tipo_id);
-                    setCampos([...camposData].sort((a, b) => a.orden - b.orden));
                 }
 
                 const monNombre = d.tipo_monitoreo_nombre || d.tipo_diagnostico || '';
@@ -195,47 +194,52 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
             setMonitoreos([]);
             return;
         }
-        // No recargar en modo edición si ya tenemos monitoreos
-        if (esEdicion && monitoreos.length > 0) return;
-        
         monitoreoService.obtenerMonitoreosPorPrograma(programaId)
             .then(data => setMonitoreos(Array.isArray(data) ? data : []))
             .catch(() => { });
-    }, [programaId, esEdicion, monitoreos.length]);
+    }, [programaId]);
 
     // ── Cargar subtipos ──────────────────────────────────────────────────────
+    // PATRÓN CORRECTO: siempre recargar cuando cambia monitoreoId, sin optimizaciones
     useEffect(() => {
         if (!monitoreoId) {
-            // No resetear subtipoId ni subtipos en modo edición o vinculado
+            setSubtipos([]);
             if (!esEdicion && !modoVinculado) {
-                setSubtipos([]);
                 setSubtipoId(null);
             }
             return;
         }
-        // En modo edición, no recargar si ya tenemos los subtipos cargados
-        if (esEdicion && subtipos.length > 0) return;
 
-        diagnosticoDinamicoService.listarSubtiposPorMonitoreo(monitoreoId)
+        diagnosticoDinamicoService
+            .listarSubtiposPorMonitoreo(monitoreoId)
             .then(data => {
-                setSubtipos(data.filter(s => s.activo));
+                const activos = data.filter(s => s.activo);
+                setSubtipos(activos);
+
+                // Validar que el subtipo actual exista en los nuevos datos
+                if (subtipoId && !activos.some(s => s.id === subtipoId)) {
+                    setSubtipoId(null);
+                }
             })
-            .catch(() => { });
-    }, [monitoreoId, esEdicion, modoVinculado, subtipos.length]);
+            .catch(() => {
+                setSubtipos([]);
+            });
+
+    }, [monitoreoId, esEdicion, modoVinculado, subtipoId]);
 
     // ── Cargar campos dinámicos ──────────────────────────────────────────────
     useEffect(() => {
         if (!subtipoId) {
-            if (!esEdicion && !modoVinculado) setCampos([]);
+            setCampos([]);
             return;
         }
-        // No recargar en modo edición si ya tenemos campos
-        if (esEdicion && campos.length > 0) return;
 
         diagnosticoDinamicoService.listarCamposRecomendacion(subtipoId)
-            .then(data => { setCampos([...data].sort((a, b) => a.orden - b.orden)); })
+            .then(data => {
+                setCampos([...data].sort((a, b) => a.orden - b.orden));
+            })
             .catch(() => setCampos([]));
-    }, [subtipoId, esEdicion, modoVinculado, campos.length]);
+    }, [subtipoId]);
 
     // ── Cargar tipos de labor ────────────────────────────────────────────────
     useEffect(() => {
@@ -413,36 +417,44 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
                     )}
 
                     {/* Monitoreo */}
-                    {programaId && !modoVinculado && monitoreos.length > 0 && (
+                    {programaId && !modoVinculado && (
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de Monitoreo</label>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                {monitoreos.map(m => (
-                                    <button key={m.id} type="button"
-                                        onClick={() => { setMonitoreoId(m.id); setSubtipoId(null); }}
-                                        className={`p-3 border-2 rounded-lg text-sm text-center transition ${monitoreoId === m.id ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium' : 'border-gray-200 hover:border-orange-300'}`}
-                                        disabled={esEdicion || modoVinculado}>
-                                        <i className="fas fa-leaf block text-lg mb-1"></i>{m.nombre}
-                                    </button>
-                                ))}
-                            </div>
+                            {monitoreos.length === 0 ? (
+                                <p className="text-sm text-gray-500">No hay tipos de monitoreo disponibles</p>
+                            ) : (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    {monitoreos.map(m => (
+                                        <button key={m.id} type="button"
+                                            onClick={() => { setMonitoreoId(m.id); setSubtipoId(null); }}
+                                            className={`p-3 border-2 rounded-lg text-sm text-center transition ${monitoreoId === m.id ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium' : 'border-gray-200 hover:border-orange-300'}`}
+                                            disabled={esEdicion || modoVinculado}>
+                                            <i className="fas fa-leaf block text-lg mb-1"></i>{m.nombre}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
 
                     {/* Subtipo */}
-                    {monitoreoId && !modoVinculado && subtipos.length > 0 && (
+                    {monitoreoId && !modoVinculado && (
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-2">Subtipo</label>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                {subtipos.map(s => (
-                                    <button key={s.id} type="button"
-                                        onClick={() => setSubtipoId(s.id)}
-                                        className={`p-3 border-2 rounded-lg text-sm text-center transition ${subtipoId === s.id ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium' : 'border-gray-200 hover:border-orange-300'}`}
-                                        disabled={esEdicion || modoVinculado}>
-                                        {s.nombre}
-                                    </button>
-                                ))}
-                            </div>
+                            {subtipos.length === 0 ? (
+                                <p className="text-sm text-gray-500">No hay subtipos disponibles</p>
+                            ) : (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    {subtipos.map(s => (
+                                        <button key={s.id} type="button"
+                                            onClick={() => setSubtipoId(s.id)}
+                                            className={`p-3 border-2 rounded-lg text-sm text-center transition ${subtipoId === s.id ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium' : 'border-gray-200 hover:border-orange-300'}`}
+                                            disabled={esEdicion || modoVinculado}>
+                                            {s.nombre}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
 
