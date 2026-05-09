@@ -3,8 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import type { Recomendacion } from '../../types/recomendacionTypes';
 import {
-  diagnosticoDinamicoService,
-  type CampoRecomendacion,
+    diagnosticoDinamicoService,
+    type CampoRecomendacion,
 } from '../../services/diagnosticoDinamicoService';
 import { monitoreoService, type Monitoreo } from '../../services/monitoreoService';
 import { diagnosticoService } from '../../services/diagnosticoService';
@@ -101,7 +101,7 @@ const FormVinculadaDiagnostico: React.FC<{
     useEffect(() => {
         tipoLaborService.obtenerTiposLabor()
             .then(data => setTiposLabor(Array.isArray(data) ? data : []))
-            .catch(() => {});
+            .catch(() => { });
     }, []);
 
     // Load items when tipo changes
@@ -437,27 +437,27 @@ const FormGeneral: React.FC<{
         if (!programaId) { setMonitoreos([]); return; }
         monitoreoService.obtenerMonitoreosPorPrograma(programaId)
             .then(data => setMonitoreos(Array.isArray(data) ? data : []))
-            .catch(() => {});
+            .catch(() => { });
     }, [programaId]);
 
     useEffect(() => {
         if (!monitoreoId) { setSubtipos([]); return; }
         diagnosticoDinamicoService.listarSubtiposPorMonitoreo(monitoreoId)
             .then(data => setSubtipos(data.filter(s => s.activo)))
-            .catch(() => {});
+            .catch(() => { });
     }, [monitoreoId]);
 
     useEffect(() => {
         if (!subtipoId) { setCampos([]); return; }
         diagnosticoDinamicoService.listarCamposRecomendacion(subtipoId)
             .then(data => { setCampos([...data].sort((a, b) => a.orden - b.orden)); setFormulario({}); })
-            .catch(() => {});
+            .catch(() => { });
     }, [subtipoId]);
 
     useEffect(() => {
         tipoLaborService.obtenerTiposLabor()
             .then(data => setTiposLabor(Array.isArray(data) ? data : []))
-            .catch(() => {});
+            .catch(() => { });
     }, []);
 
     const renderCampo = (campo: CampoRecomendacion) => {
