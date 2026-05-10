@@ -35,7 +35,7 @@ const GestionInventarioDinamico: React.FC = () => {
     const cargarProgramas = async () => {
       try {
         const data = await programaService.obtenerProgramas();
-        setProgramas(data);
+        setProgramas(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error('Error cargando programas:', error);
         toast.error('No se pudieron cargar los programas');
@@ -50,6 +50,11 @@ const GestionInventarioDinamico: React.FC = () => {
   useEffect(() => {
     if (programaId) {
       cargarTipos();
+    } else {
+      setTipos([]);
+      setTipoSeleccionado(null);
+      setCampos([]);
+      setItems([]);
     }
   }, [programaId]);
 
@@ -59,21 +64,17 @@ const GestionInventarioDinamico: React.FC = () => {
     try {
       const data = await inventarioDinamicoService.listarTipos(programaId);
       setTipos(data);
-      if (data.length > 0 && !tipoSeleccionado) {
-        setTipoSeleccionado(data[0]);
-        await cargarCamposItems(data[0].id);
-      } else if (tipoSeleccionado) {
-        const stillExists = data.find(t => t.id === tipoSeleccionado.id);
-        if (stillExists) {
+      if (data.length > 0) {
+        if (tipoSeleccionado && data.find(t => t.id === tipoSeleccionado.id)) {
           await cargarCamposItems(tipoSeleccionado.id);
-        } else if (data.length > 0) {
+        } else {
           setTipoSeleccionado(data[0]);
           await cargarCamposItems(data[0].id);
-        } else {
-          setTipoSeleccionado(null);
-          setCampos([]);
-          setItems([]);
         }
+      } else {
+        setTipoSeleccionado(null);
+        setCampos([]);
+        setItems([]);
       }
     } catch (err) {
       toast.error('Error cargando tipos');
@@ -107,17 +108,18 @@ const GestionInventarioDinamico: React.FC = () => {
     toast.success('Tipo creado');
     await cargarTipos();
   };
+  
   const handleActualizarTipo = async (id: number, data: any) => {
     await inventarioDinamicoService.actualizarTipo(id, data);
     toast.success('Tipo actualizado');
     await cargarTipos();
   };
+  
   const handleEliminarTipo = async (id: number) => {
     if (confirm('¿Eliminar tipo y todos sus campos e items?')) {
       await inventarioDinamicoService.eliminarTipo(id);
       toast.success('Tipo eliminado');
       await cargarTipos();
-      if (tipoSeleccionado?.id === id) setTipoSeleccionado(null);
     }
   };
 
@@ -128,16 +130,18 @@ const GestionInventarioDinamico: React.FC = () => {
     toast.success('Campo creado');
     await cargarCamposItems(tipoSeleccionado.id);
   };
+  
   const handleActualizarCampo = async (id: number, data: any) => {
     await inventarioDinamicoService.actualizarCampo(id, data);
     toast.success('Campo actualizado');
-    await cargarCamposItems(tipoSeleccionado!.id);
+    if (tipoSeleccionado) await cargarCamposItems(tipoSeleccionado.id);
   };
+  
   const handleEliminarCampo = async (id: number) => {
     if (confirm('¿Eliminar este campo? Los datos se perderán.')) {
       await inventarioDinamicoService.eliminarCampo(id);
       toast.success('Campo eliminado');
-      await cargarCamposItems(tipoSeleccionado!.id);
+      if (tipoSeleccionado) await cargarCamposItems(tipoSeleccionado.id);
     }
   };
 
@@ -148,16 +152,18 @@ const GestionInventarioDinamico: React.FC = () => {
     toast.success('Registro creado');
     await cargarCamposItems(tipoSeleccionado.id);
   };
+  
   const handleActualizarItem = async (id: number, data: any) => {
     await inventarioDinamicoService.actualizarItem(id, data);
     toast.success('Registro actualizado');
-    await cargarCamposItems(tipoSeleccionado!.id);
+    if (tipoSeleccionado) await cargarCamposItems(tipoSeleccionado.id);
   };
+  
   const handleEliminarItem = async (id: number) => {
     if (confirm('¿Eliminar este registro?')) {
       await inventarioDinamicoService.eliminarItem(id);
       toast.success('Registro eliminado');
-      await cargarCamposItems(tipoSeleccionado!.id);
+      if (tipoSeleccionado) await cargarCamposItems(tipoSeleccionado.id);
     }
   };
 
@@ -181,6 +187,7 @@ const GestionInventarioDinamico: React.FC = () => {
                 onEdit={(tipo) => { setEditandoTipo(tipo); setModalTipo(true); }}
                 onDelete={handleEliminarTipo}
                 onCreate={() => { setEditandoTipo(null); setModalTipo(true); }}
+                loading={loading}
               />
             </div>
             <div className="lg:col-span-2">
@@ -214,7 +221,7 @@ const GestionInventarioDinamico: React.FC = () => {
           </div>
         )}
 
-        {/* Modales (sin cambios) */}
+        {/* Modales */}
         <TipoInventarioForm
           isOpen={modalTipo}
           onClose={() => { setModalTipo(false); setEditandoTipo(null); }}
@@ -227,7 +234,9 @@ const GestionInventarioDinamico: React.FC = () => {
           onSave={editandoCampo ? (data) => handleActualizarCampo(editandoCampo.id, data) : handleCrearCampo}
           campo={editandoCampo || undefined}
         />
+        {/* KEY agregado para forzar remount limpio del modal */}
         <ItemInventarioForm
+          key={editandoItem?.id || 'new'}
           isOpen={modalItem}
           onClose={() => { setModalItem(false); setEditandoItem(null); }}
           onSave={editandoItem ? (data) => handleActualizarItem(editandoItem.id, data) : handleCrearItem}
