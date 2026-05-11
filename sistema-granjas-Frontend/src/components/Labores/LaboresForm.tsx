@@ -6,6 +6,26 @@ import {
     diagnosticoDinamicoService,
     type CampoLabor,
 } from '../../services/diagnosticoDinamicoService';
+import { inventarioDinamicoService } from '../../services/inventarioDinamicoService';
+
+// ── Interfaces ──────────────────────────────────────────────────────────────────
+interface ProductoLabor {
+    tipo_inventario_id: number | null;
+    inventario_item_id: number | null;
+    dosis: string;
+    unidad: string;
+    items: any[];
+    loadingItems: boolean;
+}
+
+const newProductoLabor = (): ProductoLabor => ({
+    tipo_inventario_id: null,
+    inventario_item_id: null,
+    dosis: '',
+    unidad: '',
+    items: [],
+    loadingItems: false,
+});
 
 interface LaborFormProps {
     labor?: Labor;
@@ -24,6 +44,115 @@ const TIPOS_DATO_LABELS: Record<string, string> = {
     date: 'Fecha', select: 'Selección', boolean: 'Sí / No',
 };
 
+// ── Componente auxiliar: Selector de items del inventario ──────────────────────
+const InventarioItemSelect: React.FC<{
+    items: any[];
+    loading: boolean;
+    value: number | null;
+    onChange: (id: number | null) => void;
+    label?: string;
+}> = ({ items, loading, value, onChange, label = "Producto" }) => {
+    const getItemNombre = (item: any) => {
+        const v = item.valores || {};
+        return (v['Nombre Comercial'] || v.Nombre || v.producto || v.nombre || `Producto #${item.id}`) +
+            (item.unidad_medida ? ` (${item.unidad_medida})` : '');
+    };
+
+    if (loading) {
+        return (
+            <div className="flex items-center text-gray-500 text-xs gap-2 py-2">
+                <div className="animate-spin h-3 w-3 border-2 border-purple-500 border-t-transparent rounded-full"></div>
+                Cargando...
+            </div>
+        );
+    }
+
+    if (items.length === 0) {
+        return <p className="text-xs text-yellow-600">No hay productos disponibles</p>;
+    }
+
+    return (
+        <select
+            value={value || ''}
+            onChange={e => onChange(e.target.value ? parseInt(e.target.value) : null)}
+            className="w-full border border-gray-300 rounded p-2 text-sm"
+        >
+            <option value="">Seleccionar {label.toLowerCase()}...</option>
+            {items.map(item => (
+                <option key={item.id} value={item.id}>
+                    {getItemNombre(item)} — Disp: {item.cantidad_disponible}
+                </option>
+            ))}
+        </select>
+    );
+};
+
+// ── Componente auxiliar: Fila de Producto para Labor ──────────────────────────
+const ProductoLaborRow: React.FC<{
+    producto: ProductoLabor;
+    tiposInventario: any[];
+    onUpdate: (updates: Partial<ProductoLabor>) => void;
+    onRemove: () => void;
+}> = ({ producto, tiposInventario, onUpdate, onRemove }) => {
+
+    // Cargar items cuando cambia el tipo de inventario de este producto
+    useEffect(() => {
+        if (!producto.tipo_inventario_id) {
+            onUpdate({ items: [], inventario_item_id: null });
+            return;
+        }
+        onUpdate({ loadingItems: true });
+        inventarioDinamicoService.listarItems(producto.tipo_inventario_id)
+            .then(data => onUpdate({
+                items: data.filter((i: any) => i.cantidad_disponible > 0),
+                loadingItems: false,
+                inventario_item_id: null
+            }))
+            .catch(() => onUpdate({ items: [], loadingItems: false }));
+    }, [producto.tipo_inventario_id]);
+
+    return (
+        <div className="flex gap-2 items-start bg-white border border-purple-200 rounded-lg p-3">
+            <div className="flex-1 grid grid-cols-1 sm:grid-cols-4 gap-2">
+                <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Tipo inventario</label>
+                    <select
+                        value={producto.tipo_inventario_id || ''}
+                        onChange={e => onUpdate({ tipo_inventario_id: e.target.value ? parseInt(e.target.value) : null })}
+                        className="w-full border border-gray-300 rounded p-2 text-sm"
+                    >
+                        <option value="">Seleccionar tipo...</option>
+                        {tiposInventario.map(t => (
+                            <option key={t.id} value={t.id}>{t.nombre}</option>
+                        ))}
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Producto</label>
+                    <InventarioItemSelect
+                        items={producto.items}
+                        loading={producto.loadingItems}
+                        value={producto.inventario_item_id}
+                        onChange={(id) => onUpdate({ inventario_item_id: id })}
+                    />
+                </div>
+                <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Dosis</label>
+                    <input type="number" value={producto.dosis} onChange={e => onUpdate({ dosis: e.target.value })}
+                        className="w-full border border-gray-300 rounded p-2 text-sm" placeholder="Ej: 2.5" min="0" step="any" />
+                </div>
+                <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Unidad</label>
+                    <input type="text" value={producto.unidad} onChange={e => onUpdate({ unidad: e.target.value })}
+                        className="w-full border border-gray-300 rounded p-2 text-sm" placeholder="L/ha, kg, ml..." />
+                </div>
+            </div>
+            <button type="button" onClick={onRemove}
+                className="text-red-500 hover:text-red-700 mt-5 p-1"><i className="fas fa-trash text-xs"></i></button>
+        </div>
+    );
+};
+
 const LaborForm: React.FC<LaborFormProps> = ({
     labor,
     onSubmit,
@@ -36,21 +165,26 @@ const LaborForm: React.FC<LaborFormProps> = ({
     esEdicion = false
 }) => {
     const [formData, setFormData] = useState({
-        tipo_labor_id: labor?.tipo_labor_id || '',
-        trabajador_id: labor?.trabajador_id || '',
-        lote_id: labor?.lote_id || '',
-        recomendacion_id: labor?.recomendacion_id || '',
-        estado: labor?.estado || 'pendiente',
-        avance_porcentaje: labor?.avance_porcentaje || 0,
-        comentario: labor?.comentario || '',
+        tipo_labor_id: '',
+        trabajador_id: '',
+        lote_id: '',
+        recomendacion_id: '',
+        estado: 'pendiente',
+        avance_porcentaje: 0,
+        comentario: '',
     });
 
     // Dynamic campos_labor
     const [campos, setCampos] = useState<CampoLabor[]>([]);
-    const [formulario, setFormulario] = useState<Record<string, any>>(
-        labor?.formulario_labor || {}
-    );
+    const [formulario, setFormulario] = useState<Record<string, any>>({});
     const [loadingCampos, setLoadingCampos] = useState(false);
+
+    // Productos de la labor (múltiples, cada uno con su tipo de inventario)
+    const [productosLabor, setProductosLabor] = useState<ProductoLabor[]>([]);
+
+    // Tipos de inventario (cargados por programa)
+    const [tiposInventario, setTiposInventario] = useState<any[]>([]);
+    const [programaId, setProgramaId] = useState<number | null>(null);
 
     // Evidencias
     const [archivos, setArchivos] = useState<File[]>([]);
@@ -70,6 +204,26 @@ const LaborForm: React.FC<LaborFormProps> = ({
         }
     }, [currentUser, esEdicion, esTrabajador, formData.trabajador_id]);
 
+    // Cargar tipos de inventario cuando cambia el lote (obteniendo programa_id)
+    useEffect(() => {
+        if (!formData.lote_id) {
+            setTiposInventario([]);
+            setProgramaId(null);
+            return;
+        }
+        const lote = lotes.find(l => l.id === parseInt(formData.lote_id as string));
+        const progId = lote?.programa_id;
+        if (!progId) {
+            setTiposInventario([]);
+            setProgramaId(null);
+            return;
+        }
+        setProgramaId(progId);
+        inventarioDinamicoService.listarTipos(progId)
+            .then(data => setTiposInventario(data.filter(t => t.activo)))
+            .catch(() => setTiposInventario([]));
+    }, [formData.lote_id, lotes]);
+
     // Resetear form cuando se cambia labor
     useEffect(() => {
         if (labor) {
@@ -83,6 +237,18 @@ const LaborForm: React.FC<LaborFormProps> = ({
                 comentario: labor.comentario || '',
             });
             setFormulario(labor.formulario_labor || {});
+
+            // Cargar productos existentes de la labor
+            if ((labor as any).items_sugeridos?.length > 0) {
+                setProductosLabor((labor as any).items_sugeridos.map((item: any) => ({
+                    ...newProductoLabor(),
+                    inventario_item_id: item.inventario_item_id,
+                    dosis: item.cantidad_sugerida ? String(item.cantidad_sugerida) : '',
+                    unidad: item.unidad_dosis || '',
+                })));
+            } else {
+                setProductosLabor([]);
+            }
         } else if (!esEdicion) {
             setFormData({
                 tipo_labor_id: '',
@@ -94,6 +260,7 @@ const LaborForm: React.FC<LaborFormProps> = ({
                 comentario: '',
             });
             setFormulario({});
+            setProductosLabor([]);
         }
     }, [labor, esEdicion, esTrabajador, currentUser]);
 
@@ -105,7 +272,6 @@ const LaborForm: React.FC<LaborFormProps> = ({
             setFormulario({});
             return;
         }
-        // Buscar la recomendacion en la lista para obtener subtipo_id
         const rec = recomendaciones.find((r: any) => r.id === parseInt(recId as string));
         const subtipoId = rec?.subtipo_id;
         if (!subtipoId) {
@@ -117,7 +283,6 @@ const LaborForm: React.FC<LaborFormProps> = ({
             .then(data => {
                 const ordenados = [...data].sort((a, b) => a.orden - b.orden);
                 setCampos(ordenados);
-                // En edición, preservar valores existentes; en creación, limpiar
                 if (!esEdicion) setFormulario({});
             })
             .catch(() => {
@@ -251,6 +416,15 @@ const LaborForm: React.FC<LaborFormProps> = ({
             datosSubmit.formulario_labor = formulario;
         }
 
+        // Incluir productos de la labor
+        datosSubmit.items_sugeridos = productosLabor
+            .filter(p => p.inventario_item_id)
+            .map(p => ({
+                inventario_item_id: p.inventario_item_id,
+                cantidad_sugerida: p.dosis ? parseFloat(p.dosis) : null,
+                unidad_dosis: p.unidad || null,
+            }));
+
         if (evidencias.length > 0) {
             datosSubmit.evidencias = evidencias;
         }
@@ -290,7 +464,7 @@ const LaborForm: React.FC<LaborFormProps> = ({
                             <option value="">Seleccionar tipo</option>
                             {tiposLabor.map(tipo => (
                                 <option key={tipo.id} value={tipo.id}>
-                                    {tipo.nombre} - {tipo.descripcion}
+                                    {tipo.nombre}{tipo.descripcion ? ` - ${tipo.descripcion}` : ''}
                                 </option>
                             ))}
                         </select>
@@ -322,9 +496,7 @@ const LaborForm: React.FC<LaborFormProps> = ({
                     {/* Trabajador lectura (si es trabajador) */}
                     {esTrabajador && !esAdmin && !esDocente && (
                         <div>
-                            <label className="block text-sm font-medium mb-2">
-                                Trabajador
-                            </label>
+                            <label className="block text-sm font-medium mb-2">Trabajador</label>
                             <div className="border border-gray-300 p-3 rounded bg-gray-50">
                                 {currentUser.nombre} ({currentUser.email})
                             </div>
@@ -347,13 +519,9 @@ const LaborForm: React.FC<LaborFormProps> = ({
                             {lotes.map(lote => (
                                 <option key={lote.id} value={lote.id}>
                                     {lote.nombre} - {lote.granja_nombre || 'Sin granja'}
-                                    {lote.nombre_cultivo ? ` (${lote.nombre_cultivo})` : ''}
                                 </option>
                             ))}
                         </select>
-                        <p className="text-xs text-gray-500 mt-1">
-                            Selecciona un lote y su granja correspondiente
-                        </p>
                     </div>
 
                     {/* Recomendación (opcional) */}
@@ -374,9 +542,6 @@ const LaborForm: React.FC<LaborFormProps> = ({
                                 </option>
                             ))}
                         </select>
-                        <p className="text-xs text-gray-500 mt-1">
-                            Asocia esta labor a una recomendación específica
-                        </p>
                     </div>
 
                     {/* Campos dinámicos de labor */}
@@ -410,13 +575,40 @@ const LaborForm: React.FC<LaborFormProps> = ({
                         </div>
                     )}
 
+                    {/* Productos de la labor (múltiples, cada uno con su tipo de inventario) */}
+                    <div className="border border-purple-200 rounded-xl p-4 bg-purple-50">
+                        <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-semibold text-purple-800 text-sm">
+                                <i className="fas fa-boxes mr-1"></i>
+                                Productos a usar en esta labor
+                            </h4>
+                            <button type="button" onClick={() => setProductosLabor(prev => [...prev, newProductoLabor()])}
+                                className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1">
+                                <i className="fas fa-plus"></i> Agregar producto
+                            </button>
+                        </div>
+                        {productosLabor.length === 0 ? (
+                            <p className="text-xs text-purple-600">No hay productos asignados. Agrega uno si la labor requiere insumos.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {productosLabor.map((prod, idx) => (
+                                    <ProductoLaborRow
+                                        key={idx}
+                                        producto={prod}
+                                        tiposInventario={tiposInventario}
+                                        onUpdate={(updates) => setProductosLabor(prev => prev.map((p, i) => i === idx ? { ...p, ...updates } : p))}
+                                        onRemove={() => setProductosLabor(prev => prev.filter((_, i) => i !== idx))}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
                     {/* Estado (solo en edición) */}
                     {esEdicion && (esAdmin || esTalentoHumano || esTrabajador) && (
                         <>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Estado
-                                </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Estado</label>
                                 <select
                                     name="estado"
                                     value={formData.estado}
@@ -424,18 +616,14 @@ const LaborForm: React.FC<LaborFormProps> = ({
                                     className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 >
                                     {estadosLabor.map(estado => (
-                                        <option key={estado.value} value={estado.value} className={estado.color}>
-                                            {estado.label}
-                                        </option>
+                                        <option key={estado.value} value={estado.value}>{estado.label}</option>
                                     ))}
                                 </select>
                             </div>
 
                             {(esTalentoHumano || esAdmin || esTrabajador) && (
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Avance (%)
-                                    </label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Avance (%)</label>
                                     <div className="flex items-center gap-3">
                                         <input
                                             type="range"
@@ -449,11 +637,6 @@ const LaborForm: React.FC<LaborFormProps> = ({
                                         <span className="w-16 text-center font-medium bg-gray-100 px-2 py-1 rounded">
                                             {formData.avance_porcentaje}%
                                         </span>
-                                    </div>
-                                    <div className="flex justify-between mt-1">
-                                        <span className="text-xs text-gray-500">0%</span>
-                                        <span className="text-xs text-gray-500">50%</span>
-                                        <span className="text-xs text-gray-500">100%</span>
                                     </div>
                                 </div>
                             )}
@@ -479,11 +662,8 @@ const LaborForm: React.FC<LaborFormProps> = ({
                     <div className="mt-4">
                         <div className="flex justify-between mb-2">
                             <label className="font-medium text-gray-700">Evidencias Iniciales</label>
-                            <button
-                                type="button"
-                                onClick={agregarEvidencia}
-                                className="text-blue-600 text-sm hover:text-blue-800"
-                            >
+                            <button type="button" onClick={agregarEvidencia}
+                                className="text-blue-600 text-sm hover:text-blue-800">
                                 + Agregar evidencia
                             </button>
                         </div>
@@ -492,23 +672,14 @@ const LaborForm: React.FC<LaborFormProps> = ({
                             <div key={index} className="border rounded-lg p-4 mb-3 bg-gray-50">
                                 <div className="flex justify-between mb-3">
                                     <span className="font-medium text-sm text-gray-700">Evidencia {index + 1}</span>
-                                    <button
-                                        type="button"
-                                        onClick={() => eliminarEvidencia(index)}
-                                        className="text-red-500 hover:text-red-700 text-sm"
-                                    >
-                                        ✕ Eliminar
-                                    </button>
+                                    <button type="button" onClick={() => eliminarEvidencia(index)}
+                                        className="text-red-500 hover:text-red-700 text-sm">✕ Eliminar</button>
                                 </div>
-
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                     <div>
                                         <label className="text-sm text-gray-600 mb-1 block">Tipo</label>
-                                        <select
-                                            value={tiposEvidencia[index]}
-                                            onChange={(e) => handleTipoEvidenciaChange(index, e.target.value)}
-                                            className="w-full border rounded p-2 text-sm"
-                                        >
+                                        <select value={tiposEvidencia[index]} onChange={(e) => handleTipoEvidenciaChange(index, e.target.value)}
+                                            className="w-full border rounded p-2 text-sm">
                                             <option value="imagen">Imagen</option>
                                             <option value="video">Video</option>
                                             <option value="documento">Documento</option>
@@ -516,29 +687,17 @@ const LaborForm: React.FC<LaborFormProps> = ({
                                             <option value="otro">Otro</option>
                                         </select>
                                     </div>
-
                                     <div className="md:col-span-2">
                                         <label className="text-sm text-gray-600 mb-1 block">Descripción</label>
-                                        <input
-                                            type="text"
-                                            value={descripcionesEvidencias[index]}
+                                        <input type="text" value={descripcionesEvidencias[index]}
                                             onChange={(e) => handleDescripcionChange(index, e.target.value)}
-                                            className="w-full border rounded p-2 text-sm"
-                                            placeholder="Describe esta evidencia"
-                                        />
+                                            className="w-full border rounded p-2 text-sm" placeholder="Describe esta evidencia" />
                                     </div>
-
                                     <div className="md:col-span-3">
                                         <label className="text-sm text-gray-600 mb-1 block">Archivo</label>
-                                        <input
-                                            type="file"
-                                            className="w-full text-sm"
+                                        <input type="file" className="w-full text-sm"
                                             accept="image/*,video/*,.pdf,.doc,.docx,.txt"
-                                            onChange={(e) => handleFileChange(index, e.target.files?.[0] || null)}
-                                        />
-                                        <p className="text-xs text-gray-500 mt-1">
-                                            Formatos aceptados: imágenes, videos, PDF, Word
-                                        </p>
+                                            onChange={(e) => handleFileChange(index, e.target.files?.[0] || null)} />
                                     </div>
                                 </div>
                             </div>
@@ -548,16 +707,9 @@ const LaborForm: React.FC<LaborFormProps> = ({
                             <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded bg-gray-50">
                                 <i className="fas fa-cloud-upload-alt text-4xl text-gray-300 mb-3"></i>
                                 <p className="text-gray-500">No hay evidencias iniciales</p>
-                                <p className="text-sm text-gray-400 mt-1">
-                                    Puedes agregar fotos, documentos u otros archivos como evidencia inicial
-                                </p>
-                                <button
-                                    type="button"
-                                    onClick={agregarEvidencia}
-                                    className="mt-3 text-blue-600 hover:text-blue-800 text-sm font-medium"
-                                >
-                                    <i className="fas fa-plus mr-1"></i>
-                                    Agregar primera evidencia
+                                <button type="button" onClick={agregarEvidencia}
+                                    className="mt-3 text-blue-600 hover:text-blue-800 text-sm font-medium">
+                                    <i className="fas fa-plus mr-1"></i>Agregar primera evidencia
                                 </button>
                             </div>
                         )}
@@ -566,27 +718,16 @@ const LaborForm: React.FC<LaborFormProps> = ({
                 </div>
 
                 <div className="flex justify-end gap-3 mt-8 pt-5 border-t border-gray-200">
-                    <button
-                        type="button"
-                        onClick={onCancel}
-                        className="px-5 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 font-medium transition-colors"
-                    >
+                    <button type="button" onClick={onCancel}
+                        className="px-5 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 font-medium transition-colors">
                         Cancelar
                     </button>
-                    <button
-                        type="submit"
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors flex items-center"
-                    >
+                    <button type="submit"
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors flex items-center">
                         {esEdicion ? (
-                            <>
-                                <i className="fas fa-save mr-2"></i>
-                                Actualizar Labor
-                            </>
+                            <><i className="fas fa-save mr-2"></i>Actualizar Labor</>
                         ) : (
-                            <>
-                                <i className="fas fa-plus mr-2"></i>
-                                Crear Labor
-                            </>
+                            <><i className="fas fa-plus mr-2"></i>Crear Labor</>
                         )}
                     </button>
                 </div>
