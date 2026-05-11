@@ -16,9 +16,12 @@ import usuarioService from '../../services/usuarioService';
 
 // ── Interfaces ──────────────────────────────────────────────────────────────────
 interface ProductoSugerido {
+    tipo_inventario_id: number | null;
     inventario_item_id: number | null;
     dosis: string;
     unidad: string;
+    items: any[];
+    loadingItems: boolean;
 }
 
 interface LaborRow {
@@ -37,9 +40,12 @@ const newLaborRow = (): LaborRow => ({
 });
 
 const newProductoRow = (): ProductoSugerido => ({
+    tipo_inventario_id: null,
     inventario_item_id: null,
     dosis: '',
     unidad: '',
+    items: [],
+    loadingItems: false,
 });
 
 interface Props {
@@ -104,6 +110,72 @@ const InventarioItemSelect: React.FC<{
     );
 };
 
+// ── Componente auxiliar: Fila de Producto ──────────────────────────────────────
+const ProductoRow: React.FC<{
+    producto: ProductoSugerido;
+    tiposInventario: any[];
+    onUpdate: (updates: Partial<ProductoSugerido>) => void;
+    onRemove: () => void;
+}> = ({ producto, tiposInventario, onUpdate, onRemove }) => {
+
+    // Cargar items cuando cambia el tipo de inventario de este producto
+    useEffect(() => {
+        if (!producto.tipo_inventario_id) {
+            onUpdate({ items: [], inventario_item_id: null });
+            return;
+        }
+        onUpdate({ loadingItems: true });
+        inventarioDinamicoService.listarItems(producto.tipo_inventario_id)
+            .then(data => onUpdate({
+                items: data.filter((i: any) => i.cantidad_disponible > 0),
+                loadingItems: false,
+                inventario_item_id: null
+            }))
+            .catch(() => onUpdate({ items: [], loadingItems: false }));
+    }, [producto.tipo_inventario_id]);
+
+    return (
+        <div className="flex gap-2 items-start bg-white border border-purple-200 rounded-lg p-3">
+            <div className="flex-1 grid grid-cols-1 sm:grid-cols-4 gap-2">
+                <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Tipo inventario</label>
+                    <select
+                        value={producto.tipo_inventario_id || ''}
+                        onChange={e => onUpdate({ tipo_inventario_id: e.target.value ? parseInt(e.target.value) : null })}
+                        className="w-full border border-gray-300 rounded p-2 text-sm"
+                    >
+                        <option value="">Seleccionar tipo...</option>
+                        {tiposInventario.map(t => (
+                            <option key={t.id} value={t.id}>{t.nombre}</option>
+                        ))}
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Producto</label>
+                    <InventarioItemSelect
+                        items={producto.items}
+                        loading={producto.loadingItems}
+                        value={producto.inventario_item_id}
+                        onChange={(id) => onUpdate({ inventario_item_id: id })}
+                    />
+                </div>
+                <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Dosis</label>
+                    <input type="number" value={producto.dosis} onChange={e => onUpdate({ dosis: e.target.value })}
+                        className="w-full border border-gray-300 rounded p-2 text-sm" placeholder="Ej: 2.5" min="0" step="any" />
+                </div>
+                <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Unidad</label>
+                    <input type="text" value={producto.unidad} onChange={e => onUpdate({ unidad: e.target.value })}
+                        className="w-full border border-gray-300 rounded p-2 text-sm" placeholder="L/ha, kg, ml..." />
+                </div>
+            </div>
+            <button type="button" onClick={onRemove}
+                className="text-red-500 hover:text-red-700 mt-5 p-1"><i className="fas fa-trash text-xs"></i></button>
+        </div>
+    );
+};
+
 // ── Modo A: Vinculada a diagnóstico ────────────────────────────────────────────
 const FormVinculadaDiagnostico: React.FC<{
     diagnosticoId: number;
@@ -123,20 +195,15 @@ const FormVinculadaDiagnostico: React.FC<{
     const [descripcion, setDescripcion] = useState('');
     const [loading, setLoading] = useState(true);
 
-    // Productos de la recomendación (múltiples)
+    // Productos de la recomendación (múltiples, cada uno con su tipo de inventario)
     const [productosRecomendacion, setProductosRecomendacion] = useState<ProductoSugerido[]>([]);
 
-    // Inventario
+    // Tipos de inventario (global, cargado por programa)
     const [tiposInventario, setTiposInventario] = useState<TipoInventario[]>([]);
-    const [tipoInventarioId, setTipoInventarioId] = useState<number | null>(null);
-    const [items, setItems] = useState<ItemInventario[]>([]);
-    const [loadingItems, setLoadingItems] = useState(false);
 
     // Labores
     const [tiposLabor, setTiposLabor] = useState<any[]>([]);
     const [laboresToCrear, setLaboresToCrear] = useState<LaborRow[]>([]);
-    
-    // TRABAJADORES (cargados desde usuarioService)
     const [trabajadores, setTrabajadores] = useState<any[]>([]);
 
     // Cargar trabajadores
@@ -145,11 +212,8 @@ const FormVinculadaDiagnostico: React.FC<{
             try {
                 const usuarios = await usuarioService.obtenerUsuarios();
                 const arr = Array.isArray(usuarios) ? usuarios : (usuarios?.items || []);
-                // Filtrar por rol de trabajador (rol_id = 3 o 4, ajusta según tu sistema)
                 setTrabajadores(arr.filter((u: any) => u.rol_id === 3 || u.rol_id === 4));
-            } catch {
-                setTrabajadores([]);
-            }
+            } catch { setTrabajadores([]); }
         };
         cargarTrabajadores();
     }, []);
@@ -188,15 +252,6 @@ const FormVinculadaDiagnostico: React.FC<{
             .then(data => setTiposLabor(Array.isArray(data) ? data : []))
             .catch(() => { });
     }, []);
-
-    useEffect(() => {
-        if (!tipoInventarioId) { setItems([]); return; }
-        setLoadingItems(true);
-        inventarioDinamicoService.listarItems(tipoInventarioId)
-            .then(data => setItems(data.filter(i => i.cantidad_disponible > 0)))
-            .catch(() => toast.error('Error al cargar productos'))
-            .finally(() => setLoadingItems(false));
-    }, [tipoInventarioId]);
 
     const handleSubmit = async () => {
         if (!titulo.trim()) { toast.warning('El título es requerido'); return; }
@@ -260,31 +315,21 @@ const FormVinculadaDiagnostico: React.FC<{
         const val = formulario[campo.nombre_campo] ?? '';
         const base = "w-full border border-gray-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-400 text-sm";
         switch (campo.tipo_dato) {
-            case 'textarea':
-                return <textarea value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} rows={3} required={campo.requerido} />;
-            case 'number':
-                return <input type="number" value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} required={campo.requerido} />;
-            case 'date':
-                return <input type="date" value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} required={campo.requerido} />;
-            case 'select':
-                return (
-                    <select value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} required={campo.requerido}>
-                        <option value="">Seleccionar...</option>
-                        {(Array.isArray(campo.opciones) ? campo.opciones : []).map((op: string) => (
-                            <option key={op} value={op}>{op}</option>
-                        ))}
-                    </select>
-                );
-            case 'boolean':
-                return (
-                    <select value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} required={campo.requerido}>
-                        <option value="">Seleccionar...</option>
-                        <option value="si">Sí</option>
-                        <option value="no">No</option>
-                    </select>
-                );
-            default:
-                return <input type="text" value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} required={campo.requerido} />;
+            case 'textarea': return <textarea value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} rows={3} required={campo.requerido} />;
+            case 'number': return <input type="number" value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} required={campo.requerido} />;
+            case 'date': return <input type="date" value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} required={campo.requerido} />;
+            case 'select': return (
+                <select value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} required={campo.requerido}>
+                    <option value="">Seleccionar...</option>
+                    {(Array.isArray(campo.opciones) ? campo.opciones : []).map((op: string) => (<option key={op} value={op}>{op}</option>))}
+                </select>
+            );
+            case 'boolean': return (
+                <select value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} required={campo.requerido}>
+                    <option value="">Seleccionar...</option><option value="si">Sí</option><option value="no">No</option>
+                </select>
+            );
+            default: return <input type="text" value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} required={campo.requerido} />;
         }
     };
 
@@ -299,7 +344,6 @@ const FormVinculadaDiagnostico: React.FC<{
 
     return (
         <div className="space-y-5">
-            {/* Context banner */}
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-2">
                     <i className="fas fa-microscope text-blue-600"></i>
@@ -313,19 +357,14 @@ const FormVinculadaDiagnostico: React.FC<{
                 </div>
             </div>
 
-            {/* Campos dinámicos */}
             {campos.length > 0 && (
                 <div className="border border-orange-200 rounded-xl p-4 bg-orange-50">
-                    <h4 className="font-semibold text-orange-800 mb-4 text-sm">
-                        <i className="fas fa-wpforms mr-1"></i>
-                        Formulario de recomendación
-                    </h4>
+                    <h4 className="font-semibold text-orange-800 mb-4 text-sm"><i className="fas fa-wpforms mr-1"></i>Formulario de recomendación</h4>
                     <div className="space-y-4">
                         {campos.map(campo => (
                             <div key={campo.id}>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    {campo.etiqueta}
-                                    {campo.requerido && <span className="text-red-500 ml-1">*</span>}
+                                    {campo.etiqueta}{campo.requerido && <span className="text-red-500 ml-1">*</span>}
                                     <span className="ml-2 text-xs text-gray-400">({TIPOS_DATO_LABELS[campo.tipo_dato] || campo.tipo_dato})</span>
                                 </label>
                                 {renderCampo(campo)}
@@ -335,92 +374,50 @@ const FormVinculadaDiagnostico: React.FC<{
                 </div>
             )}
 
-            {/* Productos sugeridos (múltiples) */}
+            {/* Productos sugeridos (múltiples, cada uno con su tipo de inventario) */}
             <div className="border border-purple-200 rounded-xl p-4 bg-purple-50">
                 <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-purple-800 text-sm">
-                        <i className="fas fa-boxes mr-1"></i>
-                        Productos sugeridos
-                    </h4>
+                    <h4 className="font-semibold text-purple-800 text-sm"><i className="fas fa-boxes mr-1"></i>Productos sugeridos</h4>
                     <button type="button" onClick={() => setProductosRecomendacion(prev => [...prev, newProductoRow()])}
                         className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1">
                         <i className="fas fa-plus"></i> Agregar producto
                     </button>
                 </div>
-
-                {productosRecomendacion.length > 0 && (
-                    <div className="mb-3">
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de inventario</label>
-                        {tiposInventario.length === 0 ? (
-                            <p className="text-xs text-yellow-600">No hay tipos de inventario configurados</p>
-                        ) : (
-                            <div className="flex flex-wrap gap-2">
-                                {tiposInventario.map(t => (
-                                    <button key={t.id} type="button" onClick={() => setTipoInventarioId(t.id)}
-                                        className={`px-3 py-1.5 border-2 rounded-lg text-xs transition ${tipoInventarioId === t.id ? 'border-purple-500 bg-purple-100 text-purple-800 font-medium' : 'border-gray-200 bg-white hover:border-purple-300'}`}>
-                                        {t.nombre}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
-
                 {productosRecomendacion.length === 0 ? (
                     <p className="text-xs text-purple-600">No hay productos sugeridos.</p>
                 ) : (
                     <div className="space-y-3">
                         {productosRecomendacion.map((prod, idx) => (
-                            <div key={idx} className="flex gap-2 items-start bg-white border border-purple-200 rounded-lg p-3">
-                                <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">Producto</label>
-                                        <InventarioItemSelect items={items} loading={loadingItems} value={prod.inventario_item_id}
-                                            onChange={(id) => setProductosRecomendacion(prev => prev.map((p, i) => i === idx ? { ...p, inventario_item_id: id } : p))} />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">Dosis</label>
-                                        <input type="number" value={prod.dosis} onChange={e => setProductosRecomendacion(prev => prev.map((p, i) => i === idx ? { ...p, dosis: e.target.value } : p))}
-                                            className="w-full border border-gray-300 rounded p-2 text-sm" placeholder="Ej: 2.5" min="0" step="any" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">Unidad</label>
-                                        <input type="text" value={prod.unidad} onChange={e => setProductosRecomendacion(prev => prev.map((p, i) => i === idx ? { ...p, unidad: e.target.value } : p))}
-                                            className="w-full border border-gray-300 rounded p-2 text-sm" placeholder="L/ha, kg, ml..." />
-                                    </div>
-                                </div>
-                                <button type="button" onClick={() => setProductosRecomendacion(prev => prev.filter((_, i) => i !== idx))}
-                                    className="text-red-500 hover:text-red-700 mt-5 p-1"><i className="fas fa-trash text-xs"></i></button>
-                            </div>
+                            <ProductoRow
+                                key={idx}
+                                producto={prod}
+                                tiposInventario={tiposInventario}
+                                onUpdate={(updates) => setProductosRecomendacion(prev => prev.map((p, i) => i === idx ? { ...p, ...updates } : p))}
+                                onRemove={() => setProductosRecomendacion(prev => prev.filter((_, i) => i !== idx))}
+                            />
                         ))}
                     </div>
                 )}
             </div>
 
-            {/* Título */}
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
                 <input type="text" value={titulo} onChange={e => setTitulo(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-                    placeholder="Título de la recomendación..." required />
+                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" placeholder="Título de la recomendación..." required />
             </div>
 
-            {/* Descripción */}
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Descripción / Observaciones *</label>
                 <textarea value={descripcion} onChange={e => setDescripcion(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-                    rows={4} placeholder="Describe las acciones a realizar, hallazgos y justificación..." required />
+                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" rows={4}
+                    placeholder="Describe las acciones a realizar, hallazgos y justificación..." required />
                 <p className="text-xs text-gray-400 mt-1">{descripcion.length} / mín. 10 caracteres</p>
             </div>
 
-            {/* Labores a crear */}
+            {/* Labores */}
             <div className="border border-green-200 rounded-xl p-4 bg-green-50">
                 <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-green-800 text-sm">
-                        <i className="fas fa-tasks mr-1"></i>
-                        Labores a crear (opcional)
-                    </h4>
+                    <h4 className="font-semibold text-green-800 text-sm"><i className="fas fa-tasks mr-1"></i>Labores a crear (opcional)</h4>
                     <button type="button" onClick={() => setLaboresToCrear(prev => [...prev, newLaborRow()])}
                         className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1">
                         <i className="fas fa-plus"></i> Agregar labor
@@ -447,9 +444,7 @@ const FormVinculadaDiagnostico: React.FC<{
                                             <select value={labor.trabajador_id || ''} onChange={e => setLaboresToCrear(prev => prev.map((l, i) => i === idx ? { ...l, trabajador_id: e.target.value ? parseInt(e.target.value) : null } : l))}
                                                 className="w-full border border-gray-300 rounded p-2 text-sm">
                                                 <option value="">Seleccionar...</option>
-                                                {trabajadores.map((trab: any) => (
-                                                    <option key={trab.id} value={trab.id}>{trab.nombre} ({trab.email})</option>
-                                                ))}
+                                                {trabajadores.map((trab: any) => (<option key={trab.id} value={trab.id}>{trab.nombre} ({trab.email})</option>))}
                                             </select>
                                         </div>
                                         <div>
@@ -462,7 +457,7 @@ const FormVinculadaDiagnostico: React.FC<{
                                         className="text-red-500 hover:text-red-700 mt-5 p-1"><i className="fas fa-trash text-xs"></i></button>
                                 </div>
 
-                                {/* Productos de la labor */}
+                                {/* Productos de la labor (cada uno con su tipo de inventario) */}
                                 <div className="mt-3 pl-2 border-l-2 border-green-300">
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="text-xs font-medium text-green-700">Productos para esta labor</span>
@@ -474,27 +469,17 @@ const FormVinculadaDiagnostico: React.FC<{
                                     ) : (
                                         <div className="space-y-2">
                                             {labor.productos.map((prod, pIdx) => (
-                                                <div key={pIdx} className="flex gap-2 items-start bg-green-50 border border-green-100 rounded p-2">
-                                                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                                        <div>
-                                                            <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Producto</label>
-                                                            <InventarioItemSelect items={items} loading={loadingItems} value={prod.inventario_item_id}
-                                                                onChange={(id) => setLaboresToCrear(prev => prev.map((l, i) => i === idx ? { ...l, productos: l.productos.map((p, pi) => pi === pIdx ? { ...p, inventario_item_id: id } : p) } : l))} />
-                                                        </div>
-                                                        <div>
-                                                            <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Dosis</label>
-                                                            <input type="number" value={prod.dosis} onChange={e => setLaboresToCrear(prev => prev.map((l, i) => i === idx ? { ...l, productos: l.productos.map((p, pi) => pi === pIdx ? { ...p, dosis: e.target.value } : p) } : l))}
-                                                                className="w-full border border-gray-300 rounded p-1.5 text-sm" placeholder="Ej: 2.5" min="0" step="any" />
-                                                        </div>
-                                                        <div>
-                                                            <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Unidad</label>
-                                                            <input type="text" value={prod.unidad} onChange={e => setLaboresToCrear(prev => prev.map((l, i) => i === idx ? { ...l, productos: l.productos.map((p, pi) => pi === pIdx ? { ...p, unidad: e.target.value } : p) } : l))}
-                                                                className="w-full border border-gray-300 rounded p-1.5 text-sm" placeholder="L/ha, kg..." />
-                                                        </div>
-                                                    </div>
-                                                    <button type="button" onClick={() => setLaboresToCrear(prev => prev.map((l, i) => i === idx ? { ...l, productos: l.productos.filter((_, pi) => pi !== pIdx) } : l))}
-                                                        className="text-red-400 hover:text-red-600 mt-4 p-0.5"><i className="fas fa-times text-xs"></i></button>
-                                                </div>
+                                                <ProductoRow
+                                                    key={pIdx}
+                                                    producto={prod}
+                                                    tiposInventario={tiposInventario}
+                                                    onUpdate={(updates) => setLaboresToCrear(prev => prev.map((l, i) => i === idx ? {
+                                                        ...l, productos: l.productos.map((p, pi) => pi === pIdx ? { ...p, ...updates } : p)
+                                                    } : l))}
+                                                    onRemove={() => setLaboresToCrear(prev => prev.map((l, i) => i === idx ? {
+                                                        ...l, productos: l.productos.filter((_, pi) => pi !== pIdx)
+                                                    } : l))}
+                                                />
                                             ))}
                                         </div>
                                     )}
@@ -505,15 +490,12 @@ const FormVinculadaDiagnostico: React.FC<{
                 )}
             </div>
 
-            {/* Actions */}
             <div className="flex justify-end gap-3 pt-4 border-t">
                 <button type="button" onClick={onCancel} className="px-5 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Cancelar</button>
                 <button type="button" onClick={handleSubmit}
                     disabled={submitting || !titulo || !descripcion}
                     className="bg-orange-600 hover:bg-orange-700 text-white px-5 py-2.5 rounded-lg font-medium text-sm disabled:bg-gray-400 transition-colors">
-                    {submitting ? (
-                        <span className="flex items-center gap-2"><div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>Guardando...</span>
-                    ) : 'Crear Recomendación'}
+                    {submitting ? (<span className="flex items-center gap-2"><div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>Guardando...</span>) : 'Crear Recomendación'}
                 </button>
             </div>
         </div>
@@ -548,21 +530,15 @@ const FormGeneral: React.FC<{
     const [labores, setLabores] = useState<LaborRow[]>([]);
     const [initialLoading, setInitialLoading] = useState(true);
 
-    // Diagnóstico seleccionado
     const [diagnosticoSeleccionadoId, setDiagnosticoSeleccionadoId] = useState<number | null>(null);
     const [diagnosticosPendientes, setDiagnosticosPendientes] = useState<any[]>([]);
     const [loadingDiagnosticos, setLoadingDiagnosticos] = useState(false);
 
-    // Productos de la recomendación (múltiples)
+    // Productos de la recomendación (múltiples, cada uno con su tipo de inventario)
     const [productosRecomendacion, setProductosRecomendacion] = useState<ProductoSugerido[]>([]);
 
-    // Inventario
+    // Tipos de inventario (cargados por programa)
     const [tiposInventario, setTiposInventario] = useState<any[]>([]);
-    const [tipoInventarioId, setTipoInventarioId] = useState<number | null>(null);
-    const [items, setItems] = useState<any[]>([]);
-    const [loadingItems, setLoadingItems] = useState(false);
-
-    // TRABAJADORES
     const [trabajadores, setTrabajadores] = useState<any[]>([]);
 
     const lotesFiltrados = lotes.filter(l => l.programa_id === programaId);
@@ -574,12 +550,18 @@ const FormGeneral: React.FC<{
                 const usuarios = await usuarioService.obtenerUsuarios();
                 const arr = Array.isArray(usuarios) ? usuarios : (usuarios?.items || []);
                 setTrabajadores(arr.filter((u: any) => u.rol_id === 3 || u.rol_id === 4));
-            } catch {
-                setTrabajadores([]);
-            }
+            } catch { setTrabajadores([]); }
         };
         cargarTrabajadores();
     }, []);
+
+    // Cargar tipos de inventario cuando cambia programaId
+    useEffect(() => {
+        if (!programaId) { setTiposInventario([]); return; }
+        inventarioDinamicoService.listarTipos(programaId)
+            .then(data => setTiposInventario(data.filter(t => t.activo)))
+            .catch(() => setTiposInventario([]));
+    }, [programaId]);
 
     // ── Cargar diagnósticos pendientes ────────────────────────────────────────
     useEffect(() => {
@@ -592,63 +574,35 @@ const FormGeneral: React.FC<{
             setLoadingDiagnosticos(true);
             try {
                 const data = await diagnosticoService.obtenerDiagnosticos({
-                    lote_id: loteId,
-                    diagnostico_tipo_id: subtipoId,
-                    estado_revision: 'pendiente_revision',
+                    lote_id: loteId, diagnostico_tipo_id: subtipoId, estado_revision: 'pendiente_revision',
                 } as any);
                 const diagnosticosData = Array.isArray(data) ? data : (data?.items || []);
                 setDiagnosticosPendientes(diagnosticosData);
                 if (diagnosticosData.length === 0) setDiagnosticoSeleccionadoId(null);
-            } catch {
-                setDiagnosticosPendientes([]);
-            } finally {
-                setLoadingDiagnosticos(false);
-            }
+            } catch { setDiagnosticosPendientes([]); }
+            finally { setLoadingDiagnosticos(false); }
         };
         cargarDiagnosticos();
     }, [loteId, subtipoId, esEdicion]);
 
-    // ── Cargar inventario ────────────────────────────────────────────────────
-    useEffect(() => {
-        if (!programaId) { setTiposInventario([]); return; }
-        inventarioDinamicoService.listarTipos(programaId)
-            .then(data => setTiposInventario(data.filter(t => t.activo)))
-            .catch(() => setTiposInventario([]));
-    }, [programaId]);
-
-    useEffect(() => {
-        if (!tipoInventarioId) { setItems([]); return; }
-        setLoadingItems(true);
-        inventarioDinamicoService.listarItems(tipoInventarioId)
-            .then(data => setItems(data.filter(i => i.cantidad_disponible > 0)))
-            .catch(() => toast.error('Error al cargar productos'))
-            .finally(() => setLoadingItems(false));
-    }, [tipoInventarioId]);
-
     // ── Inicializar desde recomendación (modo edición) ────────────────────────
     useEffect(() => {
-        if (!esEdicion || !recomendacion) {
-            setInitialLoading(false);
-            return;
-        }
+        if (!esEdicion || !recomendacion) { setInitialLoading(false); return; }
 
         const init = async () => {
             setInitialLoading(true);
             try {
                 const rec = recomendacion as any;
-
                 setTitulo(rec.titulo || '');
                 setDescripcion(rec.descripcion || '');
                 setEstado(rec.estado || 'pendiente');
                 setLoteId(rec.lote_id || null);
                 setDiagnosticoSeleccionadoId(rec.diagnostico_id || null);
-
-                if (rec.formulario_recomendacion) {
-                    setFormulario(rec.formulario_recomendacion);
-                }
+                if (rec.formulario_recomendacion) setFormulario(rec.formulario_recomendacion);
 
                 if (rec.items_sugeridos?.length > 0) {
                     setProductosRecomendacion(rec.items_sugeridos.map((item: any) => ({
+                        ...newProductoRow(),
                         inventario_item_id: item.inventario_item_id,
                         dosis: item.cantidad_sugerida ? String(item.cantidad_sugerida) : '',
                         unidad: item.unidad_dosis || '',
@@ -662,6 +616,7 @@ const FormGeneral: React.FC<{
                         trabajador_id: lab.trabajador_id,
                         comentario: lab.comentario || '',
                         productos: lab.items_sugeridos?.map((item: any) => ({
+                            ...newProductoRow(),
                             inventario_item_id: item.inventario_item_id,
                             dosis: item.cantidad_sugerida ? String(item.cantidad_sugerida) : '',
                             unidad: item.unidad_dosis || '',
@@ -680,62 +635,21 @@ const FormGeneral: React.FC<{
                             for (const mon of monitoreosArr) {
                                 const subtiposData = await diagnosticoDinamicoService.listarSubtiposPorMonitoreo(mon.id);
                                 const encontrado = subtiposData.find(s => s.id === rec.subtipo_id);
-                                if (encontrado) {
-                                    setMonitoreoId(mon.id);
-                                    setSubtipoId(rec.subtipo_id);
-                                    break;
-                                }
+                                if (encontrado) { setMonitoreoId(mon.id); setSubtipoId(rec.subtipo_id); break; }
                             }
                         }
                     }
                 }
-            } catch (e) {
-                console.error('Error inicializando edición:', e);
-            } finally {
-                setInitialLoading(false);
-            }
+            } catch (e) { console.error('Error inicializando edición:', e); }
+            finally { setInitialLoading(false); }
         };
         init();
     }, [esEdicion, recomendacion, lotes]);
 
-    // ── Cargar monitoreos ────────────────────────────────────────────────────
-    useEffect(() => {
-        if (!programaId) { setMonitoreos([]); return; }
-        monitoreoService.obtenerMonitoreosPorPrograma(programaId)
-            .then(data => setMonitoreos(Array.isArray(data) ? data : []))
-            .catch(() => { });
-    }, [programaId]);
-
-    // ── Cargar subtipos ──────────────────────────────────────────────────────
-    useEffect(() => {
-        if (!monitoreoId) {
-            setSubtipos([]);
-            if (!esEdicion) setSubtipoId(null);
-            return;
-        }
-        if (!esEdicion) setSubtipoId(null);
-        diagnosticoDinamicoService.listarSubtiposPorMonitoreo(monitoreoId)
-            .then(data => setSubtipos(data.filter(s => s.activo)))
-            .catch(() => setSubtipos([]));
-    }, [monitoreoId, esEdicion]);
-
-    // ── Cargar campos dinámicos ──────────────────────────────────────────────
-    useEffect(() => {
-        if (!subtipoId) { setCampos([]); return; }
-        diagnosticoDinamicoService.listarCamposRecomendacion(subtipoId)
-            .then(data => {
-                setCampos([...data].sort((a, b) => a.orden - b.orden));
-                if (!esEdicion) setFormulario({});
-            })
-            .catch(() => setCampos([]));
-    }, [subtipoId, esEdicion]);
-
-    // ── Cargar tipos de labor ────────────────────────────────────────────────
-    useEffect(() => {
-        tipoLaborService.obtenerTiposLabor()
-            .then(data => setTiposLabor(Array.isArray(data) ? data : []))
-            .catch(() => { });
-    }, []);
+    useEffect(() => { if (!programaId) { setMonitoreos([]); return; } monitoreoService.obtenerMonitoreosPorPrograma(programaId).then(data => setMonitoreos(Array.isArray(data) ? data : [])).catch(() => { }); }, [programaId]);
+    useEffect(() => { if (!monitoreoId) { setSubtipos([]); if (!esEdicion) setSubtipoId(null); return; } if (!esEdicion) setSubtipoId(null); diagnosticoDinamicoService.listarSubtiposPorMonitoreo(monitoreoId).then(data => setSubtipos(data.filter(s => s.activo))).catch(() => setSubtipos([])); }, [monitoreoId, esEdicion]);
+    useEffect(() => { if (!subtipoId) { setCampos([]); return; } diagnosticoDinamicoService.listarCamposRecomendacion(subtipoId).then(data => { setCampos([...data].sort((a, b) => a.orden - b.orden)); if (!esEdicion) setFormulario({}); }).catch(() => setCampos([])); }, [subtipoId, esEdicion]);
+    useEffect(() => { tipoLaborService.obtenerTiposLabor().then(data => setTiposLabor(Array.isArray(data) ? data : [])).catch(() => { }); }, []);
 
     const renderCampo = (campo: CampoRecomendacion) => {
         const val = formulario[campo.nombre_campo] ?? '';
@@ -744,19 +658,8 @@ const FormGeneral: React.FC<{
             case 'textarea': return <textarea value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} rows={3} required={campo.requerido} />;
             case 'number': return <input type="number" value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} required={campo.requerido} />;
             case 'date': return <input type="date" value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} required={campo.requerido} />;
-            case 'select': return (
-                <select value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} required={campo.requerido}>
-                    <option value="">Seleccionar...</option>
-                    {(Array.isArray(campo.opciones) ? campo.opciones : []).map((op: string) => (<option key={op} value={op}>{op}</option>))}
-                </select>
-            );
-            case 'boolean': return (
-                <select value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} required={campo.requerido}>
-                    <option value="">Seleccionar...</option>
-                    <option value="si">Sí</option>
-                    <option value="no">No</option>
-                </select>
-            );
+            case 'select': return (<select value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} required={campo.requerido}><option value="">Seleccionar...</option>{(Array.isArray(campo.opciones) ? campo.opciones : []).map((op: string) => (<option key={op} value={op}>{op}</option>))}</select>);
+            case 'boolean': return (<select value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} required={campo.requerido}><option value="">Seleccionar...</option><option value="si">Sí</option><option value="no">No</option></select>);
             default: return <input type="text" value={val} onChange={e => setFormulario(prev => ({ ...prev, [campo.nombre_campo]: e.target.value }))} className={base} required={campo.requerido} />;
         }
     };
@@ -765,21 +668,9 @@ const FormGeneral: React.FC<{
         if (!loteId) { toast.warning('Selecciona un lote'); return; }
         if (!titulo.trim()) { toast.warning('El título es requerido'); return; }
         if (!descripcion.trim() || descripcion.trim().length < 10) { toast.warning('La descripción debe tener al menos 10 caracteres'); return; }
-        for (const campo of campos) {
-            if (campo.requerido && !formulario[campo.nombre_campo]) {
-                toast.warning(`El campo "${campo.etiqueta}" es requerido`);
-                return;
-            }
-        }
-
+        for (const campo of campos) { if (campo.requerido && !formulario[campo.nombre_campo]) { toast.warning(`El campo "${campo.etiqueta}" es requerido`); return; } }
         const laboresValidas = labores.filter(l => l.tipo_labor_id !== null);
-        for (const labor of laboresValidas) {
-            if (!labor.trabajador_id) {
-                toast.warning('Cada labor debe tener un trabajador asignado');
-                return;
-            }
-        }
-
+        for (const labor of laboresValidas) { if (!labor.trabajador_id) { toast.warning('Cada labor debe tener un trabajador asignado'); return; } }
         const docenteId = currentUser?.id || docentes[0]?.id;
         if (!docenteId) { toast.error('No se pudo determinar el autor'); return; }
         setSubmitting(true);
@@ -788,18 +679,14 @@ const FormGeneral: React.FC<{
                 titulo: titulo.trim(), descripcion: descripcion.trim(), estado,
                 lote_id: loteId, subtipo_id: subtipoId || null,
                 formulario_recomendacion: Object.keys(formulario).length > 0 ? formulario : null,
-                docente_id: docenteId,
-                diagnostico_id: diagnosticoSeleccionadoId || null,
+                docente_id: docenteId, diagnostico_id: diagnosticoSeleccionadoId || null,
                 items_sugeridos: productosRecomendacion.filter(p => p.inventario_item_id).map(p => ({
                     inventario_item_id: p.inventario_item_id,
                     cantidad_sugerida: p.dosis ? parseFloat(p.dosis) : null,
                     unidad_dosis: p.unidad || null,
                 })),
                 labores: labores.map(l => ({
-                    id: l.id,
-                    tipo_labor_id: l.tipo_labor_id,
-                    trabajador_id: l.trabajador_id,
-                    comentario: l.comentario,
+                    id: l.id, tipo_labor_id: l.tipo_labor_id, trabajador_id: l.trabajador_id, comentario: l.comentario,
                     items_sugeridos: l.productos.filter(p => p.inventario_item_id).map(p => ({
                         inventario_item_id: p.inventario_item_id,
                         cantidad_sugerida: p.dosis ? parseFloat(p.dosis) : null,
@@ -807,25 +694,14 @@ const FormGeneral: React.FC<{
                     })),
                 })),
             });
-        } catch (e: any) {
-            toast.error(e?.message || 'Error');
-        } finally {
-            setSubmitting(false);
-        }
+        } catch (e: any) { toast.error(e?.message || 'Error'); }
+        finally { setSubmitting(false); }
     };
 
-    if (initialLoading) {
-        return (
-            <div className="flex flex-col items-center justify-center py-12 gap-3">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
-                <p className="text-gray-500 text-sm">Cargando recomendación...</p>
-            </div>
-        );
-    }
+    if (initialLoading) return (<div className="flex flex-col items-center justify-center py-12 gap-3"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div><p className="text-gray-500 text-sm">Cargando recomendación...</p></div>);
 
     return (
         <div className="space-y-5">
-            {/* Programa */}
             <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Programa *</label>
                 <select value={programaId || ''} onChange={e => { setProgramaId(e.target.value ? parseInt(e.target.value) : null); setMonitoreoId(null); setSubtipoId(null); setLoteId(null); setDiagnosticoSeleccionadoId(null); }}
@@ -834,35 +710,27 @@ const FormGeneral: React.FC<{
                     {programas.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                 </select>
             </div>
-
-            {/* Monitoreo */}
             {programaId && monitoreos.length > 0 && (
                 <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de Monitoreo</label>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {monitoreos.map(m => (
                             <button key={m.id} type="button" onClick={() => { setMonitoreoId(m.id); setSubtipoId(null); setDiagnosticoSeleccionadoId(null); }}
-                                className={`p-3 border-2 rounded-lg text-sm text-center transition ${monitoreoId === m.id ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium' : 'border-gray-200 hover:border-orange-300'}`}
-                                disabled={esEdicion}>
+                                className={`p-3 border-2 rounded-lg text-sm text-center transition ${monitoreoId === m.id ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium' : 'border-gray-200 hover:border-orange-300'}`} disabled={esEdicion}>
                                 <i className="fas fa-leaf block text-lg mb-1"></i>{m.nombre}
                             </button>
                         ))}
                     </div>
                 </div>
             )}
-
-            {/* Subtipo */}
             {monitoreoId && (
                 <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Subtipo</label>
-                    {subtipos.length === 0 ? (
-                        <p className="text-sm text-gray-500">No hay subtipos disponibles</p>
-                    ) : (
+                    {subtipos.length === 0 ? (<p className="text-sm text-gray-500">No hay subtipos disponibles</p>) : (
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                             {subtipos.map(s => (
                                 <button key={s.id} type="button" onClick={() => { setSubtipoId(s.id); setDiagnosticoSeleccionadoId(null); }}
-                                    className={`p-3 border-2 rounded-lg text-sm text-center transition ${subtipoId === s.id ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium' : 'border-gray-200 hover:border-orange-300'}`}
-                                    disabled={esEdicion}>
+                                    className={`p-3 border-2 rounded-lg text-sm text-center transition ${subtipoId === s.id ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium' : 'border-gray-200 hover:border-orange-300'}`} disabled={esEdicion}>
                                     {s.nombre}
                                 </button>
                             ))}
@@ -870,8 +738,6 @@ const FormGeneral: React.FC<{
                     )}
                 </div>
             )}
-
-            {/* Lote */}
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Lote *</label>
                 <select value={loteId || ''} onChange={e => { setLoteId(e.target.value ? parseInt(e.target.value) : null); setDiagnosticoSeleccionadoId(null); }}
@@ -880,216 +746,83 @@ const FormGeneral: React.FC<{
                     {lotesFiltrados.map(l => <option key={l.id} value={l.id}>{l.nombre}{l.granja_nombre ? ` (${l.granja_nombre})` : ''}</option>)}
                 </select>
             </div>
-
-            {/* Diagnóstico pendiente */}
             {subtipoId && loteId && !esEdicion && (
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                        <i className="fas fa-microscope mr-1 text-blue-500"></i>Diagnóstico asociado (opcional)
-                    </label>
-                    {loadingDiagnosticos ? (
-                        <div className="flex items-center text-gray-500 text-sm gap-2 py-2">
-                            <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>Cargando...
-                        </div>
-                    ) : diagnosticosPendientes.length === 0 ? (
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-700">
-                            <i className="fas fa-info-circle mr-2"></i>No hay diagnósticos pendientes. La recomendación se creará sin vincular.
-                        </div>
-                    ) : (
-                        <select value={diagnosticoSeleccionadoId || ''} onChange={e => setDiagnosticoSeleccionadoId(e.target.value ? parseInt(e.target.value) : null)}
-                            className="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
-                            <option value="">Sin diagnóstico (recomendación general)</option>
-                            {diagnosticosPendientes.map(diag => (
-                                <option key={diag.id} value={diag.id}>#{diag.id} - {(diag as any).tipo_diagnostico?.replace(/_/g, ' ') || 'Sin tipo'} - {new Date(diag.fecha_creacion).toLocaleDateString('es-CO')}</option>
-                            ))}
-                        </select>
-                    )}
+                    <label className="block text-sm font-medium text-gray-700 mb-1"><i className="fas fa-microscope mr-1 text-blue-500"></i>Diagnóstico asociado (opcional)</label>
+                    {loadingDiagnosticos ? (<div className="flex items-center text-gray-500 text-sm gap-2 py-2"><div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>Cargando...</div>)
+                    : diagnosticosPendientes.length === 0 ? (<div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-700"><i className="fas fa-info-circle mr-2"></i>No hay diagnósticos pendientes.</div>)
+                    : (<select value={diagnosticoSeleccionadoId || ''} onChange={e => setDiagnosticoSeleccionadoId(e.target.value ? parseInt(e.target.value) : null)} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
+                        <option value="">Sin diagnóstico (recomendación general)</option>
+                        {diagnosticosPendientes.map(diag => (<option key={diag.id} value={diag.id}>#{diag.id} - {(diag as any).tipo_diagnostico?.replace(/_/g, ' ') || 'Sin tipo'} - {new Date(diag.fecha_creacion).toLocaleDateString('es-CO')}</option>))}
+                    </select>)}
                 </div>
             )}
-
-            {/* Campos dinámicos */}
             {campos.length > 0 && (
                 <div className="border border-orange-200 rounded-xl p-4 bg-orange-50 space-y-4">
                     <h4 className="text-sm font-semibold text-orange-800"><i className="fas fa-wpforms mr-1"></i>Formulario dinámico</h4>
                     {campos.map(campo => (
                         <div key={campo.id}>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                {campo.etiqueta}{campo.requerido && <span className="text-red-500 ml-1">*</span>}
-                                <span className="ml-2 text-xs text-gray-400">({TIPOS_DATO_LABELS[campo.tipo_dato] || campo.tipo_dato})</span>
-                            </label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">{campo.etiqueta}{campo.requerido && <span className="text-red-500 ml-1">*</span>}<span className="ml-2 text-xs text-gray-400">({TIPOS_DATO_LABELS[campo.tipo_dato] || campo.tipo_dato})</span></label>
                             {renderCampo(campo)}
                         </div>
                     ))}
                 </div>
             )}
-
-            {/* Productos sugeridos (múltiples) */}
+            {/* Productos sugeridos */}
             <div className="border border-purple-200 rounded-xl p-4 bg-purple-50">
                 <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-purple-800 text-sm">
-                        <i className="fas fa-boxes mr-1"></i>Productos sugeridos
-                    </h4>
+                    <h4 className="font-semibold text-purple-800 text-sm"><i className="fas fa-boxes mr-1"></i>Productos sugeridos</h4>
                     <button type="button" onClick={() => setProductosRecomendacion(prev => [...prev, newProductoRow()])}
-                        className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1">
-                        <i className="fas fa-plus"></i> Agregar producto
-                    </button>
+                        className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1"><i className="fas fa-plus"></i> Agregar producto</button>
                 </div>
-                {productosRecomendacion.length > 0 && (
-                    <div className="mb-3">
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de inventario</label>
-                        {tiposInventario.length === 0 ? (
-                            <p className="text-xs text-yellow-600">No hay tipos de inventario configurados</p>
-                        ) : (
-                            <div className="flex flex-wrap gap-2">
-                                {tiposInventario.map(t => (
-                                    <button key={t.id} type="button" onClick={() => setTipoInventarioId(t.id)}
-                                        className={`px-3 py-1.5 border-2 rounded-lg text-xs transition ${tipoInventarioId === t.id ? 'border-purple-500 bg-purple-100 text-purple-800 font-medium' : 'border-gray-200 bg-white hover:border-purple-300'}`}>
-                                        {t.nombre}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
-                {productosRecomendacion.length === 0 ? (
-                    <p className="text-xs text-purple-600">No hay productos sugeridos.</p>
-                ) : (
+                {productosRecomendacion.length === 0 ? (<p className="text-xs text-purple-600">No hay productos sugeridos.</p>) : (
                     <div className="space-y-3">
                         {productosRecomendacion.map((prod, idx) => (
-                            <div key={idx} className="flex gap-2 items-start bg-white border border-purple-200 rounded-lg p-3">
-                                <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">Producto</label>
-                                        <InventarioItemSelect items={items} loading={loadingItems} value={prod.inventario_item_id}
-                                            onChange={(id) => setProductosRecomendacion(prev => prev.map((p, i) => i === idx ? { ...p, inventario_item_id: id } : p))} />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">Dosis</label>
-                                        <input type="number" value={prod.dosis} onChange={e => setProductosRecomendacion(prev => prev.map((p, i) => i === idx ? { ...p, dosis: e.target.value } : p))}
-                                            className="w-full border border-gray-300 rounded p-2 text-sm" placeholder="Ej: 2.5" min="0" step="any" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">Unidad</label>
-                                        <input type="text" value={prod.unidad} onChange={e => setProductosRecomendacion(prev => prev.map((p, i) => i === idx ? { ...p, unidad: e.target.value } : p))}
-                                            className="w-full border border-gray-300 rounded p-2 text-sm" placeholder="L/ha, kg, ml..." />
-                                    </div>
-                                </div>
-                                <button type="button" onClick={() => setProductosRecomendacion(prev => prev.filter((_, i) => i !== idx))}
-                                    className="text-red-500 hover:text-red-700 mt-5 p-1"><i className="fas fa-trash text-xs"></i></button>
-                            </div>
+                            <ProductoRow key={idx} producto={prod} tiposInventario={tiposInventario}
+                                onUpdate={(updates) => setProductosRecomendacion(prev => prev.map((p, i) => i === idx ? { ...p, ...updates } : p))}
+                                onRemove={() => setProductosRecomendacion(prev => prev.filter((_, i) => i !== idx))} />
                         ))}
                     </div>
                 )}
             </div>
-
-            {/* Título */}
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
-                <input type="text" value={titulo} onChange={e => setTitulo(e.target.value)} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm" required />
-            </div>
-
-            {/* Descripción */}
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Descripción *</label>
-                <textarea value={descripcion} onChange={e => setDescripcion(e.target.value)} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm" rows={4} required />
-                <p className="text-xs text-gray-400 mt-1">{descripcion.length} / mín. 10 caracteres</p>
-            </div>
-
-            {/* Estado (solo edición) */}
-            {esEdicion && (
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
-                    <select value={estado} onChange={e => setEstado(e.target.value)} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
-                        <option value="pendiente">Pendiente</option>
-                        <option value="aprobada">Aprobada</option>
-                        <option value="en_ejecucion">En ejecución</option>
-                        <option value="completada">Completada</option>
-                        <option value="cancelada">Cancelada</option>
-                    </select>
-                </div>
-            )}
-
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Título *</label><input type="text" value={titulo} onChange={e => setTitulo(e.target.value)} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm" required /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Descripción *</label><textarea value={descripcion} onChange={e => setDescripcion(e.target.value)} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm" rows={4} required /><p className="text-xs text-gray-400 mt-1">{descripcion.length} / mín. 10 caracteres</p></div>
+            {esEdicion && (<div><label className="block text-sm font-medium text-gray-700 mb-1">Estado</label><select value={estado} onChange={e => setEstado(e.target.value)} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm"><option value="pendiente">Pendiente</option><option value="aprobada">Aprobada</option><option value="en_ejecucion">En ejecución</option><option value="completada">Completada</option><option value="cancelada">Cancelada</option></select></div>)}
             {/* Labores */}
             <div className="border border-green-200 rounded-xl p-4 bg-green-50">
                 <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-green-800 text-sm">
-                        <i className="fas fa-tasks mr-1"></i>
-                        Labores {esEdicion ? '' : 'a crear (opcional)'}
-                    </h4>
+                    <h4 className="font-semibold text-green-800 text-sm"><i className="fas fa-tasks mr-1"></i>Labores {esEdicion ? '' : 'a crear (opcional)'}</h4>
                     <button type="button" onClick={() => setLabores(prev => [...prev, newLaborRow()])}
-                        className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1">
-                        <i className="fas fa-plus"></i> Agregar labor
-                    </button>
+                        className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1"><i className="fas fa-plus"></i> Agregar labor</button>
                 </div>
-                {labores.length === 0 ? (
-                    <p className="text-xs text-green-600">No hay labores programadas.</p>
-                ) : (
+                {labores.length === 0 ? (<p className="text-xs text-green-600">No hay labores programadas.</p>) : (
                     <div className="space-y-4">
                         {labores.map((labor, idx) => (
                             <div key={idx} className="bg-white border border-green-200 rounded-lg p-3">
                                 <div className="flex gap-2 items-start">
                                     <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de labor *</label>
-                                            <select value={labor.tipo_labor_id || ''} onChange={e => setLabores(prev => prev.map((l, i) => i === idx ? { ...l, tipo_labor_id: e.target.value ? parseInt(e.target.value) : null } : l))}
-                                                className="w-full border border-gray-300 rounded p-2 text-sm">
-                                                <option value="">Seleccionar...</option>
-                                                {tiposLabor.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-600 mb-1">Trabajador *</label>
-                                            <select value={labor.trabajador_id || ''} onChange={e => setLabores(prev => prev.map((l, i) => i === idx ? { ...l, trabajador_id: e.target.value ? parseInt(e.target.value) : null } : l))}
-                                                className="w-full border border-gray-300 rounded p-2 text-sm">
-                                                <option value="">Seleccionar...</option>
-                                                {trabajadores.map((trab: any) => (
-                                                    <option key={trab.id} value={trab.id}>{trab.nombre} ({trab.email})</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-600 mb-1">Comentario</label>
-                                            <input type="text" value={labor.comentario} onChange={e => setLabores(prev => prev.map((l, i) => i === idx ? { ...l, comentario: e.target.value } : l))}
-                                                className="w-full border border-gray-300 rounded p-2 text-sm" placeholder="Instrucciones..." />
-                                        </div>
+                                        <div><label className="block text-xs font-medium text-gray-600 mb-1">Tipo de labor *</label>
+                                            <select value={labor.tipo_labor_id || ''} onChange={e => setLabores(prev => prev.map((l, i) => i === idx ? { ...l, tipo_labor_id: e.target.value ? parseInt(e.target.value) : null } : l))} className="w-full border border-gray-300 rounded p-2 text-sm">
+                                                <option value="">Seleccionar...</option>{tiposLabor.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}</select></div>
+                                        <div><label className="block text-xs font-medium text-gray-600 mb-1">Trabajador *</label>
+                                            <select value={labor.trabajador_id || ''} onChange={e => setLabores(prev => prev.map((l, i) => i === idx ? { ...l, trabajador_id: e.target.value ? parseInt(e.target.value) : null } : l))} className="w-full border border-gray-300 rounded p-2 text-sm">
+                                                <option value="">Seleccionar...</option>{trabajadores.map((trab: any) => (<option key={trab.id} value={trab.id}>{trab.nombre} ({trab.email})</option>))}</select></div>
+                                        <div><label className="block text-xs font-medium text-gray-600 mb-1">Comentario</label>
+                                            <input type="text" value={labor.comentario} onChange={e => setLabores(prev => prev.map((l, i) => i === idx ? { ...l, comentario: e.target.value } : l))} className="w-full border border-gray-300 rounded p-2 text-sm" placeholder="Instrucciones..." /></div>
                                     </div>
-                                    <button type="button" onClick={() => setLabores(prev => prev.filter((_, i) => i !== idx))}
-                                        className="text-red-500 hover:text-red-700 mt-5 p-1"><i className="fas fa-trash text-xs"></i></button>
+                                    <button type="button" onClick={() => setLabores(prev => prev.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700 mt-5 p-1"><i className="fas fa-trash text-xs"></i></button>
                                 </div>
-
-                                {/* Productos de la labor */}
                                 <div className="mt-3 pl-2 border-l-2 border-green-300">
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="text-xs font-medium text-green-700">Productos para esta labor</span>
-                                        <button type="button" onClick={() => setLabores(prev => prev.map((l, i) => i === idx ? { ...l, productos: [...l.productos, newProductoRow()] } : l))}
-                                            className="text-xs text-green-600 hover:text-green-800 underline">+ Agregar producto</button>
+                                        <button type="button" onClick={() => setLabores(prev => prev.map((l, i) => i === idx ? { ...l, productos: [...l.productos, newProductoRow()] } : l))} className="text-xs text-green-600 hover:text-green-800 underline">+ Agregar producto</button>
                                     </div>
-                                    {labor.productos.length === 0 ? (
-                                        <p className="text-xs text-gray-400">Sin productos (opcional)</p>
-                                    ) : (
+                                    {labor.productos.length === 0 ? (<p className="text-xs text-gray-400">Sin productos (opcional)</p>) : (
                                         <div className="space-y-2">
                                             {labor.productos.map((prod, pIdx) => (
-                                                <div key={pIdx} className="flex gap-2 items-start bg-green-50 border border-green-100 rounded p-2">
-                                                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                                        <div>
-                                                            <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Producto</label>
-                                                            <InventarioItemSelect items={items} loading={loadingItems} value={prod.inventario_item_id}
-                                                                onChange={(id) => setLabores(prev => prev.map((l, i) => i === idx ? { ...l, productos: l.productos.map((p, pi) => pi === pIdx ? { ...p, inventario_item_id: id } : p) } : l))} />
-                                                        </div>
-                                                        <div>
-                                                            <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Dosis</label>
-                                                            <input type="number" value={prod.dosis} onChange={e => setLabores(prev => prev.map((l, i) => i === idx ? { ...l, productos: l.productos.map((p, pi) => pi === pIdx ? { ...p, dosis: e.target.value } : p) } : l))}
-                                                                className="w-full border border-gray-300 rounded p-1.5 text-sm" placeholder="Ej: 2.5" min="0" step="any" />
-                                                        </div>
-                                                        <div>
-                                                            <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Unidad</label>
-                                                            <input type="text" value={prod.unidad} onChange={e => setLabores(prev => prev.map((l, i) => i === idx ? { ...l, productos: l.productos.map((p, pi) => pi === pIdx ? { ...p, unidad: e.target.value } : p) } : l))}
-                                                                className="w-full border border-gray-300 rounded p-1.5 text-sm" placeholder="L/ha, kg..." />
-                                                        </div>
-                                                    </div>
-                                                    <button type="button" onClick={() => setLabores(prev => prev.map((l, i) => i === idx ? { ...l, productos: l.productos.filter((_, pi) => pi !== pIdx) } : l))}
-                                                        className="text-red-400 hover:text-red-600 mt-4 p-0.5"><i className="fas fa-times text-xs"></i></button>
-                                                </div>
+                                                <ProductoRow key={pIdx} producto={prod} tiposInventario={tiposInventario}
+                                                    onUpdate={(updates) => setLabores(prev => prev.map((l, i) => i === idx ? { ...l, productos: l.productos.map((p, pi) => pi === pIdx ? { ...p, ...updates } : p) } : l))}
+                                                    onRemove={() => setLabores(prev => prev.map((l, i) => i === idx ? { ...l, productos: l.productos.filter((_, pi) => pi !== pIdx) } : l))} />
                                             ))}
                                         </div>
                                     )}
@@ -1099,8 +832,6 @@ const FormGeneral: React.FC<{
                     </div>
                 )}
             </div>
-
-            {/* Botones */}
             <div className="flex justify-end gap-3 pt-4 border-t">
                 <button type="button" onClick={onCancel} className="px-5 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Cancelar</button>
                 <button type="button" onClick={handleSubmit} disabled={submitting || !loteId || !titulo || !descripcion}
@@ -1119,42 +850,19 @@ const RecomendacionFormSelector: React.FC<Props> = ({
 }) => {
     const [submitting, setSubmitting] = useState(false);
     const modoVinculado = Boolean(diagnosticoIdInicial);
-
-    const handleSubmit = async (data: any) => {
-        await (onSubmit as (data: any) => Promise<void>)(data);
-    };
+    const handleSubmit = async (data: any) => { await (onSubmit as (data: any) => Promise<void>)(data); };
 
     return (
         <div className="p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center gap-3 mb-1">
-                <h2 className="text-xl font-bold text-gray-900">
-                    {esEdicion ? 'Editar Recomendación' : 'Nueva Recomendación'}
-                </h2>
-                {modoVinculado && (
-                    <span className="text-xs font-medium bg-blue-100 text-blue-700 px-2 py-1 rounded-full border border-blue-200">
-                        <i className="fas fa-link mr-1"></i>Vinculada al Diagnóstico #{diagnosticoIdInicial}
-                    </span>
-                )}
+                <h2 className="text-xl font-bold text-gray-900">{esEdicion ? 'Editar Recomendación' : 'Nueva Recomendación'}</h2>
+                {modoVinculado && (<span className="text-xs font-medium bg-blue-100 text-blue-700 px-2 py-1 rounded-full border border-blue-200"><i className="fas fa-link mr-1"></i>Vinculada al Diagnóstico #{diagnosticoIdInicial}</span>)}
             </div>
-            <p className="text-sm text-gray-500 mb-6">
-                {modoVinculado
-                    ? 'Completa el formulario de recomendación para este diagnóstico.'
-                    : 'Selecciona el programa, tipo de monitoreo y subtipo para cargar el formulario.'}
-            </p>
-
+            <p className="text-sm text-gray-500 mb-6">{modoVinculado ? 'Completa el formulario de recomendación para este diagnóstico.' : 'Selecciona el programa, tipo de monitoreo y subtipo para cargar el formulario.'}</p>
             {modoVinculado ? (
-                <FormVinculadaDiagnostico
-                    diagnosticoId={diagnosticoIdInicial!} lotes={lotes} programas={programas}
-                    currentUser={currentUser} onSubmit={handleSubmit} onCancel={onCancel}
-                    submitting={submitting} setSubmitting={setSubmitting} docentes={docentes}
-                />
+                <FormVinculadaDiagnostico diagnosticoId={diagnosticoIdInicial!} lotes={lotes} programas={programas} currentUser={currentUser} onSubmit={handleSubmit} onCancel={onCancel} submitting={submitting} setSubmitting={setSubmitting} docentes={docentes} />
             ) : (
-                <FormGeneral
-                    recomendacion={recomendacion} lotes={lotes} docentes={docentes}
-                    programas={programas} currentUser={currentUser} esEdicion={esEdicion}
-                    onSubmit={handleSubmit} onCancel={onCancel}
-                    submitting={submitting} setSubmitting={setSubmitting}
-                />
+                <FormGeneral recomendacion={recomendacion} lotes={lotes} docentes={docentes} programas={programas} currentUser={currentUser} esEdicion={esEdicion} onSubmit={handleSubmit} onCancel={onCancel} submitting={submitting} setSubmitting={setSubmitting} />
             )}
         </div>
     );
