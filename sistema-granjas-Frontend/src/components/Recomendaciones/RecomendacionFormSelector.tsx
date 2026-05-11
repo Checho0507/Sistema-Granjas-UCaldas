@@ -137,7 +137,6 @@ const FormVinculadaDiagnostico: React.FC<{
             }
         }
 
-        // Validar labores
         const laboresValidas = laboresToCrear.filter(l => l.tipo_labor_id !== null);
         for (const labor of laboresValidas) {
             if (!labor.trabajador_id) {
@@ -223,7 +222,6 @@ const FormVinculadaDiagnostico: React.FC<{
 
     return (
         <div className="space-y-5">
-            {/* Context banner */}
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-2">
                     <i className="fas fa-microscope text-blue-600"></i>
@@ -237,7 +235,6 @@ const FormVinculadaDiagnostico: React.FC<{
                 </div>
             </div>
 
-            {/* Dynamic campos */}
             {campos.length > 0 && (
                 <div className="border border-orange-200 rounded-xl p-4 bg-orange-50">
                     <h4 className="font-semibold text-orange-800 mb-4 text-sm">
@@ -259,7 +256,6 @@ const FormVinculadaDiagnostico: React.FC<{
                 </div>
             )}
 
-            {/* Product application question */}
             <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
                 <p className="text-sm font-semibold text-gray-800 mb-3">
                     <i className="fas fa-flask mr-2 text-purple-600"></i>
@@ -341,7 +337,6 @@ const FormVinculadaDiagnostico: React.FC<{
                 )}
             </div>
 
-            {/* Título */}
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
                 <input type="text" value={titulo} onChange={e => setTitulo(e.target.value)}
@@ -349,7 +344,6 @@ const FormVinculadaDiagnostico: React.FC<{
                     placeholder="Título de la recomendación..." required />
             </div>
 
-            {/* Descripción */}
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Descripción / Observaciones *</label>
                 <textarea value={descripcion} onChange={e => setDescripcion(e.target.value)}
@@ -358,7 +352,6 @@ const FormVinculadaDiagnostico: React.FC<{
                 <p className="text-xs text-gray-400 mt-1">{descripcion.length} / mín. 10 caracteres</p>
             </div>
 
-            {/* Labores a crear */}
             <div className="border border-green-200 rounded-xl p-4 bg-green-50">
                 <div className="flex items-center justify-between mb-3">
                     <h4 className="font-semibold text-green-800 text-sm">
@@ -371,7 +364,7 @@ const FormVinculadaDiagnostico: React.FC<{
                     </button>
                 </div>
                 {laboresToCrear.length === 0 ? (
-                    <p className="text-xs text-green-600">No hay labores programadas. Puedes agregar labores que se crearán automáticamente al guardar la recomendación.</p>
+                    <p className="text-xs text-green-600">No hay labores programadas.</p>
                 ) : (
                     <div className="space-y-3">
                         {laboresToCrear.map((labor, idx) => (
@@ -411,7 +404,6 @@ const FormVinculadaDiagnostico: React.FC<{
                 )}
             </div>
 
-            {/* Actions */}
             <div className="flex justify-end gap-3 pt-4 border-t">
                 <button type="button" onClick={onCancel} className="px-5 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">
                     Cancelar
@@ -456,7 +448,46 @@ const FormGeneral: React.FC<{
     const [laboresToCrear, setLaboresToCrear] = useState<LaborRow[]>([]);
     const [initialLoading, setInitialLoading] = useState(true);
 
+    // NUEVO: Diagnóstico seleccionado y diagnósticos pendientes
+    const [diagnosticoSeleccionadoId, setDiagnosticoSeleccionadoId] = useState<number | null>(null);
+    const [diagnosticosPendientes, setDiagnosticosPendientes] = useState<any[]>([]);
+    const [loadingDiagnosticos, setLoadingDiagnosticos] = useState(false);
+
     const lotesFiltrados = lotes.filter(l => l.programa_id === programaId);
+
+    // ── Cargar diagnósticos pendientes cuando hay lote + subtipo ──────────────
+    useEffect(() => {
+        if (!loteId || !subtipoId || esEdicion) {
+            setDiagnosticosPendientes([]);
+            if (!esEdicion) setDiagnosticoSeleccionadoId(null);
+            return;
+        }
+
+        const cargarDiagnosticos = async () => {
+            setLoadingDiagnosticos(true);
+            try {
+                const data = await diagnosticoService.obtenerDiagnosticos({
+                    lote_id: loteId,
+                    diagnostico_tipo_id: subtipoId,
+                    estado_revision: 'pendiente_revision',
+                } as any);
+                
+                const diagnosticosData = Array.isArray(data) ? data : (data?.items || []);
+                setDiagnosticosPendientes(diagnosticosData);
+                
+                if (diagnosticosData.length === 0) {
+                    setDiagnosticoSeleccionadoId(null);
+                }
+            } catch (error) {
+                console.error('Error cargando diagnósticos pendientes:', error);
+                setDiagnosticosPendientes([]);
+            } finally {
+                setLoadingDiagnosticos(false);
+            }
+        };
+
+        cargarDiagnosticos();
+    }, [loteId, subtipoId, esEdicion]);
 
     // ── Inicializar desde recomendación (modo edición) ────────────────────────
     useEffect(() => {
@@ -474,6 +505,7 @@ const FormGeneral: React.FC<{
                 setDescripcion(rec.descripcion || '');
                 setEstado(rec.estado || 'pendiente');
                 setLoteId(rec.lote_id || null);
+                setDiagnosticoSeleccionadoId(rec.diagnostico_id || null);
 
                 if (rec.formulario_recomendacion) {
                     setFormulario(rec.formulario_recomendacion);
@@ -488,15 +520,12 @@ const FormGeneral: React.FC<{
                         const monitoreosArr = Array.isArray(mons) ? mons : [];
                         setMonitoreos(monitoreosArr);
 
-                        // Buscar a qué monitoreo pertenece el subtipo
                         if (rec.subtipo_id) {
                             for (const mon of monitoreosArr) {
                                 const subtiposData = await diagnosticoDinamicoService.listarSubtiposPorMonitoreo(mon.id);
                                 const encontrado = subtiposData.find(s => s.id === rec.subtipo_id);
                                 if (encontrado) {
-                                    // Establecer monitoreoId PRIMERO
                                     setMonitoreoId(mon.id);
-                                    // Luego establecer subtipoId (el useEffect de subtipos ya tendrá monitoreoId correcto)
                                     setSubtipoId(rec.subtipo_id);
                                     break;
                                 }
@@ -526,18 +555,15 @@ const FormGeneral: React.FC<{
     }, [programaId]);
 
     // ── Cargar subtipos ──────────────────────────────────────────────────────
-    // CORRECCIÓN: Sin validación inmediata que cause race condition
     useEffect(() => {
         if (!monitoreoId) {
             setSubtipos([]);
-            // SOLO resetear subtipoId si NO es edición
             if (!esEdicion) {
                 setSubtipoId(null);
             }
             return;
         }
 
-        // SOLO resetear subtipoId si NO es edición
         if (!esEdicion) {
             setSubtipoId(null);
         }
@@ -546,7 +572,6 @@ const FormGeneral: React.FC<{
             .listarSubtiposPorMonitoreo(monitoreoId)
             .then(data => {
                 setSubtipos(data.filter(s => s.activo));
-                // NO validar subtipoId aquí - se mantiene el valor establecido en init()
             })
             .catch(() => {
                 setSubtipos([]);
@@ -564,7 +589,6 @@ const FormGeneral: React.FC<{
         diagnosticoDinamicoService.listarCamposRecomendacion(subtipoId)
             .then(data => {
                 setCampos([...data].sort((a, b) => a.orden - b.orden));
-                // Solo resetear formulario si NO es edición
                 if (!esEdicion) {
                     setFormulario({});
                 }
@@ -622,7 +646,6 @@ const FormGeneral: React.FC<{
             }
         }
 
-        // Validar labores
         const laboresValidas = laboresToCrear.filter(l => l.tipo_labor_id !== null);
         for (const labor of laboresValidas) {
             if (!labor.trabajador_id) {
@@ -639,7 +662,9 @@ const FormGeneral: React.FC<{
                 titulo: titulo.trim(), descripcion: descripcion.trim(), estado,
                 lote_id: loteId, subtipo_id: subtipoId || null,
                 formulario_recomendacion: Object.keys(formulario).length > 0 ? formulario : null,
-                docente_id: docenteId, diagnostico_id: null, items_sugeridos: [],
+                docente_id: docenteId,
+                diagnostico_id: diagnosticoSeleccionadoId || null,
+                items_sugeridos: [],
                 labores_a_crear: esEdicion ? [] : laboresValidas.map(l => ({
                     tipo_labor_id: l.tipo_labor_id,
                     trabajador_id: l.trabajador_id,
@@ -666,7 +691,7 @@ const FormGeneral: React.FC<{
         <div className="space-y-5">
             <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Programa *</label>
-                <select value={programaId || ''} onChange={e => { setProgramaId(e.target.value ? parseInt(e.target.value) : null); setMonitoreoId(null); setSubtipoId(null); }}
+                <select value={programaId || ''} onChange={e => { setProgramaId(e.target.value ? parseInt(e.target.value) : null); setMonitoreoId(null); setSubtipoId(null); setLoteId(null); setDiagnosticoSeleccionadoId(null); }}
                     className="w-full border border-gray-300 rounded-lg p-3 text-sm"
                     disabled={esEdicion}>
                     <option value="">Seleccionar programa...</option>
@@ -678,7 +703,7 @@ const FormGeneral: React.FC<{
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de Monitoreo</label>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {monitoreos.map(m => (
-                            <button key={m.id} type="button" onClick={() => { setMonitoreoId(m.id); setSubtipoId(null); }}
+                            <button key={m.id} type="button" onClick={() => { setMonitoreoId(m.id); setSubtipoId(null); setDiagnosticoSeleccionadoId(null); }}
                                 className={`p-3 border-2 rounded-lg text-sm text-center transition ${monitoreoId === m.id ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium' : 'border-gray-200 hover:border-orange-300'}`}
                                 disabled={esEdicion}>
                                 <i className="fas fa-leaf block text-lg mb-1"></i>{m.nombre}
@@ -695,7 +720,7 @@ const FormGeneral: React.FC<{
                     ) : (
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                             {subtipos.map(s => (
-                                <button key={s.id} type="button" onClick={() => setSubtipoId(s.id)}
+                                <button key={s.id} type="button" onClick={() => { setSubtipoId(s.id); setDiagnosticoSeleccionadoId(null); }}
                                     className={`p-3 border-2 rounded-lg text-sm text-center transition ${subtipoId === s.id ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium' : 'border-gray-200 hover:border-orange-300'}`}
                                     disabled={esEdicion}>
                                     {s.nombre}
@@ -707,13 +732,48 @@ const FormGeneral: React.FC<{
             )}
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Lote *</label>
-                <select value={loteId || ''} onChange={e => setLoteId(e.target.value ? parseInt(e.target.value) : null)}
+                <select value={loteId || ''} onChange={e => { setLoteId(e.target.value ? parseInt(e.target.value) : null); setDiagnosticoSeleccionadoId(null); }}
                     className="w-full border border-gray-300 rounded-lg p-2.5 text-sm" required
                     disabled={esEdicion}>
                     <option value="">Seleccionar lote...</option>
                     {lotesFiltrados.map(l => <option key={l.id} value={l.id}>{l.nombre}{l.granja_nombre ? ` (${l.granja_nombre})` : ''}</option>)}
                 </select>
             </div>
+
+            {/* NUEVO: Selector de Diagnóstico Pendiente */}
+            {subtipoId && loteId && !esEdicion && (
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <i className="fas fa-microscope mr-1 text-blue-500"></i>
+                        Diagnóstico asociado (opcional)
+                    </label>
+                    {loadingDiagnosticos ? (
+                        <div className="flex items-center text-gray-500 text-sm gap-2 py-2">
+                            <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                            Cargando diagnósticos pendientes...
+                        </div>
+                    ) : diagnosticosPendientes.length === 0 ? (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-700">
+                            <i className="fas fa-info-circle mr-2"></i>
+                            No hay diagnósticos pendientes para este lote y subtipo. La recomendación se creará sin vincular a un diagnóstico.
+                        </div>
+                    ) : (
+                        <select
+                            value={diagnosticoSeleccionadoId || ''}
+                            onChange={e => setDiagnosticoSeleccionadoId(e.target.value ? parseInt(e.target.value) : null)}
+                            className="w-full border border-gray-300 rounded-lg p-2.5 text-sm"
+                        >
+                            <option value="">Sin diagnóstico (recomendación general)</option>
+                            {diagnosticosPendientes.map(diag => (
+                                <option key={diag.id} value={diag.id}>
+                                    #{diag.id} - {(diag as any).tipo_diagnostico?.replace(/_/g, ' ') || 'Sin tipo'} - {new Date(diag.fecha_creacion).toLocaleDateString('es-CO')}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                </div>
+            )}
+
             {campos.length > 0 && (
                 <div className="border border-orange-200 rounded-xl p-4 bg-orange-50 space-y-4">
                     <h4 className="text-sm font-semibold text-orange-800"><i className="fas fa-wpforms mr-1"></i>Formulario dinámico</h4>
