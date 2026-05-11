@@ -58,6 +58,11 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
     const [estado, setEstado] = useState('pendiente');
     const [formulario, setFormulario] = useState<Record<string, any>>({});
     const [aplicarProducto, setAplicarProducto] = useState<'si' | 'no' | null>(null);
+    
+    // Diagnóstico seleccionado (nuevo)
+    const [diagnosticoSeleccionadoId, setDiagnosticoSeleccionadoId] = useState<number | null>(diagnosticoIdInicial || null);
+    const [diagnosticosPendientes, setDiagnosticosPendientes] = useState<any[]>([]);
+    const [loadingDiagnosticos, setLoadingDiagnosticos] = useState(false);
 
     // Inventario
     const [tiposInventario, setTiposInventario] = useState<any[]>([]);
@@ -80,6 +85,44 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
     const esDocente = currentUser?.rol_id === 2 || currentUser?.rol_id === 5;
     const modoVinculado = Boolean(diagnosticoIdInicial);
 
+    // ── Cargar diagnósticos pendientes cuando hay lote + subtipo ──────────────
+    useEffect(() => {
+        if (!loteId || !subtipoId) {
+            setDiagnosticosPendientes([]);
+            if (!modoVinculado) setDiagnosticoSeleccionadoId(null);
+            return;
+        }
+
+        // En modo edición o vinculado, no cargar diagnósticos
+        if (esEdicion || modoVinculado) return;
+
+        const cargarDiagnosticos = async () => {
+            setLoadingDiagnosticos(true);
+            try {
+                const data = await diagnosticoService.obtenerDiagnosticos({
+                    lote_id: loteId,
+                    diagnostico_tipo_id: subtipoId,
+                    estado_revision: 'pendiente_revision',
+                } as any);
+                
+                const diagnosticosData = Array.isArray(data) ? data : (data?.items || []);
+                setDiagnosticosPendientes(diagnosticosData);
+                
+                if (diagnosticosData.length === 0) {
+                    // No hay diagnósticos pendientes, se puede crear sin vincular
+                    setDiagnosticoSeleccionadoId(null);
+                }
+            } catch (error) {
+                console.error('Error cargando diagnósticos pendientes:', error);
+                setDiagnosticosPendientes([]);
+            } finally {
+                setLoadingDiagnosticos(false);
+            }
+        };
+
+        cargarDiagnosticos();
+    }, [loteId, subtipoId, esEdicion, modoVinculado]);
+
     // ── Inicializar desde recomendación (modo edición) ────────────────────────
     useEffect(() => {
         if (!esEdicion || !recomendacion) return;
@@ -89,37 +132,31 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
             try {
                 const rec = recomendacion as any;
 
-                // 1. Establecer datos básicos
                 setTitulo(rec.titulo || '');
                 setDescripcion(rec.descripcion || '');
                 setEstado(rec.estado || 'pendiente');
                 setLoteId(rec.lote_id || null);
+                setDiagnosticoSeleccionadoId(rec.diagnostico_id || null);
 
-                // 2. Cargar formulario guardado
                 if (rec.formulario_recomendacion) {
                     setFormulario(rec.formulario_recomendacion);
                 }
 
-                // 3. Determinar programa_id desde el lote
                 if (rec.lote_id) {
                     const lote = lotes.find(l => l.id === rec.lote_id);
                     if (lote?.programa_id) {
                         setProgramaId(lote.programa_id);
 
-                        // 4. Cargar monitoreos para este programa
                         const mons = await monitoreoService.obtenerMonitoreosPorPrograma(lote.programa_id);
                         const monitoreosArr = Array.isArray(mons) ? mons : [];
                         setMonitoreos(monitoreosArr);
 
-                        // 5. Buscar a qué monitoreo pertenece el subtipo
                         if (rec.subtipo_id) {
                             for (const mon of monitoreosArr) {
                                 const subtiposData = await diagnosticoDinamicoService.listarSubtiposPorMonitoreo(mon.id);
                                 const encontrado = subtiposData.find(s => s.id === rec.subtipo_id);
                                 if (encontrado) {
-                                    // IMPORTANTE: establecer monitoreoId PRIMERO
                                     setMonitoreoId(mon.id);
-                                    // Luego establecer subtipoId (el useEffect de subtipos ya tendrá monitoreoId correcto)
                                     setSubtipoId(rec.subtipo_id);
                                     break;
                                 }
@@ -128,7 +165,6 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
                     }
                 }
 
-                // 6. Cargar inventario si aplica
                 if (rec.inventario_item_id) {
                     setItemId(rec.inventario_item_id);
                     setAplicarProducto('si');
@@ -161,6 +197,8 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
                 if (d.programa_id) setProgramaId(d.programa_id);
                 if (d.tipo_monitoreo_id) setMonitoreoId(d.tipo_monitoreo_id);
                 if (d.diagnostico_tipo_id) setSubtipoId(d.diagnostico_tipo_id);
+                
+                setDiagnosticoSeleccionadoId(diagnosticoIdInicial);
 
                 const monNombre = d.tipo_monitoreo_nombre || d.tipo_diagnostico || '';
                 const loteNombre = d.lote_nombre || '';
@@ -192,18 +230,15 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
     }, [programaId]);
 
     // ── Cargar subtipos ──────────────────────────────────────────────────────
-    // CORRECCIÓN: Sin validación inmediata que cause race condition
     useEffect(() => {
         if (!monitoreoId) {
             setSubtipos([]);
-            // SOLO resetear subtipoId si NO es edición ni vinculado
             if (!esEdicion && !modoVinculado) {
                 setSubtipoId(null);
             }
             return;
         }
 
-        // SOLO resetear subtipoId si NO es edición ni vinculado
         if (!esEdicion && !modoVinculado) {
             setSubtipoId(null);
         }
@@ -212,7 +247,6 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
             .listarSubtiposPorMonitoreo(monitoreoId)
             .then(data => {
                 setSubtipos(data.filter(s => s.activo));
-                // NO validar subtipoId aquí - se mantiene el valor establecido en init()
             })
             .catch(() => {
                 setSubtipos([]);
@@ -337,7 +371,7 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
                 subtipo_id: subtipoId || null,
                 formulario_recomendacion: Object.keys(formulario).length > 0 ? formulario : null,
                 docente_id: docenteId,
-                diagnostico_id: modoVinculado ? diagnosticoIdInicial : null,
+                diagnostico_id: diagnosticoSeleccionadoId || null,
                 inventario_item_id: aplicarProducto === 'si' ? itemId : null,
                 cantidad_sugerida: aplicarProducto === 'si' && dosis ? parseFloat(dosis) : null,
                 unidad_dosis: aplicarProducto === 'si' ? unidad.trim() : null,
@@ -399,6 +433,7 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
                                     setMonitoreoId(null);
                                     setSubtipoId(null);
                                     setLoteId(null);
+                                    setDiagnosticoSeleccionadoId(null);
                                 }}
                                 className="w-full border border-gray-300 rounded-lg p-3 text-sm"
                                 disabled={esEdicion || modoVinculado}
@@ -419,7 +454,7 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                     {monitoreos.map(m => (
                                         <button key={m.id} type="button"
-                                            onClick={() => { setMonitoreoId(m.id); setSubtipoId(null); }}
+                                            onClick={() => { setMonitoreoId(m.id); setSubtipoId(null); setDiagnosticoSeleccionadoId(null); }}
                                             className={`p-3 border-2 rounded-lg text-sm text-center transition ${monitoreoId === m.id ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium' : 'border-gray-200 hover:border-orange-300'}`}
                                             disabled={esEdicion || modoVinculado}>
                                             <i className="fas fa-leaf block text-lg mb-1"></i>{m.nombre}
@@ -440,7 +475,7 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                     {subtipos.map(s => (
                                         <button key={s.id} type="button"
-                                            onClick={() => setSubtipoId(s.id)}
+                                            onClick={() => { setSubtipoId(s.id); setDiagnosticoSeleccionadoId(null); }}
                                             className={`p-3 border-2 rounded-lg text-sm text-center transition ${subtipoId === s.id ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium' : 'border-gray-200 hover:border-orange-300'}`}
                                             disabled={esEdicion || modoVinculado}>
                                             {s.nombre}
@@ -456,7 +491,10 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
                         <label className="block text-sm font-medium text-gray-700 mb-1">Lote *</label>
                         <select
                             value={loteId || ''}
-                            onChange={e => setLoteId(e.target.value ? parseInt(e.target.value) : null)}
+                            onChange={e => {
+                                setLoteId(e.target.value ? parseInt(e.target.value) : null);
+                                setDiagnosticoSeleccionadoId(null);
+                            }}
                             className="w-full border border-gray-300 rounded-lg p-2.5 text-sm"
                             required
                             disabled={esEdicion || modoVinculado}
@@ -467,6 +505,39 @@ const RecomendacionForm: React.FC<RecomendacionFormProps> = ({
                             ))}
                         </select>
                     </div>
+
+                    {/* Selector de Diagnóstico Pendiente (NUEVO) */}
+                    {subtipoId && loteId && !modoVinculado && !esEdicion && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Diagnóstico asociado (opcional)
+                            </label>
+                            {loadingDiagnosticos ? (
+                                <div className="flex items-center text-gray-500 text-sm gap-2 py-2">
+                                    <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                                    Cargando diagnósticos pendientes...
+                                </div>
+                            ) : diagnosticosPendientes.length === 0 ? (
+                                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-700">
+                                    <i className="fas fa-info-circle mr-2"></i>
+                                    No hay diagnósticos pendientes para este lote y subtipo. La recomendación se creará sin vincular a un diagnóstico.
+                                </div>
+                            ) : (
+                                <select
+                                    value={diagnosticoSeleccionadoId || ''}
+                                    onChange={e => setDiagnosticoSeleccionadoId(e.target.value ? parseInt(e.target.value) : null)}
+                                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm"
+                                >
+                                    <option value="">Sin diagnóstico (recomendación general)</option>
+                                    {diagnosticosPendientes.map(diag => (
+                                        <option key={diag.id} value={diag.id}>
+                                            #{diag.id} - {(diag as any).tipo_diagnostico?.replace(/_/g, ' ') || 'Sin tipo'} - {new Date(diag.fecha_creacion).toLocaleDateString('es-CO')}
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
+                        </div>
+                    )}
 
                     {/* Campos dinámicos */}
                     {campos.length > 0 && (
