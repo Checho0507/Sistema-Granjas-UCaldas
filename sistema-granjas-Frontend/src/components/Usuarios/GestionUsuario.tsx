@@ -8,6 +8,7 @@ import usuarioService from "../../services/usuarioService";
 import { StatsCard } from "../Common/StatsCard";
 import { EditarUsuarioModal } from "./EditarUsuario";
 import { CambiarRolModal } from "./CambiarRol";
+import { AsignarProgramaModal } from "./AsignarProgramaModal";
 import UsuariosTable from "./UsuariosTable";
 import exportService from "../../services/exportService";
 
@@ -50,6 +51,7 @@ export default function GestionUsuarios() {
     // Modales
     const [modalEditar, setModalEditar] = useState(false);
     const [modalCambiarRol, setModalCambiarRol] = useState(false);
+    const [modalAsignarPrograma, setModalAsignarPrograma] = useState(false);
 
     // Selecciones
     const [usuarioSeleccionado, setUsuarioSeleccionado] = useState<any>(null);
@@ -190,6 +192,11 @@ export default function GestionUsuarios() {
         setModalCambiarRol(true);
     };
 
+    const abrirAsignarPrograma = (usuario: any) => {
+        setUsuarioSeleccionado(usuario);
+        setModalAsignarPrograma(true);
+    };
+
     const manejarEliminar = async (id: number) => {
         if (!confirm("¿Estás seguro de eliminar este usuario? Esta acción no se puede deshacer.")) return;
 
@@ -281,6 +288,7 @@ export default function GestionUsuarios() {
     const cerrarModales = () => {
         setModalEditar(false);
         setModalCambiarRol(false);
+        setModalAsignarPrograma(false);
         setUsuarioSeleccionado(null);
         setDatosFormulario({
             nombre: "",
@@ -392,6 +400,7 @@ export default function GestionUsuarios() {
                 onEliminar={manejarEliminar}
                 onChangeRol={abrirCambiarRol}
                 onToggleActivo={toggleActivo}
+                onAsignarPrograma={abrirAsignarPrograma}
                 totalUsuarios={usuarios.length}
             />
 
@@ -413,6 +422,13 @@ export default function GestionUsuarios() {
                 roles={roles}
                 rolActualId={usuarioSeleccionado?.rol_id}
                 onCambiarRol={cambiarRol}
+            />
+
+            {/* MODAL Asignar Programa */}
+            <AsignarProgramaModal
+                isOpen={modalAsignarPrograma}
+                onClose={cerrarModales}
+                usuario={usuarioSeleccionado}
             />
         </div>
     );

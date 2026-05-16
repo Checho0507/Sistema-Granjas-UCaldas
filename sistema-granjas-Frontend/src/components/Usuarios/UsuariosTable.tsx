@@ -8,6 +8,7 @@ interface UsuariosTableProps {
     onEliminar: (id: number) => void;
     onChangeRol: (usuario: any) => void;
     onToggleActivo: (usuario: any) => void;
+    onAsignarPrograma: (usuario: any) => void;
     totalUsuarios: number;
 }
 
@@ -18,6 +19,7 @@ const UsuariosTable: React.FC<UsuariosTableProps> = ({
     onEliminar,
     onChangeRol,
     onToggleActivo,
+    onAsignarPrograma,
     totalUsuarios
 }) => {
     // Función para obtener nombre del rol por ID
@@ -141,20 +143,29 @@ const UsuariosTable: React.FC<UsuariosTableProps> = ({
                                     {formatearFecha(usuario.fecha_creacion)}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                    <div className="flex space-x-2">
+                                    <div className="flex space-x-1">
                                         {/* Botón Editar */}
                                         <button
                                             onClick={() => onEditar(usuario)}
-                                            className="text-blue-600 hover:text-blue-900 transition-colors p-1"
+                                            className="text-blue-600 hover:text-blue-900 transition-colors p-1.5 rounded hover:bg-blue-50"
                                             title="Editar información"
                                         >
                                             <i className="fas fa-edit"></i>
                                         </button>
 
+                                        {/* Botón Asignar Programa */}
+                                        <button
+                                            onClick={() => onAsignarPrograma(usuario)}
+                                            className="text-green-600 hover:text-green-900 transition-colors p-1.5 rounded hover:bg-green-50"
+                                            title="Asignar programa"
+                                        >
+                                            <i className="fas fa-clipboard-list"></i>
+                                        </button>
+
                                         {/* Botón Eliminar */}
                                         <button
                                             onClick={() => onEliminar(usuario.id)}
-                                            className="text-red-600 hover:text-red-900 transition-colors p-1"
+                                            className="text-red-600 hover:text-red-900 transition-colors p-1.5 rounded hover:bg-red-50"
                                             title="Eliminar usuario"
                                         >
                                             <i className="fas fa-trash"></i>
