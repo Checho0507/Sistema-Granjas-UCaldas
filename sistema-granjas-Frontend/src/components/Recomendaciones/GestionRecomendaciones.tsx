@@ -61,6 +61,11 @@ const GestionRecomendaciones: React.FC = () => {
     const [urlDiagnosticoId, setUrlDiagnosticoId] = useState<number | undefined>(undefined);
     const [urlLoteId, setUrlLoteId] = useState<number | undefined>(undefined);
 
+    // Obtener programas del usuario (desde relación usuario_programa)
+    const programasUsuario = user?.programas?.map((p: any) => p.id) || [];
+    const esAdmin = user?.rol_id === 1;
+    const esDocente = user?.rol_id === 2 || user?.rol_id === 5;
+
     // Load programs + check URL params on mount
     useEffect(() => {
         const cargarProgramas = async () => {
@@ -83,19 +88,25 @@ const GestionRecomendaciones: React.FC = () => {
         }
     }, []);
 
-    // Load pending diagnoses when tab activates
+    // Load pending diagnoses when tab activates (solo diagnósticos de sus programas)
     const cargarPendientes = useCallback(async () => {
         setLoadingPendientes(true);
         try {
             const data = await diagnosticoService.obtenerDiagnosticos({ estado_revision: 'pendiente_revision' } as any);
             const items = Array.isArray(data) ? data : ((data as any)?.items || []);
-            setPendientes(items);
+            
+            // Filtrar diagnósticos pendientes según programas del usuario
+            let filteredItems = items;
+            if (esDocente && programasUsuario.length > 0) {
+                filteredItems = items.filter((d: any) => programasUsuario.includes(d.programa_id));
+            }
+            setPendientes(filteredItems);
         } catch (e) {
             toast.error('Error al cargar diagnósticos pendientes');
         } finally {
             setLoadingPendientes(false);
         }
-    }, []);
+    }, [esDocente, programasUsuario]);
 
     useEffect(() => {
         if (tabActivo === 'pendientes') {
@@ -128,8 +139,26 @@ const GestionRecomendaciones: React.FC = () => {
         try {
             setLoading(true);
             setError(null);
-            const data = await recomendacionService.obtenerRecomendaciones(filtros);
-            setRecomendaciones(Array.isArray(data) ? data : (data?.items || data || []));
+            
+            // Construir filtros base
+            const filtrosActuales = { ...filtros };
+            
+            // Si es docente y no tiene filtro de programa explícito, filtrar por sus programas
+            if (esDocente && !filtrosActuales.programa_id && programasUsuario.length > 0) {
+                filtrosActuales.programa_id = programasUsuario[0];
+            }
+            
+            const data = await recomendacionService.obtenerRecomendaciones(filtrosActuales);
+            let recomendacionesData = Array.isArray(data) ? data : (data?.items || data || []);
+            
+            // Filtrar adicionalmente por programas del docente
+            if (esDocente && programasUsuario.length > 0) {
+                recomendacionesData = recomendacionesData.filter((rec: any) => 
+                    programasUsuario.includes(rec.programa_id) && rec.docente_id === user?.id
+                );
+            }
+            
+            setRecomendaciones(recomendacionesData);
 
             if (lotes.length === 0) {
                 try {
@@ -269,10 +298,16 @@ const GestionRecomendaciones: React.FC = () => {
         setUrlLoteId(undefined);
     };
 
-    const recomendacionesFiltradas = Array.isArray(recomendaciones) ? recomendaciones.filter(r => {
+    // Filtrado final de recomendaciones según rol y programas
+    const recomendacionesFiltradas = Array.isArray(recomendaciones) ? recomendaciones.filter(rec => {
         if (!user) return false;
-        if (user.rol_id === 1) return true;
-        if (user.rol_id === 2 || user.rol_id === 5) return r.docente_id === user.id;
+        if (esAdmin) return true;
+        if (esDocente) {
+            // Docente: solo ve sus recomendaciones Y que pertenezcan a sus programas
+            const esSuRecomendacion = rec.docente_id === user.id;
+            const perteneceASuPrograma = programasUsuario.includes(rec.programa_id);
+            return esSuRecomendacion && perteneceASuPrograma;
+        }
         return true;
     }) : [];
 
