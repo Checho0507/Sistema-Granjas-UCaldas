@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
+import { useAuth } from "../../hooks/useAuth";
+import { puedeEscribir } from "../../utils/permissions";
 import cultivoService from "../../services/cultivoService";
 import granjaService from "../../services/granjaService";
 import { StatsCard } from "../Common/StatsCard";
@@ -11,8 +13,8 @@ import type { CultivoFormData, CultivoEspecie } from "../../types/cultivoTypes";
 export default function GestionCultivos() {
     const [searchParams] = useSearchParams();
     const programaId = searchParams.get("programaId");
-    
-    console.log('📍 GestionCultivos - programaId:', programaId); // 👈 LOG PARA DEBUG
+    const { user } = useAuth();
+    const canWrite = puedeEscribir(user?.rol, 'cultivos');
 
     const [cultivos, setCultivos] = useState<CultivoEspecie[]>([]);
     const [granjas, setGranjas] = useState<any[]>([]);
@@ -176,6 +178,7 @@ export default function GestionCultivos() {
 
     return (
         <div className="p-6">
+            {canWrite && (
             <button
                 onClick={() => {
                     resetFormulario();
@@ -187,6 +190,7 @@ export default function GestionCultivos() {
                 <i className="fas fa-plus mr-2"></i>
                 Nuevo Cultivo
             </button>
+        )}
 
             {/* Mensaje si no hay cultivos */}
             {!cargando && programaId && cultivos.length === 0 && (
@@ -205,6 +209,7 @@ export default function GestionCultivos() {
                 cultivos={cultivos}
                 onEditar={abrirEditar}
                 onEliminar={manejarEliminar}
+                canWrite={canWrite}
             />
 
             <CultivoForm

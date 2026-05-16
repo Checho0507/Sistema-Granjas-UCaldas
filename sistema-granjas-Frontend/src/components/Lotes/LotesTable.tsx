@@ -8,12 +8,14 @@ interface LotesTableProps {
     lotes: any[];
     onEditar: (lote: any) => void;
     onEliminar: (id: number) => void;
+    canWrite?: boolean;
 }
 
 const LotesTable: React.FC<LotesTableProps> = ({
     lotes,
     onEditar,
-    onEliminar
+    onEliminar,
+    canWrite = true,
 }) => {
     const navigate = useNavigate(); // 👈 PARA NAVEGACIÓN
 
@@ -307,20 +309,24 @@ const LotesTable: React.FC<LotesTableProps> = ({
                                                 <i className="fas fa-leaf"></i>
                                             </button>
 
-                                            <button
-                                                onClick={() => onEditar(lote)}
-                                                className="text-yellow-600 hover:text-yellow-900 transition-colors p-2 hover:bg-yellow-50 rounded"
-                                                title="Editar lote"
-                                            >
-                                                <i className="fas fa-edit"></i>
-                                            </button>
-                                            <button
-                                                onClick={() => onEliminar(lote.id)}
-                                                className="text-red-600 hover:text-red-900 transition-colors p-2 hover:bg-red-50 rounded"
-                                                title="Eliminar lote"
-                                            >
-                                                <i className="fas fa-trash"></i>
-                                            </button>
+                                            {canWrite && (
+                                              <>
+                                                <button
+                                                    onClick={() => onEditar(lote)}
+                                                    className="text-yellow-600 hover:text-yellow-900 transition-colors p-2 hover:bg-yellow-50 rounded"
+                                                    title="Editar lote"
+                                                >
+                                                    <i className="fas fa-edit"></i>
+                                                </button>
+                                                <button
+                                                    onClick={() => onEliminar(lote.id)}
+                                                    className="text-red-600 hover:text-red-900 transition-colors p-2 hover:bg-red-50 rounded"
+                                                    title="Eliminar lote"
+                                                >
+                                                    <i className="fas fa-trash"></i>
+                                                </button>
+                                              </>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>

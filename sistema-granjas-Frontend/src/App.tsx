@@ -125,7 +125,7 @@ function AppContent() {
         <Route
           path="/gestion/granjas"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['admin']}>
               <GestionGranjasPage />
             </ProtectedRoute>
           }
@@ -134,7 +134,7 @@ function AppContent() {
         <Route
           path="/lotes/:loteId/mapa"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['admin', 'docente', 'asesor', 'estudiante']}>
               <LoteMapa />
             </ProtectedRoute>
           }
@@ -143,7 +143,7 @@ function AppContent() {
         <Route
           path="/gestion/programas"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['admin', 'docente', 'asesor']}>
               <GestionProgramasPage />
             </ProtectedRoute>
           }
@@ -152,7 +152,7 @@ function AppContent() {
         <Route
           path="/gestion/lotes"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['admin', 'docente', 'asesor', 'estudiante', 'trabajador']}>
               <GestionLotesPage />
             </ProtectedRoute>
           }
@@ -161,7 +161,7 @@ function AppContent() {
         <Route
           path="/gestion/cultivos"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['admin', 'docente', 'asesor', 'estudiante']}>
               <GestionCultivosPage />
             </ProtectedRoute>
           }
@@ -170,7 +170,7 @@ function AppContent() {
         <Route
           path="/gestion/plantas"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['admin', 'docente']}>
               <GestionPlantasPage />
             </ProtectedRoute>
           }
@@ -179,7 +179,7 @@ function AppContent() {
         <Route
           path="/tablero"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['admin', 'docente', 'talento_humano', 'trabajador']}>
               <TableroLaboresPage />
             </ProtectedRoute>
           }
@@ -188,7 +188,7 @@ function AppContent() {
         <Route
           path="/gestion/labores"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['admin', 'docente', 'talento_humano', 'trabajador', 'asesor']}>
               <GestionLaboresPage />
             </ProtectedRoute>
           }
@@ -197,7 +197,7 @@ function AppContent() {
         <Route
           path="/gestion/usuarios"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['admin', 'talento_humano']}>
               <GestionUsuariosPage />
             </ProtectedRoute>
           }
@@ -206,7 +206,7 @@ function AppContent() {
         <Route
           path="/gestion/inventario"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['admin', 'docente', 'asesor']}>
               <GestionInventarioPage />
             </ProtectedRoute>
           }
@@ -215,7 +215,7 @@ function AppContent() {
         <Route
           path="/gestion/diagnosticos"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['admin', 'docente', 'asesor', 'estudiante']}>
               <GestionDiagnosticosPage />
             </ProtectedRoute>
           }
@@ -224,7 +224,7 @@ function AppContent() {
         <Route
           path="/gestion/recomendaciones"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['admin', 'docente', 'asesor', 'estudiante']}>
               <GestionRecomendacionesPage />
             </ProtectedRoute>
           }
@@ -233,7 +233,7 @@ function AppContent() {
         <Route
           path="/gestion/estadisticas"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['admin']}>
               <GestionEstadisticasPage />
             </ProtectedRoute>
           }
@@ -245,7 +245,7 @@ function AppContent() {
         <Route
           path="/granjas/:granjaId/programas"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['admin', 'docente', 'asesor']}>
               <GestionProgramasPage />
             </ProtectedRoute>
           }
@@ -255,7 +255,7 @@ function AppContent() {
         <Route
           path="/granjas/:granjaId/programas/:programaId/lotes"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['admin', 'docente', 'asesor', 'estudiante', 'trabajador']}>
               <GestionLotesPage />
             </ProtectedRoute>
           }
@@ -265,7 +265,7 @@ function AppContent() {
         <Route
           path="/programas/:programaId/lotes"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['admin', 'docente', 'asesor', 'estudiante', 'trabajador']}>
               <GestionLotesPage />
             </ProtectedRoute>
           }
@@ -275,7 +275,7 @@ function AppContent() {
         <Route
           path="/lotes"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['admin', 'docente', 'asesor', 'estudiante', 'trabajador']}>
               <GestionLotesPage />
             </ProtectedRoute>
           }
@@ -285,7 +285,7 @@ function AppContent() {
         <Route
           path="/gestion/cultivos"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['admin', 'docente', 'asesor', 'estudiante']}>
               <GestionCultivosPage />
             </ProtectedRoute>
           }

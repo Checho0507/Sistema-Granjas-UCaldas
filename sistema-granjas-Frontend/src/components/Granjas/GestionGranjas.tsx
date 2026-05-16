@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import granjaService from '../../services/granjaService';
 import programaService from '../../services/programaService';
 import asignacionService from '../../services/asignacionService';
+import { useAuth } from '../../hooks/useAuth';
+import { puedeEscribir } from '../../utils/permissions';
 import { GranjaForm } from './GranjasForm';
 import type { Granja, Programa } from '../../types/granjaTypes';
 
@@ -25,6 +27,8 @@ const normalizarArray = <T,>(respuesta: any): T[] => {
 
 const GestionGranjas: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canWrite = puedeEscribir(user?.rol, 'granjas');
   const [granjas, setGranjas] = useState<GranjaConDetalles[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -160,15 +164,17 @@ const GestionGranjas: React.FC = () => {
       {/* Cabecera */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h2 className="text-2xl font-bold text-gray-800">Mis Granjas</h2>
-        <div className="flex space-x-3">
-          <button
-            onClick={abrirModalNueva}
-            className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-grren-700"
-          >
-            <i className="fas fa-plus mr-2"></i>
-            Nueva Granja
-          </button>
-        </div>
+        {canWrite && (
+          <div className="flex space-x-3">
+            <button
+              onClick={abrirModalNueva}
+              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              <i className="fas fa-plus mr-2"></i>
+              Nueva Granja
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Error */}
@@ -199,13 +205,15 @@ const GestionGranjas: React.FC = () => {
               <i className="fas fa-tractor text-gray-300 text-5xl mb-4"></i>
               <h3 className="text-xl font-semibold text-gray-700 mb-2">No hay granjas registradas</h3>
               <p className="text-gray-500 mb-6">Comienza creando una nueva granja.</p>
-              <button
-                onClick={abrirModalNueva}
-                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-              >
-                <i className="fas fa-plus mr-2"></i>
-                Crear granja
-              </button>
+              {canWrite && (
+                <button
+                  onClick={abrirModalNueva}
+                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  <i className="fas fa-plus mr-2"></i>
+                  Crear granja
+                </button>
+              )}
             </div>
           ) : (
             granjas.map(granja => (
@@ -242,20 +250,24 @@ const GestionGranjas: React.FC = () => {
                     >
                       <i className="fas fa-boxes text-xl"></i>
                     </button>
-                    <button
-                      onClick={() => abrirModalEditar(granja)}
-                      className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-full transition-colors"
-                      title="Editar granja"
-                    >
-                      <i className="fas fa-edit text-xl"></i>
-                    </button>
-                    <button
-                      onClick={() => eliminarGranja(granja.id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                      title="Eliminar granja"
-                    >
-                      <i className="fas fa-trash text-xl"></i>
-                    </button>
+                    {canWrite && (
+                      <>
+                        <button
+                          onClick={() => abrirModalEditar(granja)}
+                          className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-full transition-colors"
+                          title="Editar granja"
+                        >
+                          <i className="fas fa-edit text-xl"></i>
+                        </button>
+                        <button
+                          onClick={() => eliminarGranja(granja.id)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                          title="Eliminar granja"
+                        >
+                          <i className="fas fa-trash text-xl"></i>
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 

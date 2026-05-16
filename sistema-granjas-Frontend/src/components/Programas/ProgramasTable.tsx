@@ -10,6 +10,7 @@ interface ProgramasTableProps {
     onVerDetalles: (programa: Programa) => void;
     obtenerLabelTipo: (tipo: string) => string;
     obtenerIconoTipo: (tipo: string) => string;
+    canWrite?: boolean;
 }
 
 const ProgramasTable: React.FC<ProgramasTableProps> = ({
@@ -19,6 +20,7 @@ const ProgramasTable: React.FC<ProgramasTableProps> = ({
     onVerDetalles,
     obtenerLabelTipo,
     obtenerIconoTipo,
+    canWrite = true,
 }) => {
     const navigate = useNavigate();
 
@@ -171,29 +173,32 @@ const ProgramasTable: React.FC<ProgramasTableProps> = ({
                                             <i className="fas fa-leaf"></i>
                                         </button>
 
-                                        {/* Editar */}
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onEditar(programa);
-                                            }}
-                                            className="text-blue-600 hover:text-blue-900 p-2 hover:bg-blue-50 rounded transition-colors"
-                                            title="Editar programa"
-                                        >
-                                            <i className="fas fa-edit"></i>
-                                        </button>
+                                        {/* Editar / Eliminar solo si tiene permisos */}
+                                        {canWrite && (
+                                          <>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onEditar(programa);
+                                                }}
+                                                className="text-blue-600 hover:text-blue-900 p-2 hover:bg-blue-50 rounded transition-colors"
+                                                title="Editar programa"
+                                            >
+                                                <i className="fas fa-edit"></i>
+                                            </button>
 
-                                        {/* Eliminar */}
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onEliminar(programa.id);
-                                            }}
-                                            className="text-red-600 hover:text-red-900 p-2 hover:bg-red-50 rounded transition-colors"
-                                            title="Eliminar programa"
-                                        >
-                                            <i className="fas fa-trash"></i>
-                                        </button>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onEliminar(programa.id);
+                                                }}
+                                                className="text-red-600 hover:text-red-900 p-2 hover:bg-red-50 rounded transition-colors"
+                                                title="Eliminar programa"
+                                            >
+                                                <i className="fas fa-trash"></i>
+                                            </button>
+                                          </>
+                                        )}
                                     </div>
                                 </td>
                             </tr>

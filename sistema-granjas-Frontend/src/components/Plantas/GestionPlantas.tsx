@@ -1,6 +1,8 @@
 // src/components/Plantas/GestionPlantas.tsx
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useAuth } from "../../hooks/useAuth";
+import { puedeEscribir } from "../../utils/permissions";
 import { toast } from "react-hot-toast";
 import plantaService from "../../services/plantaService";
 import loteService from "../../services/loteService";
@@ -19,6 +21,8 @@ interface LoteSimple {
 export default function GestionPlantas() {
   const [searchParams] = useSearchParams();
   const loteIdParam = searchParams.get("loteId");
+  const { user } = useAuth();
+  const canWrite = puedeEscribir(user?.rol, 'plantas');
 
   const [plantas, setPlantas] = useState<PlantaResponse[]>([]);
   const [lotes, setLotes] = useState<LoteSimple[]>([]);
@@ -232,7 +236,7 @@ export default function GestionPlantas() {
           </select>
         </div>
 
-        {loteSeleccionado && (
+        {loteSeleccionado && canWrite && (
           <button
             onClick={generarPlantasParaLote}
             disabled={generando}
@@ -243,8 +247,8 @@ export default function GestionPlantas() {
         )}
       </div>
 
-      {/* Botón nuevo (solo si hay lote seleccionado) */}
-      {loteSeleccionado && (
+      {/* Botón nuevo (solo si hay lote seleccionado y tiene permisos) */}
+      {loteSeleccionado && canWrite && (
         <button
           onClick={() => {
             resetFormulario();
@@ -264,6 +268,7 @@ export default function GestionPlantas() {
         onEditar={abrirEditar}
         onEliminar={manejarEliminar}
         loteNombre={loteSeleccionado?.nombre}
+        canWrite={canWrite}
       />
 
       {/* Modal de formulario */}

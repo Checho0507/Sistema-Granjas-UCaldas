@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useAuth } from "../../hooks/useAuth";
+import { puedeEscribir } from "../../utils/permissions";
 import programaService from "../../services/programaService";
 import usuarioService from "../../services/usuarioService";
 import granjaService from "../../services/granjaService";
@@ -21,6 +23,8 @@ export default function GestionProgramas() {
     localStorage.setItem("granjaid", granjaId)
   }
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canWrite = puedeEscribir(user?.rol, 'programas');
   const [programas, setProgramas] = useState<Programa[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [granjas, setGranjas] = useState<Granja[]>([]);
@@ -321,25 +325,27 @@ export default function GestionProgramas() {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <button
-          onClick={() => {
-            setDatosFormulario({
-              nombre: "",
-              descripcion: "",
-              tipo: "agricola",
-              activo: true,
-              granjas_ids: []
-            });
-            setEditando(false);
-            setModalCrear(true);
-          }}
-          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
-        >
-          <i className="fas fa-plus"></i>
-          Nuevo Programa
-        </button>
-      </div>
+      {canWrite && (
+        <div className="mb-6">
+          <button
+            onClick={() => {
+              setDatosFormulario({
+                nombre: "",
+                descripcion: "",
+                tipo: "agricola",
+                activo: true,
+                granjas_ids: []
+              });
+              setEditando(false);
+              setModalCrear(true);
+            }}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
+          >
+            <i className="fas fa-plus"></i>
+            Nuevo Programa
+          </button>
+        </div>
+      )}
 
       <ProgramasTable
         programas={programas}
@@ -348,6 +354,7 @@ export default function GestionProgramas() {
         onVerDetalles={abrirDetalles}
         obtenerLabelTipo={obtenerLabelTipo}
         obtenerIconoTipo={obtenerIconoTipo}
+        canWrite={canWrite}
       />
 
       <ProgramaForm

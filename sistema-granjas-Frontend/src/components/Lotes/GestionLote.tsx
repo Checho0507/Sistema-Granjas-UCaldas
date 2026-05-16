@@ -1,6 +1,8 @@
 // src/components/Lotes/GestionLote.tsx
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "../../hooks/useAuth";
+import { puedeEscribir } from "../../utils/permissions";
 import { toast } from "react-hot-toast";
 import { loteService } from "../../services/loteService";
 import granjaService from "../../services/granjaService";
@@ -19,8 +21,10 @@ export default function GestionLotes({ programaId }: GestionLotesProps) {
     const [searchParams] = useSearchParams();
     const cultivoId = searchParams.get('cultivoId');
     const cultivoNombre = searchParams.get('cultivoNombre');
-    
+
     const navigate = useNavigate();
+    const { user } = useAuth();
+    const canWrite = puedeEscribir(user?.rol, 'lotes');
     const [lotes, setLotes] = useState<any[]>([]);
     const [tiposLote, setTiposLote] = useState<any[]>([]);
     const [granjas, setGranjas] = useState<any[]>([]);
@@ -264,33 +268,36 @@ export default function GestionLotes({ programaId }: GestionLotesProps) {
     return (
         <div className="p-6">
             {/* Botones de acción */}
-            <div className="mb-6 flex gap-4">
-                <button
-                    onClick={() => {
-                        resetFormulario();
-                        setEditando(false);
-                        setModalCrear(true);
-                    }}
-                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
-                >
-                    <i className="fas fa-plus"></i>
-                    {programaId ? 'Nuevo Lote en este Programa' : 'Nuevo Lote'}
-                </button>
+            {canWrite && (
+              <div className="mb-6 flex gap-4">
+                  <button
+                      onClick={() => {
+                          resetFormulario();
+                          setEditando(false);
+                          setModalCrear(true);
+                      }}
+                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
+                  >
+                      <i className="fas fa-plus"></i>
+                      {programaId ? 'Nuevo Lote en este Programa' : 'Nuevo Lote'}
+                  </button>
 
-                <button
-                    onClick={() => setModalTiposLote(true)}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
-                >
-                    <i className="fas fa-cog"></i>
-                    Gestionar Tipos de Lote
-                </button>
-            </div>
+                  <button
+                      onClick={() => setModalTiposLote(true)}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
+                  >
+                      <i className="fas fa-cog"></i>
+                      Gestionar Tipos de Lote
+                  </button>
+              </div>
+            )}
 
             {/* Tabla de lotes */}
             <LotesTable
                 lotes={lotes}
                 onEditar={abrirEditar}
                 onEliminar={manejarEliminar}
+                canWrite={canWrite}
             />
 
             {/* Modal de formulario */}

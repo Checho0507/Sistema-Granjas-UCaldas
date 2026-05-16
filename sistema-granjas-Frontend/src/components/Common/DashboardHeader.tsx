@@ -76,13 +76,20 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             ],
             asesor: [
                 { name: 'Diagnósticos', path: '/gestion/diagnosticos', icon: 'fa-stethoscope', description: 'Crear diagnósticos' },
-                { name: 'Recomendaciones', path: '/gestion/recomendaciones', icon: 'fa-lightbulb', description: 'Ver recomendaciones' },
-                { name: 'Labores', path: '/gestion/labores', icon: 'fa-calendar-check', description: 'Seguir labores' }
+                { name: 'Recomendaciones', path: '/gestion/recomendaciones', icon: 'fa-lightbulb', description: 'Emitir recomendaciones' },
+                { name: 'Labores', path: '/gestion/labores', icon: 'fa-calendar-check', description: 'Seguir labores' },
+                { name: 'Lotes', path: '/gestion/lotes', icon: 'fa-tractor', description: 'Consultar lotes' },
+                { name: 'Programas', path: '/gestion/programas', icon: 'fa-clipboard-list', description: 'Ver programas' },
+                { name: 'Inventario', path: '/gestion/inventario', icon: 'fa-boxes', description: 'Consultar inventario' },
             ],
             docente: [
                 { name: 'Diagnósticos', path: '/gestion/diagnosticos', icon: 'fa-stethoscope', description: 'Evaluar diagnósticos' },
                 { name: 'Recomendaciones', path: '/gestion/recomendaciones', icon: 'fa-lightbulb', description: 'Aprobar recomendaciones' },
-                { name: 'Labores', path: '/gestion/labores', icon: 'fa-calendar-check', description: 'Supervisar labores' }
+                { name: 'Labores', path: '/gestion/labores', icon: 'fa-calendar-check', description: 'Supervisar labores' },
+                { name: 'Lotes', path: '/gestion/lotes', icon: 'fa-tractor', description: 'Gestionar lotes' },
+                { name: 'Cultivos', path: '/gestion/cultivos', icon: 'fa-leaf', description: 'Gestionar cultivos' },
+                { name: 'Plantas', path: '/gestion/plantas', icon: 'fa-seedling', description: 'Gestionar plantas' },
+                { name: 'Inventario', path: '/gestion/inventario', icon: 'fa-boxes', description: 'Gestionar inventario' },
             ],
             talento_humano: [
                 { name: 'Usuarios', path: '/gestion/usuarios', icon: 'fa-users', description: 'Gestionar personal' },
@@ -90,7 +97,9 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             ],
             estudiante: [
                 { name: 'Diagnósticos', path: '/gestion/diagnosticos', icon: 'fa-stethoscope', description: 'Realizar diagnósticos' },
-                { name: 'Recomendaciones', path: '/gestion/recomendaciones', icon: 'fa-lightbulb', description: 'Recibir recomendaciones' }
+                { name: 'Recomendaciones', path: '/gestion/recomendaciones', icon: 'fa-lightbulb', description: 'Ver recomendaciones' },
+                { name: 'Lotes', path: '/gestion/lotes', icon: 'fa-tractor', description: 'Explorar lotes' },
+                { name: 'Cultivos', path: '/gestion/cultivos', icon: 'fa-leaf', description: 'Ver catálogo de cultivos' },
             ],
             trabajador: [
                 { name: 'Tablero', path: '/tablero', icon: 'fa-th-large', description: 'Tablero de tareas' },

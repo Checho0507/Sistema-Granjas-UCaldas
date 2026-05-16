@@ -1,5 +1,7 @@
 // src/components/InventarioDinamico/GestionInventarioDinamico.tsx
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../hooks/useAuth';
+import { puedeEscribir } from '../../utils/permissions';
 import SelectorPrograma from './SelectorPrograma';
 import TiposInventarioList from './TiposInventarioList';
 import TipoInventarioForm from './TipoInventarioForm';
@@ -13,6 +15,8 @@ import type { TipoInventario, Campo, ItemInventario, TipoConItems } from '../../
 import { toast } from 'react-hot-toast';
 
 const GestionInventarioDinamico: React.FC = () => {
+  const { user } = useAuth();
+  const canWrite = puedeEscribir(user?.rol, 'inventario');
   const [programas, setProgramas] = useState<any[]>([]);
   const [cargandoProgramas, setCargandoProgramas] = useState(true);
   const [programaId, setProgramaId] = useState<number | null>(null);
@@ -184,9 +188,9 @@ const GestionInventarioDinamico: React.FC = () => {
                 tipos={tipos}
                 selectedTipoId={tipoSeleccionado?.id}
                 onSelectTipo={handleSelectTipo}
-                onEdit={(tipo) => { setEditandoTipo(tipo); setModalTipo(true); }}
-                onDelete={handleEliminarTipo}
-                onCreate={() => { setEditandoTipo(null); setModalTipo(true); }}
+                onEdit={canWrite ? (tipo) => { setEditandoTipo(tipo); setModalTipo(true); } : undefined}
+                onDelete={canWrite ? handleEliminarTipo : undefined}
+                onCreate={canWrite ? () => { setEditandoTipo(null); setModalTipo(true); } : undefined}
                 loading={loading}
               />
             </div>
@@ -196,16 +200,16 @@ const GestionInventarioDinamico: React.FC = () => {
                   <h2 className="text-xl font-bold mb-2">{tipoSeleccionado.nombre}</h2>
                   <CamposInventarioList
                     campos={campos}
-                    onEdit={(campo) => { setEditandoCampo(campo); setModalCampo(true); }}
-                    onDelete={handleEliminarCampo}
-                    onCreate={() => { setEditandoCampo(null); setModalCampo(true); }}
+                    onEdit={canWrite ? (campo) => { setEditandoCampo(campo); setModalCampo(true); } : undefined}
+                    onDelete={canWrite ? handleEliminarCampo : undefined}
+                    onCreate={canWrite ? () => { setEditandoCampo(null); setModalCampo(true); } : undefined}
                   />
                   <ItemsInventarioList
                     items={items}
                     campos={campos}
-                    onEdit={(item) => { setEditandoItem(item); setModalItem(true); }}
-                    onDelete={handleEliminarItem}
-                    onCreate={() => { setEditandoItem(null); setModalItem(true); }}
+                    onEdit={canWrite ? (item) => { setEditandoItem(item); setModalItem(true); } : undefined}
+                    onDelete={canWrite ? handleEliminarItem : undefined}
+                    onCreate={canWrite ? () => { setEditandoItem(null); setModalItem(true); } : undefined}
                   />
                 </>
               ) : (

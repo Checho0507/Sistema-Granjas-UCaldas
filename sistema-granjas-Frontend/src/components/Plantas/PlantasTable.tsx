@@ -7,6 +7,7 @@ interface PlantasTableProps {
   onEditar: (planta: PlantaResponse) => void;
   onEliminar: (id: number) => void;
   loteNombre?: string;
+  canWrite?: boolean;
 }
 
 const PlantasTable: React.FC<PlantasTableProps> = ({
@@ -14,6 +15,7 @@ const PlantasTable: React.FC<PlantasTableProps> = ({
   onEditar,
   onEliminar,
   loteNombre,
+  canWrite = true,
 }) => {
   const plantasOrdenadas = [...plantas].sort((a, b) => {
     if (a.surco !== b.surco) return a.surco - b.surco;
@@ -105,20 +107,24 @@ const PlantasTable: React.FC<PlantasTableProps> = ({
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div className="flex space-x-2">
-                    <button
-                      onClick={() => onEditar(planta)}
-                      className="text-yellow-600 hover:text-yellow-900 p-1.5 hover:bg-yellow-50 rounded transition-colors"
-                      title="Editar"
-                    >
-                      <i className="fas fa-edit"></i>
-                    </button>
-                    <button
-                      onClick={() => onEliminar(planta.id)}
-                      className="text-red-600 hover:text-red-900 p-1.5 hover:bg-red-50 rounded transition-colors"
-                      title="Eliminar"
-                    >
-                      <i className="fas fa-trash"></i>
-                    </button>
+                    {canWrite && (
+                      <>
+                        <button
+                          onClick={() => onEditar(planta)}
+                          className="text-yellow-600 hover:text-yellow-900 p-1.5 hover:bg-yellow-50 rounded transition-colors"
+                          title="Editar"
+                        >
+                          <i className="fas fa-edit"></i>
+                        </button>
+                        <button
+                          onClick={() => onEliminar(planta.id)}
+                          className="text-red-600 hover:text-red-900 p-1.5 hover:bg-red-50 rounded transition-colors"
+                          title="Eliminar"
+                        >
+                          <i className="fas fa-trash"></i>
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </tr>

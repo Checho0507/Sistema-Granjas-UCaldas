@@ -7,12 +7,14 @@ interface CultivosTableProps {
     cultivos: CultivoEspecie[];
     onEditar: (cultivo: CultivoEspecie) => void;
     onEliminar: (id: number) => void;
+    canWrite?: boolean;
 }
 
 const CultivosTable: React.FC<CultivosTableProps> = ({
     cultivos,
     onEditar,
-    onEliminar
+    onEliminar,
+    canWrite = true,
 }) => {
     const navigate = useNavigate();
     const [granjasMap, setGranjasMap] = useState<Record<number, string>>({});
@@ -157,20 +159,24 @@ const CultivosTable: React.FC<CultivosTableProps> = ({
                                             <i className="fas fa-seedling"></i>
                                         </button>
 
-                                        <button
-                                            onClick={() => onEditar(cultivo)}
-                                            className="text-yellow-600 hover:text-yellow-900 p-1.5 hover:bg-yellow-50 rounded transition-colors"
-                                            title="Editar"
-                                        >
-                                            <i className="fas fa-edit"></i>
-                                        </button>
-                                        <button
-                                            onClick={() => onEliminar(cultivo.id)}
-                                            className="text-red-600 hover:text-red-900 p-1.5 hover:bg-red-50 rounded transition-colors"
-                                            title="Eliminar"
-                                        >
-                                            <i className="fas fa-trash"></i>
-                                        </button>
+                                        {canWrite && (
+                                          <>
+                                            <button
+                                                onClick={() => onEditar(cultivo)}
+                                                className="text-yellow-600 hover:text-yellow-900 p-1.5 hover:bg-yellow-50 rounded transition-colors"
+                                                title="Editar"
+                                            >
+                                                <i className="fas fa-edit"></i>
+                                            </button>
+                                            <button
+                                                onClick={() => onEliminar(cultivo.id)}
+                                                className="text-red-600 hover:text-red-900 p-1.5 hover:bg-red-50 rounded transition-colors"
+                                                title="Eliminar"
+                                            >
+                                                <i className="fas fa-trash"></i>
+                                            </button>
+                                          </>
+                                        )}
                                     </div>
                                 </td>
                             </tr>
