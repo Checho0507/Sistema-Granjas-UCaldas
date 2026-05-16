@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import LogoutButton from '../LogoutButton';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 
 interface DashboardHeaderProps {
     title?: string;
@@ -185,9 +185,9 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                             </div>
                         </div>
                     ) : (
-                        <a href="/login" className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium text-sm sm:text-base">
+                        <Link to="/login" className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium text-sm sm:text-base">
                             Iniciar Sesión
-                        </a>
+                        </Link>
                     )}
                 </div>
             </div>
@@ -202,15 +202,15 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                                 {userModules.map((module) => {
                                     const active = isActive(module.path);
                                     return (
-                                        <a
+                                        <Link
                                             key={module.path}
-                                            href={module.path}
+                                            to={module.path}
                                             className={`group relative flex items-center px-3 py-2 rounded-lg transition-all duration-200 whitespace-nowrap ${active ? 'bg-green-100 text-green-700 font-medium' : 'text-gray-700 hover:bg-green-50 hover:text-green-600'}`}
                                             title={module.description}
                                         >
                                             <i className={`fas ${module.icon} mr-2 text-sm ${active ? 'text-green-600' : 'text-gray-500 group-hover:text-green-500'}`}></i>
                                             <span>{module.name}</span>
-                                        </a>
+                                        </Link>
                                     );
                                 })}
                             </nav>
@@ -248,9 +248,9 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                             {userModules.map((module) => {
                                 const active = isActive(module.path);
                                 return (
-                                    <a
+                                    <Link
                                         key={module.path}
-                                        href={module.path}
+                                        to={module.path}
                                         className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-150 ${active ? 'bg-green-50 text-green-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
                                         onClick={closeMenu}
                                     >
@@ -262,7 +262,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                                             <div className="text-xs text-gray-500">{module.description}</div>
                                         </div>
                                         {active && <i className="fas fa-check-circle text-green-500"></i>}
-                                    </a>
+                                    </Link>
                                 );
                             })}
                         </div>

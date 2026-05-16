@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { login as loginAPI } from "../api/auth";
-import { useAuth } from "../hooks/useAuth"; // IMPORTANTE: Importar useAuth
+import { useAuth } from "../hooks/useAuth";
 import GoogleLoginButton from "./GoogleLoginButtom";
+import toast from "react-hot-toast";
 
 interface Props {
   onSwitch: () => void;
@@ -22,27 +23,12 @@ export default function LoginForm({ onSwitch }: Props) {
     setLoading(true);
 
     try {
-      console.log('🔄 Iniciando login...');
-
-      // 1. Llamar al API de login
       const data = await loginAPI(email, password);
-
-      console.log('✅ Respuesta del servidor recibida');
-
-      // 2. Actualizar el contexto de autenticación (esto actualiza el estado de React)
       login(data.access_token);
-
-      console.log('✅ Contexto actualizado, redirigiendo...');
-
-      // 3. Mostrar mensaje de bienvenida
-      alert(`Bienvenido, ${data.nombre}`);
-
-      // 4. Navegar al dashboard (opcional, App.tsx ya redirige automáticamente)
+      toast.success(`Bienvenido, ${data.nombre || 'Usuario'}!`);
       navigate("/dashboard");
-
     } catch (err: any) {
-      console.error('❌ Error en login:', err);
-      alert(err.message || "Error al iniciar sesión");
+      toast.error(err.message || "Correo o contraseña incorrectos");
     } finally {
       setLoading(false);
     }

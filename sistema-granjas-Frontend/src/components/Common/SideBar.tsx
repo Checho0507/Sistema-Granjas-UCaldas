@@ -1,9 +1,9 @@
 // components/Sidebar.tsx
 import { useState, useEffect } from 'react';
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import exportService from '../../services/exportService';
-// Importa los servicios que necesites
 import granjaService from '../../services/granjaService';
 import programaService from '../../services/programaService';
 import loteService from '../../services/loteService';
@@ -38,7 +38,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true }) => {
                 loteService.obtenerLotes(),
                 usuarioService.obtenerUsuarios()
             ]);
-            console.log(granjas, programas, lotes, usuarios, "Marlon");
 
             setStats({
                 granjasCount: Array.isArray(granjas) ? granjas.length : 0,
@@ -156,64 +155,64 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true }) => {
                     <ul className="space-y-1">
                         {canSee(['admin', 'asesor', 'docente']) && (
                             <li>
-                                <a href="/gestion/granjas" className="flex items-center space-x-2 text-gray-700 hover:text-green-600 hover:bg-gray-50 p-2 rounded transition-colors">
+                                <Link to="/gestion/granjas" className="flex items-center space-x-2 text-gray-700 hover:text-green-600 hover:bg-gray-50 p-2 rounded transition-colors">
                                     <i className="fas fa-tractor w-4 text-green-500"></i>
                                     <span>Ver Granjas</span>
-                                </a>
+                                </Link>
                             </li>
                         )}
 
                         {canSee(['admin', 'asesor', 'docente']) && (
                             <li>
-                                <a href="/gestion/programas" className="flex items-center space-x-2 text-gray-700 hover:text-green-600 hover:bg-gray-50 p-2 rounded transition-colors">
+                                <Link to="/gestion/programas" className="flex items-center space-x-2 text-gray-700 hover:text-green-600 hover:bg-gray-50 p-2 rounded transition-colors">
                                     <i className="fas fa-seedling w-4 text-green-500"></i>
                                     <span>Ver Programas</span>
-                                </a>
+                                </Link>
                             </li>
                         )}
 
                         {canSee(['admin']) && (
                             <li>
-                                <a href="/gestion/usuarios" className="flex items-center space-x-2 text-gray-700 hover:text-green-600 hover:bg-gray-50 p-2 rounded transition-colors">
+                                <Link to="/gestion/usuarios" className="flex items-center space-x-2 text-gray-700 hover:text-green-600 hover:bg-gray-50 p-2 rounded transition-colors">
                                     <i className="fas fa-user-edit w-4 text-blue-500"></i>
                                     <span>Gestionar Usuarios</span>
-                                </a>
+                                </Link>
                             </li>
                         )}
 
                         {canSee(['admin', 'docente', 'asesor']) && (
                             <li>
-                                <a href="/gestion/inventario" className="flex items-center space-x-2 text-gray-700 hover:text-green-600 hover:bg-gray-50 p-2 rounded transition-colors">
+                                <Link to="/gestion/inventario" className="flex items-center space-x-2 text-gray-700 hover:text-green-600 hover:bg-gray-50 p-2 rounded transition-colors">
                                     <i className="fas fa-box-open w-4 text-amber-500"></i>
                                     <span>Ver Inventario</span>
-                                </a>
+                                </Link>
                             </li>
                         )}
 
                         {canSee(['admin', 'asesor', 'docente', 'estudiante']) && (
                             <li>
-                                <a href="/gestion/diagnosticos" className="flex items-center space-x-2 text-gray-700 hover:text-green-600 hover:bg-gray-50 p-2 rounded transition-colors">
+                                <Link to="/gestion/diagnosticos" className="flex items-center space-x-2 text-gray-700 hover:text-green-600 hover:bg-gray-50 p-2 rounded transition-colors">
                                     <i className="fas fa-stethoscope w-4 text-teal-500"></i>
                                     <span>Crear Diagnóstico</span>
-                                </a>
+                                </Link>
                             </li>
                         )}
 
                         {canSee(['admin', 'asesor', 'docente']) && (
                             <li>
-                                <a href="/gestion/recomendaciones" className="flex items-center space-x-2 text-gray-700 hover:text-green-600 hover:bg-gray-50 p-2 rounded transition-colors">
+                                <Link to="/gestion/recomendaciones" className="flex items-center space-x-2 text-gray-700 hover:text-green-600 hover:bg-gray-50 p-2 rounded transition-colors">
                                     <i className="fas fa-lightbulb w-4 text-purple-500"></i>
-                                    <span>Crear Recomendación</span>
-                                </a>
+                                    <span>Recomendaciones</span>
+                                </Link>
                             </li>
                         )}
 
                         {canSee(['admin', 'talento_humano']) && (
                             <li>
-                                <a href="/gestion/labores" className="flex items-center space-x-2 text-gray-700 hover:text-green-600 hover:bg-gray-50 p-2 rounded transition-colors">
+                                <Link to="/gestion/labores" className="flex items-center space-x-2 text-gray-700 hover:text-green-600 hover:bg-gray-50 p-2 rounded transition-colors">
                                     <i className="fas fa-tasks w-4 text-orange-500"></i>
                                     <span>Asignar Labores</span>
-                                </a>
+                                </Link>
                             </li>
                         )}
                     </ul>
@@ -226,7 +225,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true }) => {
                         Jerarquía del Sistema
                     </h3>
                     <div className="space-y-2 pl-2 border-l-2 border-green-200 ml-2">
-                        <a href="/gestion/granjas" className="block p-2 hover:bg-green-50 rounded">
+                        <Link to="/gestion/granjas" className="block p-2 hover:bg-green-50 rounded">
                             <div className="flex items-center space-x-2">
                                 <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
                                     <i className="fas fa-tractor text-green-600 text-xs"></i>
@@ -236,10 +235,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true }) => {
                                     <div className="text-xs text-gray-500">{stats.granjasCount} activas</div>
                                 </div>
                             </div>
-                        </a>
+                        </Link>
 
                         <div className="ml-6 space-y-2 border-l-2 border-blue-200 pl-2">
-                            <a href="/gestion/programas" className="block p-2 hover:bg-blue-50 rounded">
+                            <Link to="/gestion/programas" className="block p-2 hover:bg-blue-50 rounded">
                                 <div className="flex items-center space-x-2">
                                     <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
                                         <i className="fas fa-seedling text-blue-600 text-xs"></i>
@@ -249,10 +248,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true }) => {
                                         <div className="text-xs text-gray-500">{stats.programasCount} en ejecución</div>
                                     </div>
                                 </div>
-                            </a>
+                            </Link>
 
                             <div className="ml-6 space-y-2 border-l-2 border-amber-200 pl-2">
-                                <a href="/gestion/lotes" className="block p-2 hover:bg-amber-50 rounded">
+                                <Link to="/gestion/lotes" className="block p-2 hover:bg-amber-50 rounded">
                                     <div className="flex items-center space-x-2">
                                         <div className="w-6 h-6 bg-amber-100 rounded-full flex items-center justify-center">
                                             <i className="fas fa-th-large text-amber-600 text-xs"></i>
@@ -262,28 +261,28 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true }) => {
                                             <div className="text-xs text-gray-500">{stats.lotesCount} registrados</div>
                                         </div>
                                     </div>
-                                </a>
+                                </Link>
 
                                 <div className="ml-6 space-y-1">
                                     <div className="text-xs text-gray-500 p-2">Contiene:</div>
-                                    <a href="/gestion/cultivos" className="block p-1 hover:bg-gray-50 rounded">
+                                    <Link to="/gestion/cultivos" className="block p-1 hover:bg-gray-50 rounded">
                                         <div className="flex items-center space-x-2">
                                             <i className="fas fa-leaf text-green-500 text-xs ml-1"></i>
                                             <span className="text-xs text-gray-600">Cultivos</span>
                                         </div>
-                                    </a>
-                                    <a href="/gestion/diagnosticos" className="block p-1 hover:bg-gray-50 rounded">
+                                    </Link>
+                                    <Link to="/gestion/diagnosticos" className="block p-1 hover:bg-gray-50 rounded">
                                         <div className="flex items-center space-x-2">
                                             <i className="fas fa-stethoscope text-teal-500 text-xs ml-1"></i>
                                             <span className="text-xs text-gray-600">Diagnósticos</span>
                                         </div>
-                                    </a>
-                                    <a href="/gestion/recomendaciones" className="block p-1 hover:bg-gray-50 rounded">
+                                    </Link>
+                                    <Link to="/gestion/recomendaciones" className="block p-1 hover:bg-gray-50 rounded">
                                         <div className="flex items-center space-x-2">
                                             <i className="fas fa-lightbulb text-purple-500 text-xs ml-1"></i>
                                             <span className="text-xs text-gray-600">Recomendaciones</span>
                                         </div>
-                                    </a>
+                                    </Link>
                                 </div>
                             </div>
                         </div>

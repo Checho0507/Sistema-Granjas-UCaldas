@@ -80,22 +80,18 @@ function AppContent() {
         }}
       />
 
-      {/* Banners de estado de conexión */}
+      {/* Banners de estado de conexión — solo se muestran cuando hay problemas */}
       {!navigator.onLine && (
-        <div className="bg-yellow-600 text-white text-center py-2 px-4">
-          ⚠️ Estás trabajando sin conexión a internet
+        <div className="bg-yellow-500 text-white text-center py-1.5 px-4 text-sm font-medium flex items-center justify-center gap-2">
+          <i className="fas fa-wifi-slash text-xs"></i>
+          Sin conexión a internet — trabajando en modo offline
         </div>
       )}
 
       {navigator.onLine && backendOnline === false && (
-        <div className="bg-red-600 text-white text-center py-2 px-4">
-          ❌ Backend no disponible. Usando modo offline.
-        </div>
-      )}
-
-      {navigator.onLine && backendOnline && (
-        <div className="bg-green-600 text-white text-center py-2 px-4">
-          ✅ Sistema conectado y funcionando
+        <div className="bg-red-600 text-white text-center py-1.5 px-4 text-sm font-medium flex items-center justify-center gap-2">
+          <i className="fas fa-exclamation-triangle text-xs"></i>
+          Servidor no disponible — algunas funciones están limitadas
         </div>
       )}
 

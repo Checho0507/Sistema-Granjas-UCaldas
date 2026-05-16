@@ -76,25 +76,15 @@ export function useAuthValue(): AuthContextType {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // Función login para actualizar el estado
   const login = (newToken: string) => {
-    console.log('🔐 Login ejecutado con nuevo token');
     setToken(newToken);
-    setStoredToken(newToken); // Guarda en localStorage
+    setStoredToken(newToken);
     setIsAuthenticated(true);
-    
-    // Obtener datos del usuario
     const userData = getUserData();
     setUser(userData);
-    
-    console.log('✅ Estado actualizado:', { 
-      hasToken: !!newToken, 
-      hasUser: !!userData 
-    });
   };
 
   const logout = async () => {
-    console.log('🚪 Logout ejecutado');
     await apiLogout();
     setToken(null);
     setIsAuthenticated(false);

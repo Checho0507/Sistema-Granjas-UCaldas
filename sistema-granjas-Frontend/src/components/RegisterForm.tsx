@@ -3,6 +3,7 @@ import { useState } from "react";
 import { register, saveToken } from "../api/auth";
 import RoleSelector from "./RoleSelector";
 import type { Role } from "../types/auth";
+import toast from "react-hot-toast";
 
 interface Props {
     roles: Role[];
@@ -95,7 +96,7 @@ export default function RegisterForm({ roles, onSwitch }: Props) {
         try {
             const data = await register(fullName, email, password, selectedRole);
             saveToken(data.access_token);
-            alert("Registro exitoso, ahora puedes iniciar sesión");
+            toast.success("Registro exitoso. Ya puedes iniciar sesión.");
             onSwitch();
         } catch (err: any) {
             // Manejo de errores del backend (422 Validation Error)

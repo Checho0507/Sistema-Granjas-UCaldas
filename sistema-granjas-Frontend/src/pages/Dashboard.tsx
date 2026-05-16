@@ -2,130 +2,113 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardHeader from '../components/Common/DashboardHeader';
+import Sidebar from '../components/Common/SideBar';
+import { useAuth } from '../hooks/useAuth';
 import granjaService from '../services/granjaService';
 import programaService from '../services/programaService';
 import loteService from '../services/loteService';
 import cultivoService from '../services/cultivoService';
 import { normalizarArray } from '../utils/normalize';
-import type { Granja, Programa, Lote, Cultivo } from '../types/granjaTypes';
 
-// Interfaces para tipado fuerte
 interface DashboardStats {
   granjas: number;
   programas: number;
   lotes: number;
   cultivos: number;
-  granjasActivas?: number;
-  programasActivos?: number;
-  lotesActivos?: number;
-  cultivosActivos?: number;
 }
 
-interface ModuloCardProps {
+const getGreeting = (): string => {
+  const h = new Date().getHours();
+  if (h < 12) return 'Buenos días';
+  if (h < 18) return 'Buenas tardes';
+  return 'Buenas noches';
+};
+
+const getRoleLabel = (rol: string | undefined): string => {
+  const labels: Record<string, string> = {
+    admin: 'Administrador',
+    asesor: 'Asesor',
+    docente: 'Docente',
+    talento_humano: 'Talento Humano',
+    estudiante: 'Estudiante',
+    trabajador: 'Trabajador',
+  };
+  return labels[rol || ''] || 'Usuario';
+};
+
+const getRoleColor = (rol: string | undefined): string => {
+  const colors: Record<string, string> = {
+    admin: 'bg-purple-100 text-purple-700',
+    asesor: 'bg-blue-100 text-blue-700',
+    docente: 'bg-green-100 text-green-700',
+    talento_humano: 'bg-red-100 text-red-700',
+    estudiante: 'bg-amber-100 text-amber-700',
+    trabajador: 'bg-orange-100 text-orange-700',
+  };
+  return colors[rol || ''] || 'bg-gray-100 text-gray-700';
+};
+
+interface QuickAction {
+  label: string;
+  icon: string;
+  path: string;
+  color: string;
+}
+
+const getQuickActions = (rol: string | undefined): QuickAction[] => {
+  const actions: Record<string, QuickAction[]> = {
+    admin: [
+      { label: 'Usuarios', icon: 'fa-users', path: '/gestion/usuarios', color: 'bg-purple-500' },
+      { label: 'Estadísticas', icon: 'fa-chart-bar', path: '/gestion/estadisticas', color: 'bg-blue-500' },
+      { label: 'Inventario', icon: 'fa-boxes', path: '/gestion/inventario', color: 'bg-amber-500' },
+      { label: 'Recomendaciones', icon: 'fa-lightbulb', path: '/gestion/recomendaciones', color: 'bg-green-500' },
+      { label: 'Labores', icon: 'fa-calendar-check', path: '/gestion/labores', color: 'bg-teal-500' },
+      { label: 'Diagnósticos', icon: 'fa-stethoscope', path: '/gestion/diagnosticos', color: 'bg-red-500' },
+    ],
+    docente: [
+      { label: 'Nuevo Diagnóstico', icon: 'fa-stethoscope', path: '/gestion/diagnosticos', color: 'bg-teal-500' },
+      { label: 'Recomendaciones', icon: 'fa-lightbulb', path: '/gestion/recomendaciones', color: 'bg-purple-500' },
+      { label: 'Labores', icon: 'fa-calendar-check', path: '/gestion/labores', color: 'bg-green-500' },
+      { label: 'Inventario', icon: 'fa-boxes', path: '/gestion/inventario', color: 'bg-amber-500' },
+    ],
+    asesor: [
+      { label: 'Diagnósticos', icon: 'fa-stethoscope', path: '/gestion/diagnosticos', color: 'bg-teal-500' },
+      { label: 'Recomendaciones', icon: 'fa-lightbulb', path: '/gestion/recomendaciones', color: 'bg-purple-500' },
+      { label: 'Labores', icon: 'fa-calendar-check', path: '/gestion/labores', color: 'bg-green-500' },
+      { label: 'Lotes', icon: 'fa-tractor', path: '/gestion/lotes', color: 'bg-blue-500' },
+    ],
+    estudiante: [
+      { label: 'Nuevo Diagnóstico', icon: 'fa-stethoscope', path: '/gestion/diagnosticos', color: 'bg-teal-500' },
+      { label: 'Recomendaciones', icon: 'fa-lightbulb', path: '/gestion/recomendaciones', color: 'bg-purple-500' },
+    ],
+    trabajador: [
+      { label: 'Mi Tablero', icon: 'fa-th-large', path: '/tablero', color: 'bg-orange-500' },
+      { label: 'Mis Labores', icon: 'fa-calendar-check', path: '/gestion/labores', color: 'bg-green-500' },
+    ],
+    talento_humano: [
+      { label: 'Asignar Labores', icon: 'fa-calendar-check', path: '/gestion/labores', color: 'bg-green-500' },
+      { label: 'Gestionar Personal', icon: 'fa-users', path: '/gestion/usuarios', color: 'bg-purple-500' },
+    ],
+  };
+  return actions[rol || ''] || [];
+};
+
+interface ModuleInfo {
   titulo: string;
   descripcion: string;
   icono: string;
   color: string;
+  bgLight: string;
   ruta: string;
-  stats?: string;
-  features: string[];
-  onClick?: () => void;
+  stat: number;
+  statLabel: string;
+  roles: string[];
 }
 
-interface FlujoItemProps {
-  numero: string;
-  titulo: string;
-  descripcion: string;
-}
-
-// Componente memoizado para evitar re-renderizados innecesarios
-const ModuloCard: React.FC<ModuloCardProps> = React.memo(({ 
-  titulo, 
-  descripcion, 
-  icono, 
-  color, 
-  ruta,
-  stats,
-  features,
-  onClick 
-}) => {
+const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  
-  const handleClick = useCallback(() => {
-    if (onClick) {
-      onClick();
-    } else {
-      navigate(ruta);
-    }
-  }, [navigate, ruta, onClick]);
-
-  return (
-    <article className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 border border-gray-100 h-full flex flex-col group">
-      <div className={`h-2 ${color}`}></div>
-      <div className="p-4 sm:p-6 flex-1 flex flex-col">
-        <header className="flex items-center justify-between mb-4">
-          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg ${color} bg-opacity-20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
-            <i className={`fas fa-${icono} text-xl sm:text-2xl ${color.replace('bg-', 'text-')}`} aria-hidden="true"></i>
-          </div>
-          {stats && (
-            <span className="text-xs sm:text-sm bg-gray-100 text-gray-600 px-2 sm:px-3 py-1 rounded-full font-medium">
-              {stats}
-            </span>
-          )}
-        </header>
-        
-        <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-2">{titulo}</h3>
-        <p className="text-sm sm:text-base text-gray-600 mb-4">{descripcion}</p>
-        
-        <div className="border-t border-gray-100 pt-4 mb-4 flex-1">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-            Funcionalidades:
-          </p>
-          <ul className="space-y-1 sm:space-y-2">
-            {features.map((feature, idx) => (
-              <li key={idx} className="text-xs sm:text-sm text-gray-600 flex items-start">
-                <i className="fas fa-check-circle text-green-500 mr-2 mt-0.5 text-xs flex-shrink-0" aria-hidden="true"></i>
-                <span>{feature}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        
-        <button
-          onClick={handleClick}
-          className={`mt-auto w-full ${color} text-white py-2.5 rounded-lg hover:opacity-90 transition-all duration-300 flex items-center justify-center font-medium text-sm sm:text-base group-hover:shadow-lg`}
-          aria-label={`Acceder al módulo de ${titulo}`}
-        >
-          <span>Acceder al módulo</span>
-          <i className="fas fa-arrow-right ml-2 text-xs sm:text-sm transition-transform group-hover:translate-x-1" aria-hidden="true"></i>
-        </button>
-      </div>
-    </article>
-  );
-});
-
-ModuloCard.displayName = 'ModuloCard';
-
-const FlujoItem: React.FC<FlujoItemProps> = ({ numero, titulo, descripcion }) => (
-  <div className="flex items-start space-x-3 sm:space-x-4">
-    <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-bold text-sm sm:text-base">
-      {numero}
-    </div>
-    <div>
-      <h4 className="font-semibold text-gray-800 text-sm sm:text-base">{titulo}</h4>
-      <p className="text-xs sm:text-sm text-gray-600">{descripcion}</p>
-    </div>
-  </div>
-);
-
-// Hook personalizado para manejar estadísticas
-const useDashboardStats = () => {
-  const [stats, setStats] = useState<DashboardStats>({
-    granjas: 0,
-    programas: 0,
-    lotes: 0,
-    cultivos: 0
-  });
+  const { user } = useAuth();
+  const [stats, setStats] = useState<DashboardStats>({ granjas: 0, programas: 0, lotes: 0, cultivos: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -133,155 +116,109 @@ const useDashboardStats = () => {
     try {
       setLoading(true);
       setError(null);
-      
       const [granjasResp, programasResp, lotesResp, cultivosResp] = await Promise.allSettled([
         granjaService.obtenerGranjas(),
         programaService.obtenerProgramas(),
         loteService.obtenerLotes(),
-        cultivoService.obtenerCultivos()
+        cultivoService.obtenerCultivos(),
       ]);
-
-      const obtenerValor = (result: PromiseSettledResult<any>): any[] => {
-        return result.status === 'fulfilled' ? normalizarArray(result.value) : [];
-      };
-
-      const granjas = obtenerValor(granjasResp);
-      const programas = obtenerValor(programasResp);
-      const lotes = obtenerValor(lotesResp);
-      const cultivos = obtenerValor(cultivosResp);
-
+      const get = (r: PromiseSettledResult<any>) => r.status === 'fulfilled' ? normalizarArray(r.value) : [];
       setStats({
-        granjas: granjas.length,
-        programas: programas.length,
-        lotes: lotes.length,
-        cultivos: cultivos.length,
-        granjasActivas: granjas.filter((g: Granja) => g.estado === 'activo').length,
-        programasActivos: programas.filter((p: Programa) => p.estado === 'activo').length,
-        lotesActivos: lotes.filter((l: Lote) => l.estado === 'activo').length,
-        cultivosActivos: cultivos.filter((c: Cultivo) => c.estado === 'activo').length
+        granjas: get(granjasResp).length,
+        programas: get(programasResp).length,
+        lotes: get(lotesResp).length,
+        cultivos: get(cultivosResp).length,
       });
-
-      // Verificar si hubo errores parciales
-      const errores = [granjasResp, programasResp, lotesResp, cultivosResp]
-        .filter(r => r.status === 'rejected');
-      
-      if (errores.length > 0) {
-        console.warn(`${errores.length} servicio(s) fallaron al cargar`);
-      }
-
-    } catch (error) {
-      console.error('Error crítico cargando estadísticas:', error);
-      setError('Error al cargar la información del dashboard');
+    } catch {
+      setError('No se pudieron cargar las estadísticas');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    cargarEstadisticas();
-  }, [cargarEstadisticas]);
+  useEffect(() => { cargarEstadisticas(); }, [cargarEstadisticas]);
 
-  return { stats, loading, error, refetch: cargarEstadisticas };
-};
+  const rol = user?.rol;
+  const quickActions = useMemo(() => getQuickActions(rol), [rol]);
 
-const Dashboard: React.FC = () => {
-  const navigate = useNavigate();
-  const { stats, loading, error, refetch } = useDashboardStats();
-  const [nombreUsuario, setNombreUsuario] = useState('Usuario');
-
-  useEffect(() => {
-    // Obtener nombre del usuario del localStorage de manera segura
-    try {
-      const userStr = localStorage.getItem('user');
-      if (userStr) {
-        const userData = JSON.parse(userStr);
-        setNombreUsuario(userData.nombre || userData.email || 'Usuario');
-      }
-    } catch {
-      setNombreUsuario(localStorage.getItem('user') || 'Usuario');
-    }
-  }, []);
-
-  const irA = useCallback((ruta: string) => {
-    navigate(ruta);
-  }, [navigate]);
-
-  const handleRetry = useCallback(() => {
-    refetch();
-  }, [refetch]);
-
-  // Memoizar los módulos para evitar re-renderizados
-  const modulos = useMemo(() => [
+  const allModules: ModuleInfo[] = useMemo(() => [
     {
-      titulo: "Granjas",
-      descripcion: "Administra tus granjas, ubicaciones y configuración general",
-      icono: "warehouse",
-      color: "bg-blue-600",
-      ruta: "/gestion/granjas",
-      stats: `${stats.granjas} ${stats.granjas === 1 ? 'activa' : 'activas'}`,
-      features: [
-        "Listado completo de granjas",
-        "Gestión de ubicaciones y contacto",
-        "Visualización de programas asignados por granja",
-        "Acceso rápido a programas de cada granja"
-      ]
+      titulo: 'Granjas', descripcion: 'Administra granjas y sus ubicaciones',
+      icono: 'fa-warehouse', color: 'text-blue-600', bgLight: 'bg-blue-50',
+      ruta: '/gestion/granjas', stat: stats.granjas, statLabel: 'registradas',
+      roles: ['admin', 'asesor', 'docente'],
     },
     {
-      titulo: "Programas",
-      descripcion: "Gestiona programas agrícolas y pecuarios",
-      icono: "clipboard-list",
-      color: "bg-green-600",
-      ruta: "/gestion/programas",
-      stats: `${stats.programas} ${stats.programas === 1 ? 'registrado' : 'registrados'}`,
-      features: [
-        "Programas agrícolas y pecuarios",
-        "Filtrado inteligente por granja",
-        "Visualización de cultivos asociados al programa",
-        "Gestión de lotes pertenecientes al programa"
-      ]
+      titulo: 'Programas', descripcion: 'Programas agrícolas y pecuarios',
+      icono: 'fa-clipboard-list', color: 'text-green-600', bgLight: 'bg-green-50',
+      ruta: '/gestion/programas', stat: stats.programas, statLabel: 'activos',
+      roles: ['admin', 'asesor', 'docente'],
     },
     {
-      titulo: "Lotes",
-      descripcion: "Controla lotes de producción y seguimiento",
-      icono: "tractor",
-      color: "bg-purple-600",
-      ruta: "/gestion/lotes",
-      stats: `${stats.lotes} ${stats.lotes === 1 ? 'registrado' : 'registrados'}`,
-      features: [
-        "Jerarquía Granja → Programa → Lotes",
-        "Múltiples tipos de lote",
-        "Filtrado por cultivo asignado",
-        "Estados personalizables"
-      ]
+      titulo: 'Lotes', descripcion: 'Controla lotes de producción',
+      icono: 'fa-tractor', color: 'text-purple-600', bgLight: 'bg-purple-50',
+      ruta: '/gestion/lotes', stat: stats.lotes, statLabel: 'registrados',
+      roles: ['admin', 'asesor', 'docente', 'estudiante'],
     },
     {
-      titulo: "Cultivos",
-      descripcion: "Gestiona cultivos, especies y variedades",
-      icono: "leaf",
-      color: "bg-amber-600",
-      ruta: "/gestion/cultivos",
-      stats: `${stats.cultivos} ${stats.cultivos === 1 ? 'registrado' : 'registrados'}`,
-      features: [
-        "Catálogo completo de cultivos",
-        "Variedades por cultivo",
-        "Visualización de lotes que tienen este cultivo",
-        "Ciclos de crecimiento y requerimientos"
-      ]
-    }
+      titulo: 'Cultivos', descripcion: 'Cultivos, especies y variedades',
+      icono: 'fa-leaf', color: 'text-amber-600', bgLight: 'bg-amber-50',
+      ruta: '/gestion/cultivos', stat: stats.cultivos, statLabel: 'registrados',
+      roles: ['admin', 'asesor', 'docente'],
+    },
+    {
+      titulo: 'Inventario', descripcion: 'Herramientas e insumos',
+      icono: 'fa-boxes', color: 'text-orange-600', bgLight: 'bg-orange-50',
+      ruta: '/gestion/inventario', stat: 0, statLabel: '',
+      roles: ['admin', 'asesor', 'docente'],
+    },
+    {
+      titulo: 'Diagnósticos', descripcion: 'Evaluaciones y diagnósticos agrícolas',
+      icono: 'fa-stethoscope', color: 'text-teal-600', bgLight: 'bg-teal-50',
+      ruta: '/gestion/diagnosticos', stat: 0, statLabel: '',
+      roles: ['admin', 'asesor', 'docente', 'estudiante'],
+    },
+    {
+      titulo: 'Recomendaciones', descripcion: 'Recomendaciones técnicas',
+      icono: 'fa-lightbulb', color: 'text-yellow-600', bgLight: 'bg-yellow-50',
+      ruta: '/gestion/recomendaciones', stat: 0, statLabel: '',
+      roles: ['admin', 'asesor', 'docente', 'estudiante'],
+    },
+    {
+      titulo: 'Labores', descripcion: 'Planificación y seguimiento de labores',
+      icono: 'fa-calendar-check', color: 'text-indigo-600', bgLight: 'bg-indigo-50',
+      ruta: '/gestion/labores', stat: 0, statLabel: '',
+      roles: ['admin', 'asesor', 'docente', 'talento_humano', 'trabajador'],
+    },
+    {
+      titulo: 'Estadísticas', descripcion: 'Reportes y visualizaciones',
+      icono: 'fa-chart-bar', color: 'text-rose-600', bgLight: 'bg-rose-50',
+      ruta: '/gestion/estadisticas', stat: 0, statLabel: '',
+      roles: ['admin'],
+    },
+    {
+      titulo: 'Usuarios', descripcion: 'Gestión de usuarios y roles',
+      icono: 'fa-users', color: 'text-slate-600', bgLight: 'bg-slate-50',
+      ruta: '/gestion/usuarios', stat: 0, statLabel: '',
+      roles: ['admin', 'talento_humano'],
+    },
   ], [stats]);
+
+  const visibleModules = useMemo(
+    () => allModules.filter(m => !rol || m.roles.includes(rol)),
+    [allModules, rol]
+  );
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
         <DashboardHeader />
-        <main className="p-4 sm:p-6 lg:p-8 flex items-center justify-center min-h-[calc(100vh-4rem)]">
-          <div className="text-center" role="status" aria-label="Cargando">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-green-500 border-t-transparent mx-auto"></div>
-            <p className="mt-4 text-sm sm:text-base text-gray-600 animate-pulse">
-              Cargando información del sistema...
-            </p>
+        <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-10 w-10 border-4 border-green-500 border-t-transparent mx-auto mb-3"></div>
+            <p className="text-sm text-gray-500">Cargando dashboard...</p>
           </div>
-        </main>
+        </div>
       </div>
     );
   }
@@ -289,273 +226,114 @@ const Dashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <DashboardHeader />
-      <main className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
-        
-        {/* Error message */}
-        {error && (
-          <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded-lg mb-6 flex items-center justify-between" role="alert">
-            <div className="flex items-center">
-              <i className="fas fa-exclamation-circle text-red-500 mr-3 text-xl"></i>
-              <span className="text-sm sm:text-base">{error}</span>
-            </div>
-            <button 
-              onClick={handleRetry}
-              className="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-            >
-              Reintentar
-            </button>
-          </div>
-        )}
 
-        {/* Banner de bienvenida */}
-        <section className="bg-gradient-to-r from-green-600 to-green-700 rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8 text-white">
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-2 sm:mb-3">
-            ¡Bienvenido, {nombreUsuario}! 👋
-          </h1>
-          <p className="text-green-100 text-sm sm:text-base lg:text-lg max-w-3xl">
-            Sistema de Gestión Agrícola - Universidad de Caldas
-          </p>
-          <div className="mt-3 sm:mt-4 flex flex-wrap gap-3 sm:gap-4">
-            <div className="bg-green-500 bg-opacity-30 rounded-lg px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm lg:text-base">
-              <span className="font-semibold">{stats.granjas}</span> granjas ·{' '}
-              <span className="font-semibold">{stats.programas}</span> programas ·{' '}
-              <span className="font-semibold">{stats.lotes}</span> lotes ·{' '}
-              <span className="font-semibold">{stats.cultivos}</span> cultivos
-            </div>
-          </div>
-        </section>
-
-        {/* Sección: ¿Qué es esta aplicación? */}
-        <section className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8">
-          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-800 mb-3 sm:mb-4 flex items-center">
-            <i className="fas fa-info-circle text-green-600 mr-2 sm:mr-3" aria-hidden="true"></i>
-            ¿Qué es el Sistema Granjas UCaldas?
-          </h2>
-          <p className="text-gray-700 text-sm sm:text-base lg:text-lg leading-relaxed">
-            Es un sistema integral de gestión agrícola diseñado para la Universidad de Caldas 
-            que permite administrar granjas, programas productivos, lotes y cultivos de manera 
-            integrada. Conecta estudiantes, trabajadores y administradores en un ecosistema 
-            colaborativo para optimizar la producción y el aprendizaje.
-          </p>
-        </section>
-
-        {/* Módulos Principales */}
-        <section>
-          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-800 mb-4 sm:mb-6 flex items-center">
-            <i className="fas fa-cubes text-green-600 mr-2 sm:mr-3" aria-hidden="true"></i>
-            Módulos del Sistema
-          </h2>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-            {modulos.map((modulo, index) => (
-              <ModuloCard
-                key={index}
-                {...modulo}
-                onClick={() => irA(modulo.ruta)}
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* Flujo de Navegación y Relaciones */}
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          <article className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6">
-            <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 sm:mb-4 flex items-center">
-              <i className="fas fa-diagram-project text-green-600 mr-2" aria-hidden="true"></i>
-              Flujo de Navegación
-            </h3>
-            <div className="bg-gray-50 p-3 sm:p-4 rounded-lg font-mono text-xs sm:text-sm mb-3 sm:mb-4 border border-gray-200">
-              Granja → Programas → Cultivos/Lotes
-            </div>
-            <div className="space-y-3 sm:space-y-4">
-              <FlujoItem 
-                numero="1"
-                titulo="Desde una granja"
-                descripcion="Visualiza todos los programas asignados a esa granja"
-              />
-              <FlujoItem 
-                numero="2"
-                titulo="Desde un programa"
-                descripcion="Accede a los cultivos asociados y a todos los lotes del programa"
-              />
-              <FlujoItem 
-                numero="3"
-                titulo="Desde un cultivo"
-                descripcion="Consulta todos los lotes que tienen asignado ese cultivo específico"
-              />
-            </div>
-          </article>
-
-          <article className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6">
-            <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 sm:mb-4 flex items-center">
-              <i className="fas fa-link text-green-600 mr-2" aria-hidden="true"></i>
-              Relaciones del Sistema
-            </h3>
-            <div className="space-y-3 sm:space-y-4">
-              <FlujoItem 
-                numero="•"
-                titulo="Granja → Programas"
-                descripcion="Cada granja puede tener múltiples programas asignados"
-              />
-              <FlujoItem 
-                numero="•"
-                titulo="Programa → Cultivos"
-                descripcion="Un programa puede tener varios cultivos asociados"
-              />
-              <FlujoItem 
-                numero="•"
-                titulo="Programa → Lotes"
-                descripcion="Los lotes pertenecen a un programa específico"
-              />
-              <FlujoItem 
-                numero="•"
-                titulo="Cultivo → Lotes"
-                descripcion="Un cultivo puede estar presente en múltiples lotes"
-              />
-            </div>
-          </article>
-        </section>
-
-        {/* Guía de Uso por Módulo */}
-        <section className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6 mb-6 sm:mb-8">
-          <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4 flex items-center">
-            <i className="fas fa-compass text-green-600 mr-2" aria-hidden="true"></i>
-            Guía Rápida de Navegación
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-blue-50 rounded-lg p-4">
-              <div className="flex items-center mb-3">
-                <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center mr-2">
-                  <i className="fas fa-warehouse text-sm"></i>
-                </div>
-                <h4 className="font-semibold text-blue-800">Granjas</h4>
-              </div>
-              <p className="text-sm text-blue-700">
-                Al seleccionar una granja, podrás ver todos los programas agrícolas y pecuarios que operan en ella.
-              </p>
-            </div>
-
-            <div className="bg-green-50 rounded-lg p-4">
-              <div className="flex items-center mb-3">
-                <div className="w-8 h-8 rounded-full bg-green-600 text-white flex items-center justify-center mr-2">
-                  <i className="fas fa-clipboard-list text-sm"></i>
-                </div>
-                <h4 className="font-semibold text-green-800">Programas</h4>
-              </div>
-              <p className="text-sm text-green-700">
-                Desde un programa accedes a sus cultivos asociados y a todos los lotes que pertenecen a ese programa.
-              </p>
-            </div>
-
-            <div className="bg-purple-50 rounded-lg p-4">
-              <div className="flex items-center mb-3">
-                <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center mr-2">
-                  <i className="fas fa-tractor text-sm"></i>
-                </div>
-                <h4 className="font-semibold text-purple-800">Lotes</h4>
-              </div>
-              <p className="text-sm text-purple-700">
-                Visualiza todos los lotes, filtrados por programa o por cultivo, con sus estados y características.
-              </p>
-            </div>
-
-            <div className="bg-amber-50 rounded-lg p-4">
-              <div className="flex items-center mb-3">
-                <div className="w-8 h-8 rounded-full bg-amber-600 text-white flex items-center justify-center mr-2">
-                  <i className="fas fa-leaf text-sm"></i>
-                </div>
-                <h4 className="font-semibold text-amber-800">Cultivos</h4>
-              </div>
-              <p className="text-sm text-amber-700">
-                Al seleccionar un cultivo, podrás ver todos los lotes que tienen asignado ese cultivo específico.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Características Técnicas */}
-        <section className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6 mb-6 sm:mb-8">
-          <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 sm:mb-4 flex items-center">
-            <i className="fas fa-cogs text-green-600 mr-2" aria-hidden="true"></i>
-            Características del Sistema
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div>
-              <h4 className="font-semibold text-green-700 mb-3 flex items-center text-sm sm:text-base">
-                <i className="fas fa-filter mr-2 text-green-500" aria-hidden="true"></i>
-                Filtrado Inteligente
-              </h4>
-              <ul className="space-y-2 text-xs sm:text-sm text-gray-600">
-                <li className="flex items-start">
-                  <span className="text-green-500 mr-2">•</span>
-                  Programas filtrados por granja
-                </li>
-                <li className="flex items-start">
-                  <span className="text-green-500 mr-2">•</span>
-                  Cultivos filtrados por programa
-                </li>
-                <li className="flex items-start">
-                  <span className="text-green-500 mr-2">•</span>
-                  Lotes filtrados por programa o cultivo
-                </li>
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold text-green-700 mb-3 flex items-center text-sm sm:text-base">
-                <i className="fas fa-sync-alt mr-2 text-green-500" aria-hidden="true"></i>
-                Actualización en Tiempo Real
-              </h4>
-              <ul className="space-y-2 text-xs sm:text-sm text-gray-600">
-                <li className="flex items-start">
-                  <span className="text-green-500 mr-2">•</span>
-                  Relaciones visibles inmediatamente
-                </li>
-                <li className="flex items-start">
-                  <span className="text-green-500 mr-2">•</span>
-                  UI reactiva a modificaciones
-                </li>
-                <li className="flex items-start">
-                  <span className="text-green-500 mr-2">•</span>
-                  Cache optimizado para rendimiento
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-semibold text-green-700 mb-3 flex items-center text-sm sm:text-base">
-                <i className="fas fa-shield-alt mr-2 text-green-500" aria-hidden="true"></i>
-                Seguridad y Control
-              </h4>
-              <ul className="space-y-2 text-xs sm:text-sm text-gray-600">
-                <li className="flex items-start">
-                  <span className="text-green-500 mr-2">•</span>
-                  Roles y permisos por usuario
-                </li>
-                <li className="flex items-start">
-                  <span className="text-green-500 mr-2">•</span>
-                  Control de acceso por programa
-                </li>
-                <li className="flex items-start">
-                  <span className="text-green-500 mr-2">•</span>
-                  Historial de acciones
-                </li>
-              </ul>
-            </div>
-          </div>
-        </section>
-
-        {/* Atajo rápido */}
-        <div className="fixed bottom-6 right-6">
-          <button
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="bg-green-600 text-white p-3 rounded-full shadow-lg hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-            aria-label="Volver arriba"
-          >
-            <i className="fas fa-arrow-up"></i>
-          </button>
+      <div className="flex">
+        {/* Sidebar — solo en desktop */}
+        <div className="hidden lg:block flex-shrink-0">
+          <Sidebar />
         </div>
-      </main>
+
+        {/* Contenido principal */}
+        <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8 max-w-full">
+          <div className="max-w-5xl mx-auto">
+
+            {/* Error */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-5 flex items-center gap-3 text-sm">
+                <i className="fas fa-exclamation-circle flex-shrink-0"></i>
+                <span>{error}</span>
+                <button onClick={cargarEstadisticas} className="ml-auto text-xs bg-red-100 hover:bg-red-200 px-3 py-1 rounded-lg font-medium transition-colors">
+                  Reintentar
+                </button>
+              </div>
+            )}
+
+            {/* Banner de bienvenida */}
+            <section className="bg-gradient-to-r from-green-600 to-emerald-700 rounded-2xl p-5 sm:p-7 mb-6 text-white shadow-md">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <p className="text-green-200 text-sm mb-0.5">{getGreeting()},</p>
+                  <h1 className="text-2xl sm:text-3xl font-bold leading-tight">{user?.nombre || 'Usuario'}</h1>
+                  <span className={`inline-flex items-center mt-2 px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleColor(rol)}`}>
+                    <i className="fas fa-circle text-[6px] mr-1.5"></i>
+                    {getRoleLabel(rol)}
+                  </span>
+                </div>
+                {/* Stats rápidas */}
+                <div className="grid grid-cols-4 gap-2 sm:gap-3">
+                  {[
+                    { n: stats.granjas, l: 'Granjas' },
+                    { n: stats.programas, l: 'Programas' },
+                    { n: stats.lotes, l: 'Lotes' },
+                    { n: stats.cultivos, l: 'Cultivos' },
+                  ].map(({ n, l }) => (
+                    <div key={l} className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 text-center min-w-[52px]">
+                      <div className="text-xl font-bold">{n}</div>
+                      <div className="text-green-100 text-[10px] sm:text-xs">{l}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            {/* Acciones rápidas — por rol */}
+            {quickActions.length > 0 && (
+              <section className="mb-6">
+                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <i className="fas fa-bolt text-amber-500"></i>
+                  Acciones rápidas
+                </h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {quickActions.map((action) => (
+                    <button
+                      key={action.path}
+                      onClick={() => navigate(action.path)}
+                      className="flex items-center gap-3 bg-white border border-gray-200 hover:border-green-300 hover:shadow-md rounded-xl p-3.5 text-left transition-all duration-200 group"
+                    >
+                      <div className={`w-9 h-9 rounded-lg ${action.color} flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform`}>
+                        <i className={`fas ${action.icon} text-white text-sm`}></i>
+                      </div>
+                      <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900 leading-tight">{action.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Módulos visibles para este rol */}
+            <section>
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <i className="fas fa-th-large text-gray-400"></i>
+                Módulos del sistema
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {visibleModules.map((mod) => (
+                  <button
+                    key={mod.ruta}
+                    onClick={() => navigate(mod.ruta)}
+                    className="bg-white border border-gray-200 hover:border-green-300 hover:shadow-md rounded-xl p-5 text-left transition-all duration-200 group flex items-start gap-4"
+                  >
+                    <div className={`w-11 h-11 rounded-xl ${mod.bgLight} flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform`}>
+                      <i className={`fas ${mod.icono} ${mod.color} text-lg`}></i>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-2">
+                        <h3 className="font-semibold text-gray-800 group-hover:text-green-700 transition-colors">{mod.titulo}</h3>
+                        {mod.stat > 0 && (
+                          <span className="text-xs text-gray-400 font-normal">{mod.stat} {mod.statLabel}</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5 leading-snug">{mod.descripcion}</p>
+                    </div>
+                    <i className="fas fa-chevron-right text-gray-300 group-hover:text-green-500 text-xs mt-1 transition-colors flex-shrink-0"></i>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+          </div>
+        </main>
+      </div>
     </div>
   );
 };
