@@ -105,8 +105,6 @@ const ROLE_PROFILES: Record<string, RoleProfile> = {
     capabilities: [
       { icon: 'fa-stethoscope', color: 'bg-teal-500', title: 'Diagnósticos', description: 'Registra tus observaciones de campo y practica la identificación de problemas fitosanitarios.', path: '/gestion/diagnosticos' },
       { icon: 'fa-lightbulb', color: 'bg-yellow-500', title: 'Recomendaciones', description: 'Consulta las recomendaciones técnicas emitidas por asesores y docentes.', path: '/gestion/recomendaciones' },
-      { icon: 'fa-tractor', color: 'bg-purple-500', title: 'Lotes', description: 'Explora los lotes de producción y conoce la distribución espacial de los cultivos.', path: '/gestion/lotes' },
-      { icon: 'fa-leaf', color: 'bg-green-500', title: 'Cultivos', description: 'Consulta el catálogo de cultivos, especies y variedades disponibles.', path: '/gestion/cultivos' },
     ],
   },
   trabajador: {
