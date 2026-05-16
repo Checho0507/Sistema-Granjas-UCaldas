@@ -97,9 +97,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             ],
             estudiante: [
                 { name: 'Diagnósticos', path: '/gestion/diagnosticos', icon: 'fa-stethoscope', description: 'Realizar diagnósticos' },
-                { name: 'Recomendaciones', path: '/gestion/recomendaciones', icon: 'fa-lightbulb', description: 'Ver recomendaciones' },
-                { name: 'Lotes', path: '/gestion/lotes', icon: 'fa-tractor', description: 'Explorar lotes' },
-                { name: 'Cultivos', path: '/gestion/cultivos', icon: 'fa-leaf', description: 'Ver catálogo de cultivos' },
+                { name: 'Recomendaciones', path: '/gestion/recomendaciones', icon: 'fa-lightbulb', description: 'Ver recomendaciones' }
             ],
             trabajador: [
                 { name: 'Tablero', path: '/tablero', icon: 'fa-th-large', description: 'Tablero de tareas' },
