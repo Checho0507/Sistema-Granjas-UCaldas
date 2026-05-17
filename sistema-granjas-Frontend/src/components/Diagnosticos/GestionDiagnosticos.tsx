@@ -36,6 +36,7 @@ const GestionDiagnosticos: React.FC = () => {
   const [lotes, setLotes] = useState<any[]>([]);
   const [programas, setProgramas] = useState<any[]>([]);
   const [monitoreos, setMonitoreos] = useState<any[]>([]);
+  const [monitoreosFiltrados, setMonitoreosFiltrados] = useState<any[]>([]); // 👈 NUEVO: monitoreos filtrados por programa
   const [subtiposFiltro, setSubtiposFiltro] = useState<DiagnosticoTipo[]>([]);
   const [cargandoSubtipos, setCargandoSubtipos] = useState(false);
 
@@ -82,6 +83,47 @@ const GestionDiagnosticos: React.FC = () => {
       setExporting(false);
     }
   };
+
+  // Cargar monitoreos según el rol del usuario
+  useEffect(() => {
+    const cargarMonitoreos = async () => {
+      try {
+        let todosMonitoreos = await monitoreoService.obtenerMonitoreos();
+        let monitoreosArray = Array.isArray(todosMonitoreos) ? todosMonitoreos : (todosMonitoreos?.items || []);
+        
+        // Si es docente, filtrar monitoreos por sus programas
+        if (esDocente && programasDocente.length > 0) {
+          // Obtener todos los monitoreos de los programas del docente
+          const monitoreosPorPrograma = await Promise.all(
+            programasDocente.map(async (programaId) => {
+              try {
+                return await monitoreoService.obtenerMonitoreosPorPrograma(programaId);
+              } catch {
+                return [];
+              }
+            })
+          );
+          // Unir y deduplicar monitoreos
+          const monitoreosUnicos = new Map();
+          monitoreosPorPrograma.flat().forEach((m: any) => {
+            if (!monitoreosUnicos.has(m.id)) {
+              monitoreosUnicos.set(m.id, m);
+            }
+          });
+          monitoreosArray = Array.from(monitoreosUnicos.values());
+        }
+        
+        setMonitoreos(monitoreosArray);
+        setMonitoreosFiltrados(monitoreosArray);
+      } catch (error) {
+        console.error('Error cargando monitoreos:', error);
+        setMonitoreos([]);
+        setMonitoreosFiltrados([]);
+      }
+    };
+    
+    cargarMonitoreos();
+  }, [esDocente, programasDocente]);
 
   useEffect(() => {
     cargarDatos();
@@ -132,11 +174,6 @@ const GestionDiagnosticos: React.FC = () => {
         setProgramas(lista);
         if (lista.length > 0 && !programaSeleccionadoTipos) setProgramaSeleccionadoTipos(lista[0].id);
       } catch { setProgramas([]); }
-
-      try {
-        const monitoreosData = await monitoreoService.obtenerMonitoreos();
-        setMonitoreos(Array.isArray(monitoreosData) ? monitoreosData : (monitoreosData?.items || []));
-      } catch { setMonitoreos([]); }
 
       try {
         const lotesData = await loteService.obtenerLotes();
@@ -305,6 +342,7 @@ const GestionDiagnosticos: React.FC = () => {
           <div className="bg-white p-4 rounded-lg shadow mb-6">
             <h3 className="font-semibold mb-3 text-sm text-gray-700">Filtros</h3>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* Tipo de Monitoreo - filtrado para docentes */}
               <select
                 className="border rounded p-2 text-sm"
                 value={filtros.tipo_monitoreo_id || ''}
@@ -320,6 +358,7 @@ const GestionDiagnosticos: React.FC = () => {
                 ))}
               </select>
 
+              {/* Subtipo - depende del monitoreo seleccionado */}
               <select
                 className="border rounded p-2 text-sm"
                 value={filtros.diagnostico_tipo_id || ''}
@@ -340,7 +379,7 @@ const GestionDiagnosticos: React.FC = () => {
                 ))}
               </select>
 
-              {/* 👇 OCULTAR FILTRO DE PROGRAMA PARA DOCENTES */}
+              {/* Programa - solo visible para admin */}
               {esAdmin && (
                 <select 
                   className="border rounded p-2 text-sm" 
@@ -352,6 +391,7 @@ const GestionDiagnosticos: React.FC = () => {
                 </select>
               )}
 
+              {/* Estado de revisión */}
               <select 
                 className="border rounded p-2 text-sm" 
                 value={filtros.estado_revision || ''} 
