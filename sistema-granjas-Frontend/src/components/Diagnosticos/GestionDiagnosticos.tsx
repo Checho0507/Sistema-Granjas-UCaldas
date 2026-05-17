@@ -69,6 +69,27 @@ const GestionDiagnosticos: React.FC = () => {
   // Solo admin y docente pueden gestionar tipos de diagnóstico
   const puedeGestionarTipos = esAdmin || esDocente;
 
+  // Cargar programas de forma independiente al montar (necesario para la pestaña de Tipos)
+  useEffect(() => {
+    const cargarProgramas = async () => {
+      try {
+        const programasData = await programaService.obtenerProgramas();
+        let lista = Array.isArray(programasData) ? programasData : (programasData?.items || []);
+        // Docente solo gestiona tipos de sus propios programas
+        if (esDocente && programasDocente.length > 0) {
+          lista = lista.filter((p: any) => programasDocente.includes(p.id));
+        }
+        setProgramas(lista);
+        if (lista.length > 0) {
+          setProgramaSeleccionadoTipos(prev => prev || lista[0].id);
+        }
+      } catch {
+        setProgramas([]);
+      }
+    };
+    cargarProgramas();
+  }, [esDocente, programasDocente]);
+
   // Cargar monitoreos una sola vez al montar el componente
   useEffect(() => {
     const cargarMonitoreos = async () => {
@@ -108,7 +129,7 @@ const GestionDiagnosticos: React.FC = () => {
     };
     
     cargarMonitoreos();
-  }, [esDocente, programasDocente]); // Solo se ejecuta cuando cambia el docente o sus programas
+  }, [esDocente, programasDocente]);
 
   const handleExportDiagnosticos = async () => {
     if (exporting) return;
@@ -171,19 +192,6 @@ const GestionDiagnosticos: React.FC = () => {
       }
       
       setDiagnosticos(diagnosticosData);
-
-      if (programas.length === 0) {
-        try {
-          const programasData = await programaService.obtenerProgramas();
-          let lista = Array.isArray(programasData) ? programasData : (programasData?.items || []);
-          // Docente solo puede ver/gestionar tipos de sus propios programas
-          if (esDocente && programasDocente.length > 0) {
-            lista = lista.filter((p: any) => programasDocente.includes(p.id));
-          }
-          setProgramas(lista);
-          if (lista.length > 0 && !programaSeleccionadoTipos) setProgramaSeleccionadoTipos(lista[0].id);
-        } catch { setProgramas([]); }
-      }
 
       if (lotes.length === 0) {
         try {
