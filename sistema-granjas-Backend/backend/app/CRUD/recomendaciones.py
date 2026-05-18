@@ -12,46 +12,25 @@ def _nombre_item(item: ItemInventarioPrograma) -> str:
 
 
 def _cargar_items_sugeridos(recomendacion: Recomendacion):
-    items_data = []
     for ri in (recomendacion.items_sugeridos or []):
-        d = {
-            "id": ri.id,
-            "recomendacion_id": ri.recomendacion_id,
-            "inventario_item_id": ri.inventario_item_id,
-            "cantidad_sugerida": ri.cantidad_sugerida,
-            "descripcion": ri.descripcion,
-            "inventario_item_nombre": None,
-            "inventario_item_unidad": None,
-            "inventario_item_disponible": None,
-        }
+        ri.inventario_item_nombre = None
+        ri.inventario_item_unidad = None
+        ri.inventario_item_disponible = None
         if ri.inventario_item:
-            d["inventario_item_nombre"] = _nombre_item(ri.inventario_item)
-            d["inventario_item_unidad"] = ri.inventario_item.unidad_medida
-            d["inventario_item_disponible"] = ri.inventario_item.cantidad_disponible
-        items_data.append(d)
-    recomendacion.items_sugeridos_data = items_data
+            ri.inventario_item_nombre = _nombre_item(ri.inventario_item)
+            ri.inventario_item_unidad = ri.inventario_item.unidad_medida
+            ri.inventario_item_disponible = ri.inventario_item.cantidad_disponible
 
 
 def _cargar_productos_recomendacion(recomendacion: Recomendacion):
-    productos_data = []
     for pr in (recomendacion.productos or []):
-        d = {
-            "id": pr.id,
-            "recomendacion_id": pr.recomendacion_id,
-            "inventario_item_id": pr.inventario_item_id,
-            "cantidad_sugerida": pr.cantidad_sugerida,
-            "descripcion": pr.descripcion,
-            "created_at": pr.created_at,
-            "inventario_item_nombre": None,
-            "inventario_item_unidad": None,
-            "inventario_item_disponible": None,
-        }
+        pr.inventario_item_nombre = None
+        pr.inventario_item_unidad = None
+        pr.inventario_item_disponible = None
         if pr.inventario_item:
-            d["inventario_item_nombre"] = _nombre_item(pr.inventario_item)
-            d["inventario_item_unidad"] = pr.inventario_item.unidad_medida
-            d["inventario_item_disponible"] = pr.inventario_item.cantidad_disponible
-        productos_data.append(d)
-    recomendacion.productos_data = productos_data
+            pr.inventario_item_nombre = _nombre_item(pr.inventario_item)
+            pr.inventario_item_unidad = pr.inventario_item.unidad_medida
+            pr.inventario_item_disponible = pr.inventario_item.cantidad_disponible
 
 
 def _cargar_relaciones_recomendacion(recomendacion: Recomendacion):
@@ -77,8 +56,6 @@ def _cargar_relaciones_recomendacion(recomendacion: Recomendacion):
         recomendacion.inventario_item_disponible = item.cantidad_disponible
     _cargar_items_sugeridos(recomendacion)
     _cargar_productos_recomendacion(recomendacion)
-    recomendacion.items_sugeridos = getattr(recomendacion, 'items_sugeridos_data', [])
-    recomendacion.productos = getattr(recomendacion, 'productos_data', [])
 
 
 def crear_recomendacion(db: Session, data: RecomendacionCreate, usuario_id: int):
