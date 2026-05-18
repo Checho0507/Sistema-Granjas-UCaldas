@@ -578,9 +578,119 @@ const FormGeneral: React.FC<{
     const [tiposInventario, setTiposInventario] = useState<any[]>([]);
     const [trabajadores, setTrabajadores] = useState<any[]>([]);
 
+    // ── useEffect hooks (antes de cualquier return condicional — Reglas de Hooks) ─
+    useEffect(() => {
+        const cargarTrabajadores = async () => {
+            try {
+                const data = await usuarioService.obtenerTrabajadores();
+                setTrabajadores(data);
+            } catch { setTrabajadores([]); }
+        };
+        cargarTrabajadores();
+    }, []);
+
+    useEffect(() => {
+        if (!programaId) {
+            setTiposInventario([]);
+            return;
+        }
+        const cargarTiposInventario = async () => {
+            try {
+                const data = await inventarioDinamicoService.listarTipos(programaId);
+                const tiposActivos = data.filter(t => t.activo);
+                setTiposInventario(tiposActivos);
+            } catch {
+                setTiposInventario([]);
+            }
+        };
+        cargarTiposInventario();
+    }, [programaId]);
+
+    useEffect(() => {
+        if (!loteId || !subtipoId || esEdicion) {
+            setDiagnosticosPendientes([]);
+            if (!esEdicion) setDiagnosticoSeleccionadoId(null);
+            return;
+        }
+        const cargarDiagnosticos = async () => {
+            setLoadingDiagnosticos(true);
+            try {
+                const data = await diagnosticoService.obtenerDiagnosticos({
+                    lote_id: loteId, diagnostico_tipo_id: subtipoId, estado_revision: 'pendiente_revision',
+                } as any);
+                const diagnosticosData = Array.isArray(data) ? data : (data?.items || []);
+                setDiagnosticosPendientes(diagnosticosData);
+                if (diagnosticosData.length === 0) setDiagnosticoSeleccionadoId(null);
+            } catch { setDiagnosticosPendientes([]); }
+            finally { setLoadingDiagnosticos(false); }
+        };
+        cargarDiagnosticos();
+    }, [loteId, subtipoId, esEdicion]);
+
+    useEffect(() => {
+        if (!esEdicion || !recomendacion) { setInitialLoading(false); return; }
+        const init = async () => {
+            setInitialLoading(true);
+            try {
+                const rec = recomendacion as any;
+                setTitulo(rec.titulo || '');
+                setDescripcion(rec.descripcion || '');
+                setEstado(rec.estado || 'pendiente');
+                setLoteId(rec.lote_id || null);
+                setDiagnosticoSeleccionadoId(rec.diagnostico_id || null);
+                if (rec.formulario_recomendacion) setFormulario(rec.formulario_recomendacion);
+                if (rec.items_sugeridos?.length > 0) {
+                    setProductosRecomendacion(rec.items_sugeridos.map((item: any) => ({
+                        ...newProductoRow(),
+                        inventario_item_id: item.inventario_item_id,
+                        dosis: item.cantidad_sugerida ? String(item.cantidad_sugerida) : '',
+                        unidad: item.unidad_dosis || '',
+                    })));
+                }
+                if (rec.labores?.length > 0) {
+                    setLabores(rec.labores.map((lab: any) => ({
+                        id: lab.id,
+                        tipo_labor_id: lab.tipo_labor_id,
+                        trabajador_id: lab.trabajador_id,
+                        comentario: lab.comentario || '',
+                        productos: lab.items_sugeridos?.map((item: any) => ({
+                            ...newProductoRow(),
+                            inventario_item_id: item.inventario_item_id,
+                            dosis: item.cantidad_sugerida ? String(item.cantidad_sugerida) : '',
+                            unidad: item.unidad_dosis || '',
+                        })) || [],
+                    })));
+                }
+                if (rec.lote_id) {
+                    const lote = lotes.find(l => l.id === rec.lote_id);
+                    if (lote?.programa_id) {
+                        setProgramaId(lote.programa_id);
+                        const mons = await monitoreoService.obtenerMonitoreosPorPrograma(lote.programa_id);
+                        const monitoreosArr = Array.isArray(mons) ? mons : [];
+                        setMonitoreos(monitoreosArr);
+                        if (rec.subtipo_id) {
+                            for (const mon of monitoreosArr) {
+                                const subtiposData = await diagnosticoDinamicoService.listarSubtiposPorMonitoreo(mon.id);
+                                const encontrado = subtiposData.find(s => s.id === rec.subtipo_id);
+                                if (encontrado) { setMonitoreoId(mon.id); setSubtipoId(rec.subtipo_id); break; }
+                            }
+                        }
+                    }
+                }
+            } catch (e) { console.error('Error inicializando edición:', e); }
+            finally { setInitialLoading(false); }
+        };
+        init();
+    }, [esEdicion, recomendacion, lotes]);
+
+    useEffect(() => { if (!programaId) { setMonitoreos([]); return; } monitoreoService.obtenerMonitoreosPorPrograma(programaId).then(data => setMonitoreos(Array.isArray(data) ? data : [])).catch(() => { }); }, [programaId]);
+    useEffect(() => { if (!monitoreoId) { setSubtipos([]); if (!esEdicion) setSubtipoId(null); return; } if (!esEdicion) setSubtipoId(null); diagnosticoDinamicoService.listarSubtiposPorMonitoreo(monitoreoId).then(data => setSubtipos(data.filter(s => s.activo))).catch(() => setSubtipos([])); }, [monitoreoId, esEdicion]);
+    useEffect(() => { if (!subtipoId) { setCampos([]); return; } diagnosticoDinamicoService.listarCamposRecomendacion(subtipoId).then(data => { setCampos([...data].sort((a, b) => a.orden - b.orden)); if (!esEdicion) setFormulario({}); }).catch(() => setCampos([])); }, [subtipoId, esEdicion]);
+    useEffect(() => { tipoLaborService.obtenerTiposLabor().then(data => setTiposLabor(Array.isArray(data) ? data : [])).catch(() => { }); }, []);
+
     const lotesFiltrados = lotes.filter(l => l.programa_id === programaId);
 
-    // Validar acceso
+    // Validar acceso (early returns después de todos los hooks)
     if (esDocente && programasDocente.length === 0) {
         return (
             <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
@@ -621,121 +731,6 @@ const FormGeneral: React.FC<{
             </div>
         );
     }
-
-    useEffect(() => {
-        const cargarTrabajadores = async () => {
-            try {
-                const data = await usuarioService.obtenerTrabajadores();
-                setTrabajadores(data);
-            } catch { setTrabajadores([]); }
-        };
-        cargarTrabajadores();
-    }, []);
-
-    useEffect(() => {
-        if (!programaId) { 
-            setTiposInventario([]); 
-            return; 
-        }
-        const cargarTiposInventario = async () => {
-            try {
-                const data = await inventarioDinamicoService.listarTipos(programaId);
-                const tiposActivos = data.filter(t => t.activo);
-                console.log('Tipos de inventario para programa', programaId, ':', tiposActivos);
-                setTiposInventario(tiposActivos);
-            } catch (error) {
-                console.error('Error cargando tipos de inventario:', error);
-                setTiposInventario([]);
-            }
-        };
-        cargarTiposInventario();
-    }, [programaId]);
-
-    useEffect(() => {
-        if (!loteId || !subtipoId || esEdicion) {
-            setDiagnosticosPendientes([]);
-            if (!esEdicion) setDiagnosticoSeleccionadoId(null);
-            return;
-        }
-        const cargarDiagnosticos = async () => {
-            setLoadingDiagnosticos(true);
-            try {
-                const data = await diagnosticoService.obtenerDiagnosticos({
-                    lote_id: loteId, diagnostico_tipo_id: subtipoId, estado_revision: 'pendiente_revision',
-                } as any);
-                const diagnosticosData = Array.isArray(data) ? data : (data?.items || []);
-                setDiagnosticosPendientes(diagnosticosData);
-                if (diagnosticosData.length === 0) setDiagnosticoSeleccionadoId(null);
-            } catch { setDiagnosticosPendientes([]); }
-            finally { setLoadingDiagnosticos(false); }
-        };
-        cargarDiagnosticos();
-    }, [loteId, subtipoId, esEdicion]);
-
-    useEffect(() => {
-        if (!esEdicion || !recomendacion) { setInitialLoading(false); return; }
-
-        const init = async () => {
-            setInitialLoading(true);
-            try {
-                const rec = recomendacion as any;
-                setTitulo(rec.titulo || '');
-                setDescripcion(rec.descripcion || '');
-                setEstado(rec.estado || 'pendiente');
-                setLoteId(rec.lote_id || null);
-                setDiagnosticoSeleccionadoId(rec.diagnostico_id || null);
-                if (rec.formulario_recomendacion) setFormulario(rec.formulario_recomendacion);
-
-                if (rec.items_sugeridos?.length > 0) {
-                    setProductosRecomendacion(rec.items_sugeridos.map((item: any) => ({
-                        ...newProductoRow(),
-                        inventario_item_id: item.inventario_item_id,
-                        dosis: item.cantidad_sugerida ? String(item.cantidad_sugerida) : '',
-                        unidad: item.unidad_dosis || '',
-                    })));
-                }
-
-                if (rec.labores?.length > 0) {
-                    setLabores(rec.labores.map((lab: any) => ({
-                        id: lab.id,
-                        tipo_labor_id: lab.tipo_labor_id,
-                        trabajador_id: lab.trabajador_id,
-                        comentario: lab.comentario || '',
-                        productos: lab.items_sugeridos?.map((item: any) => ({
-                            ...newProductoRow(),
-                            inventario_item_id: item.inventario_item_id,
-                            dosis: item.cantidad_sugerida ? String(item.cantidad_sugerida) : '',
-                            unidad: item.unidad_dosis || '',
-                        })) || [],
-                    })));
-                }
-
-                if (rec.lote_id) {
-                    const lote = lotes.find(l => l.id === rec.lote_id);
-                    if (lote?.programa_id) {
-                        setProgramaId(lote.programa_id);
-                        const mons = await monitoreoService.obtenerMonitoreosPorPrograma(lote.programa_id);
-                        const monitoreosArr = Array.isArray(mons) ? mons : [];
-                        setMonitoreos(monitoreosArr);
-                        if (rec.subtipo_id) {
-                            for (const mon of monitoreosArr) {
-                                const subtiposData = await diagnosticoDinamicoService.listarSubtiposPorMonitoreo(mon.id);
-                                const encontrado = subtiposData.find(s => s.id === rec.subtipo_id);
-                                if (encontrado) { setMonitoreoId(mon.id); setSubtipoId(rec.subtipo_id); break; }
-                            }
-                        }
-                    }
-                }
-            } catch (e) { console.error('Error inicializando edición:', e); }
-            finally { setInitialLoading(false); }
-        };
-        init();
-    }, [esEdicion, recomendacion, lotes]);
-
-    useEffect(() => { if (!programaId) { setMonitoreos([]); return; } monitoreoService.obtenerMonitoreosPorPrograma(programaId).then(data => setMonitoreos(Array.isArray(data) ? data : [])).catch(() => { }); }, [programaId]);
-    useEffect(() => { if (!monitoreoId) { setSubtipos([]); if (!esEdicion) setSubtipoId(null); return; } if (!esEdicion) setSubtipoId(null); diagnosticoDinamicoService.listarSubtiposPorMonitoreo(monitoreoId).then(data => setSubtipos(data.filter(s => s.activo))).catch(() => setSubtipos([])); }, [monitoreoId, esEdicion]);
-    useEffect(() => { if (!subtipoId) { setCampos([]); return; } diagnosticoDinamicoService.listarCamposRecomendacion(subtipoId).then(data => { setCampos([...data].sort((a, b) => a.orden - b.orden)); if (!esEdicion) setFormulario({}); }).catch(() => setCampos([])); }, [subtipoId, esEdicion]);
-    useEffect(() => { tipoLaborService.obtenerTiposLabor().then(data => setTiposLabor(Array.isArray(data) ? data : [])).catch(() => { }); }, []);
 
     const renderCampo = (campo: CampoRecomendacion) => {
         const val = formulario[campo.nombre_campo] ?? '';
