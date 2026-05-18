@@ -214,6 +214,31 @@ const GestionTiposRecomendaciones: React.FC = () => {
     return padre ? padre.etiqueta : `Campo #${campo.campo_padre_id}`;
   };
 
+  // Verificar si debe mostrar el contenido o el mensaje de sin acceso
+  const tieneAcceso = esAdmin || (esDocente && programasDocente.length > 0);
+
+  // Si es docente y no tiene programas, mostrar mensaje
+  if (esDocente && programasDocente.length === 0) {
+    return (
+      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
+        <div className="flex items-center">
+          <div className="flex-shrink-0">
+            <i className="fas fa-exclamation-triangle text-yellow-400 text-xl"></i>
+          </div>
+          <div className="ml-3">
+            <h3 className="text-sm font-medium text-yellow-800">
+              Sin programas asignados
+            </h3>
+            <p className="text-sm text-yellow-700 mt-1">
+              No tienes programas asignados para gestionar tipos de recomendaciones.
+              Contacta con un administrador para obtener acceso.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div>
