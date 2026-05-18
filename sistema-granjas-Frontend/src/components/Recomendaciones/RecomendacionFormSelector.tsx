@@ -237,9 +237,8 @@ const FormVinculadaDiagnostico: React.FC<{
     useEffect(() => {
         const cargarTrabajadores = async () => {
             try {
-                const usuarios = await usuarioService.obtenerUsuarios();
-                const arr = Array.isArray(usuarios) ? usuarios : (usuarios?.items || []);
-                setTrabajadores(arr.filter((u: any) => u.rol_id === 3 || u.rol_id === 4));
+                const data = await usuarioService.obtenerTrabajadores();
+                setTrabajadores(data);
             } catch { setTrabajadores([]); }
         };
         cargarTrabajadores();
@@ -626,9 +625,8 @@ const FormGeneral: React.FC<{
     useEffect(() => {
         const cargarTrabajadores = async () => {
             try {
-                const usuarios = await usuarioService.obtenerUsuarios();
-                const arr = Array.isArray(usuarios) ? usuarios : (usuarios?.items || []);
-                setTrabajadores(arr.filter((u: any) => u.rol_id === 3 || u.rol_id === 4));
+                const data = await usuarioService.obtenerTrabajadores();
+                setTrabajadores(data);
             } catch { setTrabajadores([]); }
         };
         cargarTrabajadores();

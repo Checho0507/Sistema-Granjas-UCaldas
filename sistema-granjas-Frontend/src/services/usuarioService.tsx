@@ -144,6 +144,21 @@ export const usuarioService = {
 
     // ========== ESTADÍSTICAS ==========
 
+    // OBTENER solo trabajadores (filtrado por el backend según programas del usuario)
+    async obtenerTrabajadores(): Promise<Usuario[]> {
+        try {
+            const url = `${API_BASE_URL}/usuarios/trabajadores`;
+            const response = await fetch(url, {
+                headers: getHeaders()
+            });
+            const data = await handleResponse(response);
+            return Array.isArray(data) ? data : [];
+        } catch (error) {
+            console.error('❌ Error obteniendo trabajadores:', error);
+            throw error;
+        }
+    },
+
     // Obtener conteo de usuarios por rol
     async obtenerConteoUsuariosPorRol(): Promise<Record<string, number>> {
         try {

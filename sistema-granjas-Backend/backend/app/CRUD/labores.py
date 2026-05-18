@@ -31,9 +31,9 @@ def crear_labor_crud(db: Session, data: LaborCreate, usuario: Usuario):
     if data.trabajador_id:
         trabajador = db.query(Usuario).filter(Usuario.id == data.trabajador_id).first()
         if not trabajador or trabajador.rol.nombre != "trabajador":
-            raise HTTPException(404, "Trabajador no encontrado o no tiene rol válido")
+            raise HTTPException(400, "El usuario seleccionado no existe o no tiene el rol de trabajador")
         
-        if usuario.rol.nombre == "talento_humano":
+        if usuario.rol.nombre in ("talento_humano", "docente", "asesor"):
             trabajador_programa_ids = {p.id for p in trabajador.programas}
             usuario_programa_ids = {p.id for p in usuario.programas}
             if not trabajador_programa_ids.intersection(usuario_programa_ids):
@@ -208,6 +208,17 @@ def actualizar_labor_crud(db: Session, labor: Labor, data: LaborUpdate, usuario:
     
     update_data = data.dict(exclude_unset=True)
     
+    # Si se actualiza trabajador_id, validar rol y pertenencia al programa
+    if 'trabajador_id' in update_data and update_data['trabajador_id']:
+        nuevo_trabajador = db.query(Usuario).filter(Usuario.id == update_data['trabajador_id']).first()
+        if not nuevo_trabajador or nuevo_trabajador.rol.nombre != "trabajador":
+            raise HTTPException(400, "El usuario seleccionado no existe o no tiene el rol de trabajador")
+        if usuario.rol.nombre in ("talento_humano", "docente", "asesor"):
+            trabajador_programa_ids = {p.id for p in nuevo_trabajador.programas}
+            usuario_programa_ids = {p.id for p in usuario.programas}
+            if not trabajador_programa_ids.intersection(usuario_programa_ids):
+                raise HTTPException(403, "Solo puede asignar labores a trabajadores de su programa")
+
     # Si se actualiza tipo_labor_id, verificar que existe
     if 'tipo_labor_id' in update_data and update_data['tipo_labor_id']:
         tipo_labor = db.query(TipoLabor).filter(TipoLabor.id == update_data['tipo_labor_id']).first()

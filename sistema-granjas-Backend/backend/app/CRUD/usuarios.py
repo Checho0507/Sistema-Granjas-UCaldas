@@ -67,6 +67,17 @@ def search_usuarios(db: Session, query: str):
         )
     ).all()
 
+def get_trabajadores(db: Session, programa_ids: list = None):
+    from app.db.models import Rol, usuario_programa
+    query = db.query(Usuario).join(Rol, Usuario.rol_id == Rol.id).filter(
+        Usuario.activo == True,
+        Rol.nombre == "trabajador"
+    )
+    if programa_ids is not None and len(programa_ids) > 0:
+        query = query.join(usuario_programa, Usuario.id == usuario_programa.c.usuario_id)\
+                     .filter(usuario_programa.c.programa_id.in_(programa_ids))
+    return query.all()
+
 def update_password(db: Session, usuario_id: int, new_password: str):
     db_usuario = get_usuario_by_id(db, usuario_id)
     if db_usuario:

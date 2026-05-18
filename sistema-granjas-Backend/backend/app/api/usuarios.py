@@ -10,7 +10,8 @@ from app.CRUD.usuarios import (
     delete_usuario, 
     cambiar_rol_usuario,
     search_usuarios,
-    get_usuario_by_email
+    get_usuario_by_email,
+    get_trabajadores
 )
 from app.CRUD.roles import get_rol_by_id
 from app.schemas.usuario_schema import UsuarioResponse, UsuarioUpdate
@@ -170,6 +171,38 @@ def eliminar_usuario(
         )
     
     return {"message": "Usuario eliminado correctamente"}
+
+@router.get("/trabajadores", response_model=List[UsuarioResponse])
+def listar_trabajadores(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_any_role(["admin", "talento_humano", "docente", "asesor"]))
+):
+    """
+    Retorna únicamente usuarios con rol 'trabajador'.
+    - admin: todos los trabajadores
+    - docente / asesor / talento_humano: solo los trabajadores que pertenecen
+      a al menos uno de los programas del usuario actual.
+    """
+    rol = current_user.rol.nombre
+    if rol == "admin":
+        trabajadores = get_trabajadores(db, programa_ids=None)
+    else:
+        programa_ids = [p.id for p in current_user.programas]
+        trabajadores = get_trabajadores(db, programa_ids=programa_ids)
+
+    return [
+        UsuarioResponse(
+            id=u.id,
+            nombre=u.nombre,
+            email=u.email,
+            rol_id=u.rol_id,
+            rol_nombre=u.rol.nombre,
+            activo=u.activo,
+            fecha_creacion=u.fecha_creacion
+        )
+        for u in trabajadores
+    ]
+
 
 @router.get("/me/perfil", response_model=UsuarioResponse)
 def obtener_mi_perfil(current_user: Usuario = Depends(get_current_user)):

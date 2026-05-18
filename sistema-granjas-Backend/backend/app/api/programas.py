@@ -31,7 +31,13 @@ def listar_programas(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_any_role(["admin", "docente", "asesor", "estudiante", "talento_humano", "trabajador"]))
 ):
-    """Listar todos los programas con paginación"""
+    """Listar programas. Docentes y asesores solo ven sus propios programas."""
+    rol = current_user.rol.nombre
+    if rol in ["docente", "asesor"]:
+        programas_usuario = current_user.programas
+        if not incluir_inactivos:
+            return [p for p in programas_usuario if p.activo]
+        return list(programas_usuario)
     return get_programas(db, skip=skip, limit=limit, solo_activos=not incluir_inactivos)
 
 @router.get("/{programa_id}", response_model=ProgramaResponse)

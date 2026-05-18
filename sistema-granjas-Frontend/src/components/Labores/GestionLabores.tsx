@@ -125,10 +125,7 @@ const GestionLaboresPage: React.FC = () => {
 
             if (trabajadores.length === 0) {
                 try {
-                    const usuarios = await usuarioService.obtenerUsuarios();
-                    const usuariosArray = Array.isArray(usuarios) ? usuarios : (usuarios?.items || []);
-                    // Trabajadores son rol_id = 3 (estudiantes/trabajadores)
-                    const trabajadoresData = usuariosArray.filter((u: any) => u.rol_id === 3);
+                    const trabajadoresData = await usuarioService.obtenerTrabajadores();
                     setTrabajadores(trabajadoresData);
                 } catch (userError) {
                     console.error('Error cargando trabajadores:', userError);
