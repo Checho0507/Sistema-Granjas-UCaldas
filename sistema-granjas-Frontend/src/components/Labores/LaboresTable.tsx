@@ -66,7 +66,7 @@ const LaboresTable: React.FC<LaboresTableProps> = ({
     };
 
     const puedeEliminar = (labor: Labor) => {
-        if (currentUser?.rol_id === 3) return true;
+        if (currentUser?.rol_id === 3) return false;
         if (rolesPermitidos.includes(currentUser?.rol_id)) return true;
         if (labor.trabajador_id === currentUser?.id && labor.estado === 'pendiente') return true;
         return false;
