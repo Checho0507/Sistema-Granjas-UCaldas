@@ -69,6 +69,7 @@ const GestionLaboresPage: React.FC = () => {
             setExporting(false);
         }
     };
+
     useEffect(() => {
         cargarDatos();
     }, [filtros]);
@@ -78,7 +79,7 @@ const GestionLaboresPage: React.FC = () => {
             setLoading(true);
             setError(null);
 
-            // Cargar labores
+            // Cargar labores - El backend ya filtra según el rol del usuario autenticado
             const data = await laborService.obtenerLabores(filtros);
             const laboresData = Array.isArray(data) ? data : (data?.items || data || []);
             setLabores(laboresData);
@@ -114,7 +115,6 @@ const GestionLaboresPage: React.FC = () => {
                         })
                     );
 
-                    console.log('Lotes cargados con nombres de granja:', lotesArray);
                     setLotes(lotesArray);
                 } catch (loteError) {
                     console.error('Error cargando lotes:', loteError);
@@ -264,19 +264,10 @@ const GestionLaboresPage: React.FC = () => {
         }
     };
 
-    // FILTRO POR ROL
-    const laboresFiltradas = Array.isArray(labores) ? labores.filter(l => {
-        if (!user) return false;
-        if (user.rol_id === 1) return true; // Admin ve todo
-        if (user.rol_id === 2 || user.rol_id === 5) {
-            // Docente solo ve las labores que él creó (vinculadas a sus recomendaciones)
-            return (l as any).docente_id === user.id
-                || ((l as any).recomendacion as any)?.docente_id === user.id
-                || (l as any).creado_por_id === user.id;
-        }
-        if (user.rol_id === 3) return l.trabajador_id === user.id; // Trabajador ve las suyas
-        return true;
-    }) : [];
+    // ✅ EL BACKEND YA FILTRA POR ROL AUTOMÁTICAMENTE
+    // No es necesario filtrar nuevamente en el frontend
+    // Solo aplicamos filtros específicos que el usuario selecciona en la UI
+    const laboresFiltradas = Array.isArray(labores) ? labores : [];
 
     return (
         <div className="p-6">
@@ -294,14 +285,16 @@ const GestionLaboresPage: React.FC = () => {
                             </span>
                         )}
 
-                        {(user && user.rol_id === 1) && (<button
-                            onClick={handleExportLabores}
-                            disabled={exporting}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 disabled:opacity-50 transition-colors"
-                        >
-                            <i className={`fas ${exporting ? 'fa-spinner fa-spin' : 'fa-file-excel'}`}></i>
-                            <span>{exporting ? 'Exportando...' : 'Exportar a Excel'}</span>
-                        </button>)}
+                        {(user && user.rol_id === 1) && (
+                            <button
+                                onClick={handleExportLabores}
+                                disabled={exporting}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 disabled:opacity-50 transition-colors"
+                            >
+                                <i className={`fas ${exporting ? 'fa-spinner fa-spin' : 'fa-file-excel'}`}></i>
+                                <span>{exporting ? 'Exportando...' : 'Exportar a Excel'}</span>
+                            </button>
+                        )}
                     </div>
                     <div className="flex space-x-3">
                         <button
@@ -326,69 +319,74 @@ const GestionLaboresPage: React.FC = () => {
 
                 {/* TABS */}
                 <div className="flex border-b border-gray-200 mb-4">
-                    <button onClick={() => setTabActivo('labores')}
-                        className={`px-5 py-2.5 text-sm font-medium border-b-2 transition ${tabActivo === 'labores' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                    <button 
+                        onClick={() => setTabActivo('labores')}
+                        className={`px-5 py-2.5 text-sm font-medium border-b-2 transition ${tabActivo === 'labores' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                    >
                         <i className="fas fa-tasks mr-2"></i>Labores
                     </button>
                     {user && [1, 2, 5, 6].includes(user.rol_id) && (
-                        <button onClick={() => setTabActivo('tipos')}
-                            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition ${tabActivo === 'tipos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                        <button 
+                            onClick={() => setTabActivo('tipos')}
+                            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition ${tabActivo === 'tipos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                        >
                             <i className="fas fa-tag mr-2"></i>Tipos de Labor
                         </button>
                     )}
                 </div>
 
-            {/* Filtros - Actualizado para mostrar nombres de granja */}
-            {tabActivo === 'labores' && <div className="bg-white p-4 rounded-lg shadow mb-6">
-                    <h3 className="font-semibold mb-3">Filtros</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <select
-                            className="border rounded p-2"
-                            value={filtros.estado || ''}
-                            onChange={(e) => setFiltros({ ...filtros, estado: e.target.value || undefined })}
-                        >
-                            <option value="">Todos los estados</option>
-                            <option value="pendiente">Pendiente</option>
-                            <option value="en_progreso">En Progreso</option>
-                            <option value="completada">Completada</option>
-                            <option value="cancelada">Cancelada</option>
-                        </select>
+                {/* Filtros */}
+                {tabActivo === 'labores' && (
+                    <div className="bg-white p-4 rounded-lg shadow mb-6">
+                        <h3 className="font-semibold mb-3">Filtros</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <select
+                                className="border rounded p-2"
+                                value={filtros.estado || ''}
+                                onChange={(e) => setFiltros({ ...filtros, estado: e.target.value || undefined })}
+                            >
+                                <option value="">Todos los estados</option>
+                                <option value="pendiente">Pendiente</option>
+                                <option value="en_progreso">En Progreso</option>
+                                <option value="completada">Completada</option>
+                                <option value="cancelada">Cancelada</option>
+                            </select>
 
-                        <select
-                            className="border rounded p-2"
-                            value={filtros.trabajador_id || ''}
-                            onChange={(e) => setFiltros({ ...filtros, trabajador_id: e.target.value ? parseInt(e.target.value) : undefined })}
-                        >
-                            <option value="">Todos los trabajadores</option>
-                            {Array.isArray(trabajadores) && trabajadores.map(trab => (
-                                <option key={trab.id} value={trab.id}>
-                                    {trab.nombre}
-                                </option>
-                            ))}
-                        </select>
+                            <select
+                                className="border rounded p-2"
+                                value={filtros.trabajador_id || ''}
+                                onChange={(e) => setFiltros({ ...filtros, trabajador_id: e.target.value ? parseInt(e.target.value) : undefined })}
+                            >
+                                <option value="">Todos los trabajadores</option>
+                                {Array.isArray(trabajadores) && trabajadores.map(trab => (
+                                    <option key={trab.id} value={trab.id}>
+                                        {trab.nombre}
+                                    </option>
+                                ))}
+                            </select>
 
-                        {/* Filtro de lotes - ahora los lotes ya tienen granja_nombre */}
-                        <select
-                            className="border rounded p-2"
-                            value={filtros.lote_id || ''}
-                            onChange={(e) => setFiltros({ ...filtros, lote_id: e.target.value ? parseInt(e.target.value) : undefined })}
-                        >
-                            <option value="">Todos los lotes</option>
-                            {Array.isArray(lotes) && lotes.map(lote => (
-                                <option key={lote.id} value={lote.id}>
-                                    {lote.nombre} ({lote.granja_nombre || 'Sin granja'})
-                                </option>
-                            ))}
-                        </select>
+                            <select
+                                className="border rounded p-2"
+                                value={filtros.lote_id || ''}
+                                onChange={(e) => setFiltros({ ...filtros, lote_id: e.target.value ? parseInt(e.target.value) : undefined })}
+                            >
+                                <option value="">Todos los lotes</option>
+                                {Array.isArray(lotes) && lotes.map(lote => (
+                                    <option key={lote.id} value={lote.id}>
+                                        {lote.nombre} ({lote.granja_nombre || 'Sin granja'})
+                                    </option>
+                                ))}
+                            </select>
 
-                        <button
-                            onClick={() => setFiltros({})}
-                            className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded"
-                        >
-                            Limpiar Filtros
-                        </button>
+                            <button
+                                onClick={() => setFiltros({})}
+                                className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded"
+                            >
+                                Limpiar Filtros
+                            </button>
+                        </div>
                     </div>
-                </div>}
+                )}
             </div>
 
             {/* TAB: Tipos de Labor */}
@@ -427,7 +425,7 @@ const GestionLaboresPage: React.FC = () => {
 
             {/* MODALES */}
 
-            {/* MODAL CREAR - NO pasamos granjasMap, los lotes ya tienen granja_nombre */}
+            {/* MODAL CREAR */}
             <Modal isOpen={showCrearModal} onClose={() => setShowCrearModal(false)} width="max-w-2xl">
                 <LaborForm
                     onSubmit={handleCrearLabor}
@@ -440,7 +438,7 @@ const GestionLaboresPage: React.FC = () => {
                 />
             </Modal>
 
-            {/* MODAL EDITAR - NO pasamos granjasMap */}
+            {/* MODAL EDITAR */}
             <Modal isOpen={showEditarModal} onClose={() => setShowEditarModal(false)} width="max-w-2xl">
                 {selectedLabor && (
                     <LaborForm
