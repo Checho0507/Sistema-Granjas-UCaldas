@@ -44,16 +44,16 @@ const DiagnosticosTable: React.FC<DiagnosticosTableProps> = ({
 
     const puedeEditar = (d: DiagnosticoItem) => {
         if (esAdmin) return true;
+        return false;
         if (esDocente) return !estaRevisado(d);
         if (esEstudiante) return !estaRevisado(d);
-        return false;
     };
 
     const puedeEliminar = (d: DiagnosticoItem) => {
         if (esAdmin) return true;
+        return false;
         if (esDocente) return !estaRevisado(d);
         if (esEstudiante) return !estaRevisado(d);
-        return false;
     };
 
     const puedeCrearRecomendacion = (d: DiagnosticoItem) => {
