@@ -64,7 +64,7 @@ class LaborBase(BaseModel):
 # CREATE
 # ============================================================
 class LaborCreate(LaborBase):
-    recomendacion_id: int = Field(..., gt=0, description="ID de la recomendación asociada")
+    recomendacion_id: Optional[int] = Field(None, gt=0, description="ID de la recomendación asociada (opcional)")
     trabajador_id: Optional[int] = Field(None, gt=0, description="ID del trabajador asignado (opcional al crear)")
     productos: Optional[List[ProductoLaborCreate]] = Field(default=[], description="Productos a asociar a la labor")
 
@@ -131,7 +131,7 @@ class EvidenciaBasicResponse(BaseModel):
 # ============================================================
 class LaborResponse(LaborBase):
     id: int
-    recomendacion_id: int
+    recomendacion_id: Optional[int] = None
     trabajador_id: Optional[int] = None
     fecha_asignacion: datetime
     fecha_finalizacion: Optional[datetime] = None

@@ -309,6 +309,7 @@ const TableroLabores: React.FC = () => {
   };
 
   const laboresFiltradas = vistaMovil === 'todas' ? labores : labores.filter(l => l.estado === vistaMovil);
+  const canManage = user?.rol !== 'trabajador';
 
   const getEstadoInfo = (estado: string) => ESTADO_COLS.find(c => c.key === estado) || ESTADO_COLS[0];
 
@@ -401,6 +402,7 @@ const TableroLabores: React.FC = () => {
                       onAvance={() => setAvanceModal({ labor, valor: labor.avance_porcentaje, comentario: labor.comentario || '' })}
                       onCompletar={() => abrirCompletarModal(labor)}
                       formatFecha={formatFecha}
+                      canManage={canManage}
                     />
                   ))
                 )}
@@ -425,6 +427,7 @@ const TableroLabores: React.FC = () => {
                 onCompletar={() => abrirCompletarModal(labor)}
                 formatFecha={formatFecha}
                 fullWidth
+                canManage={canManage}
               />
             ))
           )}
@@ -626,9 +629,10 @@ interface LaborCardProps {
   onCompletar: () => void;
   formatFecha: (s: string) => string;
   fullWidth?: boolean;
+  canManage?: boolean;
 }
 
-const LaborCard: React.FC<LaborCardProps> = ({ labor, onAvance, onCompletar, formatFecha, fullWidth }) => {
+const LaborCard: React.FC<LaborCardProps> = ({ labor, onAvance, onCompletar, formatFecha, fullWidth, canManage = false }) => {
   const completada = labor.estado === 'completada';
   const enProgreso = labor.estado === 'en_progreso';
 
@@ -691,7 +695,7 @@ const LaborCard: React.FC<LaborCardProps> = ({ labor, onAvance, onCompletar, for
           </p>
         )}
 
-        {!completada && (
+        {!completada && canManage && (
           <div className="flex gap-2">
             <button
               onClick={onAvance}

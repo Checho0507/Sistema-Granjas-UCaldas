@@ -1,7 +1,7 @@
 // src/utils/permissions.ts
 // Fuente única de verdad para la matriz de acceso del sistema
 
-export type Rol = 'admin' | 'docente' | 'asesor' | 'estudiante' | 'trabajador' | 'talento_humano';
+export type Rol = 'admin' | 'docente' | 'asesor' | 'estudiante' | 'trabajador' | 'talento_humano' | 'jefe_talento_humano';
 
 /**
  * Qué roles tienen permiso de ESCRITURA en cada módulo.
@@ -14,7 +14,7 @@ export const ESCRITURA_POR_MODULO: Record<string, Rol[]> = {
   lotes:           ['admin', 'docente'],
   cultivos:        ['admin', 'docente'],
   plantas:         ['admin', 'docente'],
-  labores:         ['admin', 'talento_humano'],
+  labores:         ['admin', 'talento_humano', 'jefe_talento_humano'],
   usuarios:        ['admin'],
   inventario:      ['admin', 'docente'],
   diagnosticos:    ['admin', 'docente', 'asesor', 'estudiante'],
@@ -33,9 +33,9 @@ export const ACCESO_POR_RUTA: Record<string, Rol[]> = {
   '/lotes':                   ['admin', 'docente', 'asesor', 'estudiante', 'trabajador'],
   '/gestion/cultivos':        ['admin', 'docente', 'asesor', 'estudiante'],
   '/gestion/plantas':         ['admin', 'docente'],
-  '/gestion/labores':         ['admin', 'docente', 'talento_humano', 'trabajador', 'asesor'],
-  '/tablero':                 ['admin', 'docente', 'talento_humano', 'trabajador'],
-  '/gestion/usuarios':        ['admin', 'talento_humano'],
+  '/gestion/labores':         ['admin', 'docente', 'talento_humano', 'jefe_talento_humano', 'trabajador', 'asesor'],
+  '/tablero':                 ['admin', 'docente', 'talento_humano', 'jefe_talento_humano', 'trabajador'],
+  '/gestion/usuarios':        ['admin', 'talento_humano', 'jefe_talento_humano'],
   '/gestion/inventario':      ['admin', 'docente', 'asesor'],
   '/gestion/diagnosticos':    ['admin', 'docente', 'asesor', 'estudiante'],
   '/gestion/recomendaciones': ['admin', 'docente', 'asesor', 'estudiante'],

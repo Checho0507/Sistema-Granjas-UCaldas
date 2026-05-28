@@ -24,6 +24,19 @@ def inicializar_roles(db: Session):
     """Inicializar roles del sistema (si están definidos en el .env)"""
     roles_creados = []
     
+    # Roles base hardcoded (siempre se aseguran de existir)
+    roles_base = [
+        {"nombre": "jefe_talento_humano", "descripcion": "Jefe de Talento Humano — acceso a todas las granjas", "nivel_permiso": 6},
+    ]
+    for rol_data in roles_base:
+        rol_existente = db.query(Rol).filter(Rol.nombre == rol_data["nombre"]).first()
+        if not rol_existente:
+            db_rol = Rol(**rol_data)
+            db.add(db_rol)
+            roles_creados.append(rol_data["nombre"])
+    if roles_creados:
+        db.commit()
+
     # AÑADIMOS ESTA VERIFICACIÓN
     if settings.ROLES_POR_DEFECTO is None:
         return roles_creados # Retorna lista vacía si el dato no se cargó del .env

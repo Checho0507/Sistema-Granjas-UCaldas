@@ -7,7 +7,6 @@ import usuarioService from '../../services/usuarioService';
 import loteService from '../../services/loteService';
 import programaService from '../../services/programaService';
 import { diagnosticoService } from '../../services/diagnosticoService';
-import { laborService } from '../../services/laboresService';
 import type { Recomendacion, RecomendacionFilters } from '../../types/recomendacionTypes';
 import type { DiagnosticoItem } from '../../types/diagnosticoTypes';
 import Modal from '../Common/Modal';
@@ -218,43 +217,13 @@ const GestionRecomendaciones: React.FC = () => {
     // CRUD handlers
     const handleCrearRecomendacion = async (data: any) => {
         try {
-            const laboresACrear: any[] = data.labores_a_crear || [];
             const { labores_a_crear: _, ...submitData } = data;
-
             const nueva = await recomendacionService.crearRecomendacion(submitData, user);
             setRecomendaciones(prev => [...prev, nueva]);
             toast.success('Recomendación creada exitosamente');
             setShowCrearModal(false);
             setUrlDiagnosticoId(undefined);
             setUrlLoteId(undefined);
-
-            if (laboresACrear.length > 0) {
-                let creadas = 0;
-                await Promise.allSettled(
-                    laboresACrear.map(async (labor: any) => {
-                        try {
-                            await laborService.crearLabor({
-                                tipo_labor_id: labor.tipo_labor_id,
-                                recomendacion_id: nueva.id,
-                                lote_id: nueva.lote_id,
-                                trabajador_id: labor.trabajador_id,
-                                comentario: labor.comentario || '',
-                                productos: (labor.productos || []).filter((p: any) => p.inventario_item_id).map((p: any) => ({
-                                    inventario_item_id: p.inventario_item_id,
-                                    cantidad_usada: p.cantidad_sugerida ?? null,
-                                    unidad_dosis: p.unidad_dosis ?? null,
-                                })),
-                            } as any, user);
-                            creadas++;
-                        } catch (e: any) {
-                            console.error('Error creando labor:', e);
-                        }
-                    })
-                );
-                if (creadas > 0) toast.success(`${creadas} labor(es) creada(s) correctamente`);
-                if (creadas < laboresACrear.length) toast.error(`${laboresACrear.length - creadas} labor(es) no pudieron crearse`);
-            }
-
             if (tabActivo === 'pendientes') cargarPendientes();
         } catch (err: any) {
             toast.error(`Error al crear recomendación: ${err.message}`);

@@ -11,8 +11,6 @@ import { diagnosticoService } from '../../services/diagnosticoService';
 import { inventarioDinamicoService } from '../../services/inventarioDinamicoService';
 import type { TipoInventario, ItemInventario } from '../../types/inventarioDinamicoTypes';
 import type { DiagnosticoTipo } from '../../services/diagnosticoDinamicoService';
-import tipoLaborService from '../../services/tipoLaboresService';
-import usuarioService from '../../services/usuarioService';
 import { useAuth } from '../../hooks/useAuth';
 
 // ── Interfaces ──────────────────────────────────────────────────────────────────
@@ -24,21 +22,6 @@ interface ProductoSugerido {
     items: any[];
     loadingItems: boolean;
 }
-
-interface LaborRow {
-    id?: number;
-    tipo_labor_id: number | null;
-    trabajador_id: number | null;
-    comentario: string;
-    productos: ProductoSugerido[];
-}
-
-const newLaborRow = (): LaborRow => ({
-    tipo_labor_id: null,
-    trabajador_id: null,
-    comentario: '',
-    productos: [],
-});
 
 const newProductoRow = (): ProductoSugerido => ({
     tipo_inventario_id: null,
@@ -230,19 +213,6 @@ const FormVinculadaDiagnostico: React.FC<{
 
     const [productosRecomendacion, setProductosRecomendacion] = useState<ProductoSugerido[]>([]);
     const [tiposInventario, setTiposInventario] = useState<TipoInventario[]>([]);
-    const [tiposLabor, setTiposLabor] = useState<any[]>([]);
-    const [laboresToCrear, setLaboresToCrear] = useState<LaborRow[]>([]);
-    const [trabajadores, setTrabajadores] = useState<any[]>([]);
-
-    useEffect(() => {
-        const cargarTrabajadores = async () => {
-            try {
-                const data = await usuarioService.obtenerTrabajadores();
-                setTrabajadores(data);
-            } catch { setTrabajadores([]); }
-        };
-        cargarTrabajadores();
-    }, []);
 
     useEffect(() => {
         const load = async () => {
@@ -275,26 +245,12 @@ const FormVinculadaDiagnostico: React.FC<{
         load();
     }, [diagnosticoId]);
 
-    useEffect(() => {
-        tipoLaborService.obtenerTiposLabor()
-            .then(data => setTiposLabor(Array.isArray(data) ? data : []))
-            .catch(() => { });
-    }, []);
-
     const handleSubmit = async () => {
         if (!titulo.trim()) { toast.warning('El título es requerido'); return; }
         if (!descripcion.trim() || descripcion.trim().length < 10) { toast.warning('La descripción debe tener al menos 10 caracteres'); return; }
         for (const campo of campos) {
             if (campo.requerido && !formulario[campo.nombre_campo]) {
                 toast.warning(`El campo "${campo.etiqueta}" es requerido`);
-                return;
-            }
-        }
-
-        const laboresValidas = laboresToCrear.filter(l => l.tipo_labor_id !== null);
-        for (const labor of laboresValidas) {
-            if (!labor.trabajador_id) {
-                toast.warning('Cada labor debe tener un trabajador asignado');
                 return;
             }
         }
@@ -320,16 +276,6 @@ const FormVinculadaDiagnostico: React.FC<{
                     inventario_item_id: p.inventario_item_id,
                     cantidad_sugerida: p.dosis ? parseFloat(p.dosis) : null,
                     unidad_dosis: p.unidad || null,
-                })),
-                labores_a_crear: laboresValidas.map(l => ({
-                    tipo_labor_id: l.tipo_labor_id,
-                    trabajador_id: l.trabajador_id,
-                    comentario: l.comentario,
-                    productos: l.productos.filter(p => p.inventario_item_id).map(p => ({
-                        inventario_item_id: p.inventario_item_id,
-                        cantidad_sugerida: p.dosis ? parseFloat(p.dosis) : null,
-                        unidad_dosis: p.unidad || null,
-                    })),
                 })),
             });
         } catch (e: any) {
@@ -446,80 +392,6 @@ const FormVinculadaDiagnostico: React.FC<{
                 <p className="text-xs text-gray-400 mt-1">{descripcion.length} / mín. 10 caracteres</p>
             </div>
 
-            <div className="border border-green-200 rounded-xl p-4 bg-green-50">
-                <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-green-800 text-sm"><i className="fas fa-tasks mr-1"></i>Labores a crear (opcional)</h4>
-                    <button type="button" onClick={() => setLaboresToCrear(prev => [...prev, newLaborRow()])}
-                        className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1">
-                        <i className="fas fa-plus"></i> Agregar labor
-                    </button>
-                </div>
-                {laboresToCrear.length === 0 ? (
-                    <p className="text-xs text-green-600">No hay labores programadas.</p>
-                ) : (
-                    <div className="space-y-4">
-                        {laboresToCrear.map((labor, idx) => (
-                            <div key={idx} className="bg-white border border-green-200 rounded-lg p-3">
-                                <div className="flex gap-2 items-start">
-                                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de labor *</label>
-                                            <select value={labor.tipo_labor_id || ''} onChange={e => setLaboresToCrear(prev => prev.map((l, i) => i === idx ? { ...l, tipo_labor_id: e.target.value ? parseInt(e.target.value) : null } : l))}
-                                                className="w-full border border-gray-300 rounded p-2 text-sm">
-                                                <option value="">Seleccionar...</option>
-                                                {tiposLabor.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-600 mb-1">Trabajador *</label>
-                                            <select value={labor.trabajador_id || ''} onChange={e => setLaboresToCrear(prev => prev.map((l, i) => i === idx ? { ...l, trabajador_id: e.target.value ? parseInt(e.target.value) : null } : l))}
-                                                className="w-full border border-gray-300 rounded p-2 text-sm">
-                                                <option value="">Seleccionar...</option>
-                                                {trabajadores.map((trab: any) => (<option key={trab.id} value={trab.id}>{trab.nombre} ({trab.email})</option>))}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-600 mb-1">Comentario</label>
-                                            <input type="text" value={labor.comentario} onChange={e => setLaboresToCrear(prev => prev.map((l, i) => i === idx ? { ...l, comentario: e.target.value } : l))}
-                                                className="w-full border border-gray-300 rounded p-2 text-sm" placeholder="Instrucciones..." />
-                                        </div>
-                                    </div>
-                                    <button type="button" onClick={() => setLaboresToCrear(prev => prev.filter((_, i) => i !== idx))}
-                                        className="text-red-500 hover:text-red-700 mt-5 p-1"><i className="fas fa-trash text-xs"></i></button>
-                                </div>
-
-                                <div className="mt-3 pl-2 border-l-2 border-green-300">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className="text-xs font-medium text-green-700">Productos para esta labor</span>
-                                        <button type="button" onClick={() => setLaboresToCrear(prev => prev.map((l, i) => i === idx ? { ...l, productos: [...l.productos, newProductoRow()] } : l))}
-                                            className="text-xs text-green-600 hover:text-green-800 underline">+ Agregar producto</button>
-                                    </div>
-                                    {labor.productos.length === 0 ? (
-                                        <p className="text-xs text-gray-400">Sin productos (opcional)</p>
-                                    ) : (
-                                        <div className="space-y-2">
-                                            {labor.productos.map((prod, pIdx) => (
-                                                <ProductoRow
-                                                    key={pIdx}
-                                                    producto={prod}
-                                                    tiposInventario={tiposInventario}
-                                                    onUpdate={(updates) => setLaboresToCrear(prev => prev.map((l, i) => i === idx ? {
-                                                        ...l, productos: l.productos.map((p, pi) => pi === pIdx ? { ...p, ...updates } : p)
-                                                    } : l))}
-                                                    onRemove={() => setLaboresToCrear(prev => prev.map((l, i) => i === idx ? {
-                                                        ...l, productos: l.productos.filter((_, pi) => pi !== pIdx)
-                                                    } : l))}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-
             <div className="flex justify-end gap-3 pt-4 border-t">
                 <button type="button" onClick={onCancel} className="px-5 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Cancelar</button>
                 <button type="button" onClick={handleSubmit}
@@ -566,8 +438,6 @@ const FormGeneral: React.FC<{
     const [descripcion, setDescripcion] = useState('');
     const [estado, setEstado] = useState('pendiente');
     const [formulario, setFormulario] = useState<Record<string, any>>({});
-    const [tiposLabor, setTiposLabor] = useState<any[]>([]);
-    const [labores, setLabores] = useState<LaborRow[]>([]);
     const [initialLoading, setInitialLoading] = useState(true);
 
     const [diagnosticoSeleccionadoId, setDiagnosticoSeleccionadoId] = useState<number | null>(null);
@@ -576,19 +446,8 @@ const FormGeneral: React.FC<{
 
     const [productosRecomendacion, setProductosRecomendacion] = useState<ProductoSugerido[]>([]);
     const [tiposInventario, setTiposInventario] = useState<any[]>([]);
-    const [trabajadores, setTrabajadores] = useState<any[]>([]);
 
     // ── useEffect hooks (antes de cualquier return condicional — Reglas de Hooks) ─
-    useEffect(() => {
-        const cargarTrabajadores = async () => {
-            try {
-                const data = await usuarioService.obtenerTrabajadores();
-                setTrabajadores(data);
-            } catch { setTrabajadores([]); }
-        };
-        cargarTrabajadores();
-    }, []);
-
     useEffect(() => {
         if (!programaId) {
             setTiposInventario([]);
@@ -647,20 +506,6 @@ const FormGeneral: React.FC<{
                         unidad: item.unidad_dosis || '',
                     })));
                 }
-                if (rec.labores?.length > 0) {
-                    setLabores(rec.labores.map((lab: any) => ({
-                        id: lab.id,
-                        tipo_labor_id: lab.tipo_labor_id,
-                        trabajador_id: lab.trabajador_id,
-                        comentario: lab.comentario || '',
-                        productos: lab.productos?.map((item: any) => ({
-                            ...newProductoRow(),
-                            inventario_item_id: item.inventario_item_id,
-                            dosis: item.cantidad_usada ? String(item.cantidad_usada) : '',
-                            unidad: item.unidad_dosis || '',
-                        })) || [],
-                    })));
-                }
                 if (rec.lote_id) {
                     const lote = lotes.find(l => l.id === rec.lote_id);
                     if (lote?.programa_id) {
@@ -686,8 +531,6 @@ const FormGeneral: React.FC<{
     useEffect(() => { if (!programaId) { setMonitoreos([]); return; } monitoreoService.obtenerMonitoreosPorPrograma(programaId).then(data => setMonitoreos(Array.isArray(data) ? data : [])).catch(() => { }); }, [programaId]);
     useEffect(() => { if (!monitoreoId) { setSubtipos([]); if (!esEdicion) setSubtipoId(null); return; } if (!esEdicion) setSubtipoId(null); diagnosticoDinamicoService.listarSubtiposPorMonitoreo(monitoreoId).then(data => setSubtipos(data.filter(s => s.activo))).catch(() => setSubtipos([])); }, [monitoreoId, esEdicion]);
     useEffect(() => { if (!subtipoId) { setCampos([]); return; } diagnosticoDinamicoService.listarCamposRecomendacion(subtipoId).then(data => { setCampos([...data].sort((a, b) => a.orden - b.orden)); if (!esEdicion) setFormulario({}); }).catch(() => setCampos([])); }, [subtipoId, esEdicion]);
-    useEffect(() => { tipoLaborService.obtenerTiposLabor().then(data => setTiposLabor(Array.isArray(data) ? data : [])).catch(() => { }); }, []);
-
     const lotesFiltrados = lotes.filter(l => l.programa_id === programaId);
 
     // Validar acceso (early returns después de todos los hooks)
@@ -750,8 +593,6 @@ const FormGeneral: React.FC<{
         if (!titulo.trim()) { toast.warning('El título es requerido'); return; }
         if (!descripcion.trim() || descripcion.trim().length < 10) { toast.warning('La descripción debe tener al menos 10 caracteres'); return; }
         for (const campo of campos) { if (campo.requerido && !formulario[campo.nombre_campo]) { toast.warning(`El campo "${campo.etiqueta}" es requerido`); return; } }
-        const laboresValidas = labores.filter(l => l.tipo_labor_id !== null);
-        for (const labor of laboresValidas) { if (!labor.trabajador_id) { toast.warning('Cada labor debe tener un trabajador asignado'); return; } }
         const docenteId = currentUser?.id || docentes[0]?.id;
         if (!docenteId) { toast.error('No se pudo determinar el autor'); return; }
         setSubmitting(true);
@@ -765,14 +606,6 @@ const FormGeneral: React.FC<{
                     inventario_item_id: p.inventario_item_id,
                     cantidad_sugerida: p.dosis ? parseFloat(p.dosis) : null,
                     unidad_dosis: p.unidad || null,
-                })),
-                labores_a_crear: labores.map(l => ({
-                    id: l.id, tipo_labor_id: l.tipo_labor_id, trabajador_id: l.trabajador_id, comentario: l.comentario,
-                    productos: l.productos.filter(p => p.inventario_item_id).map(p => ({
-                        inventario_item_id: p.inventario_item_id,
-                        cantidad_sugerida: p.dosis ? parseFloat(p.dosis) : null,
-                        unidad_dosis: p.unidad || null,
-                    })),
                 })),
             });
         } catch (e: any) { toast.error(e?.message || 'Error'); }
@@ -873,49 +706,6 @@ const FormGeneral: React.FC<{
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Título *</label><input type="text" value={titulo} onChange={e => setTitulo(e.target.value)} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm" required /></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Descripción *</label><textarea value={descripcion} onChange={e => setDescripcion(e.target.value)} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm" rows={4} required /><p className="text-xs text-gray-400 mt-1">{descripcion.length} / mín. 10 caracteres</p></div>
             {esEdicion && (<div><label className="block text-sm font-medium text-gray-700 mb-1">Estado</label><select value={estado} onChange={e => setEstado(e.target.value)} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm"><option value="pendiente">Pendiente</option><option value="aprobada">Aprobada</option><option value="en_ejecucion">En ejecución</option><option value="completada">Completada</option><option value="cancelada">Cancelada</option></select></div>)}
-            <div className="border border-green-200 rounded-xl p-4 bg-green-50">
-                <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-green-800 text-sm"><i className="fas fa-tasks mr-1"></i>Labores {esEdicion ? '' : 'a crear (opcional)'}</h4>
-                    <button type="button" onClick={() => setLabores(prev => [...prev, newLaborRow()])}
-                        className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1"><i className="fas fa-plus"></i> Agregar labor</button>
-                </div>
-                {labores.length === 0 ? (<p className="text-xs text-green-600">No hay labores programadas.</p>) : (
-                    <div className="space-y-4">
-                        {labores.map((labor, idx) => (
-                            <div key={idx} className="bg-white border border-green-200 rounded-lg p-3">
-                                <div className="flex gap-2 items-start">
-                                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                        <div><label className="block text-xs font-medium text-gray-600 mb-1">Tipo de labor *</label>
-                                            <select value={labor.tipo_labor_id || ''} onChange={e => setLabores(prev => prev.map((l, i) => i === idx ? { ...l, tipo_labor_id: e.target.value ? parseInt(e.target.value) : null } : l))} className="w-full border border-gray-300 rounded p-2 text-sm">
-                                                <option value="">Seleccionar...</option>{tiposLabor.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}</select></div>
-                                        <div><label className="block text-xs font-medium text-gray-600 mb-1">Trabajador *</label>
-                                            <select value={labor.trabajador_id || ''} onChange={e => setLabores(prev => prev.map((l, i) => i === idx ? { ...l, trabajador_id: e.target.value ? parseInt(e.target.value) : null } : l))} className="w-full border border-gray-300 rounded p-2 text-sm">
-                                                <option value="">Seleccionar...</option>{trabajadores.map((trab: any) => (<option key={trab.id} value={trab.id}>{trab.nombre} ({trab.email})</option>))}</select></div>
-                                        <div><label className="block text-xs font-medium text-gray-600 mb-1">Comentario</label>
-                                            <input type="text" value={labor.comentario} onChange={e => setLabores(prev => prev.map((l, i) => i === idx ? { ...l, comentario: e.target.value } : l))} className="w-full border border-gray-300 rounded p-2 text-sm" placeholder="Instrucciones..." /></div>
-                                    </div>
-                                    <button type="button" onClick={() => setLabores(prev => prev.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700 mt-5 p-1"><i className="fas fa-trash text-xs"></i></button>
-                                </div>
-                                <div className="mt-3 pl-2 border-l-2 border-green-300">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className="text-xs font-medium text-green-700">Productos para esta labor</span>
-                                        <button type="button" onClick={() => setLabores(prev => prev.map((l, i) => i === idx ? { ...l, productos: [...l.productos, newProductoRow()] } : l))} className="text-xs text-green-600 hover:text-green-800 underline">+ Agregar producto</button>
-                                    </div>
-                                    {labor.productos.length === 0 ? (<p className="text-xs text-gray-400">Sin productos (opcional)</p>) : (
-                                        <div className="space-y-2">
-                                            {labor.productos.map((prod, pIdx) => (
-                                                <ProductoRow key={pIdx} producto={prod} tiposInventario={tiposInventario}
-                                                    onUpdate={(updates) => setLabores(prev => prev.map((l, i) => i === idx ? { ...l, productos: l.productos.map((p, pi) => pi === pIdx ? { ...p, ...updates } : p) } : l))}
-                                                    onRemove={() => setLabores(prev => prev.map((l, i) => i === idx ? { ...l, productos: l.productos.filter((_, pi) => pi !== pIdx) } : l))} />
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
             <div className="flex justify-end gap-3 pt-4 border-t">
                 <button type="button" onClick={onCancel} className="px-5 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Cancelar</button>
                 <button type="button" onClick={handleSubmit} disabled={submitting || !loteId || !titulo || !descripcion}

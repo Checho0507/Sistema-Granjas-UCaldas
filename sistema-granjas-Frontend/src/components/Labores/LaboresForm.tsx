@@ -6,26 +6,6 @@ import {
     diagnosticoDinamicoService,
     type CampoLabor,
 } from '../../services/diagnosticoDinamicoService';
-import { inventarioDinamicoService } from '../../services/inventarioDinamicoService';
-
-// ── Interfaces ──────────────────────────────────────────────────────────────────
-interface ProductoLabor {
-    tipo_inventario_id: number | null;
-    inventario_item_id: number | null;
-    dosis: string;
-    unidad: string;
-    items: any[];
-    loadingItems: boolean;
-}
-
-const newProductoLabor = (): ProductoLabor => ({
-    tipo_inventario_id: null,
-    inventario_item_id: null,
-    dosis: '',
-    unidad: '',
-    items: [],
-    loadingItems: false,
-});
 
 interface LaborFormProps {
     labor?: Labor;
@@ -44,114 +24,6 @@ const TIPOS_DATO_LABELS: Record<string, string> = {
     date: 'Fecha', select: 'Selección', boolean: 'Sí / No',
 };
 
-// ── Componente auxiliar: Selector de items del inventario ──────────────────────
-const InventarioItemSelect: React.FC<{
-    items: any[];
-    loading: boolean;
-    value: number | null;
-    onChange: (id: number | null) => void;
-    label?: string;
-}> = ({ items, loading, value, onChange, label = "Producto" }) => {
-    const getItemNombre = (item: any) => {
-        const v = item.valores || {};
-        return (v['Nombre Comercial'] || v.Nombre || v.producto || v.nombre || `Producto #${item.id}`) +
-            (item.unidad_medida ? ` (${item.unidad_medida})` : '');
-    };
-
-    if (loading) {
-        return (
-            <div className="flex items-center text-gray-500 text-xs gap-2 py-2">
-                <div className="animate-spin h-3 w-3 border-2 border-purple-500 border-t-transparent rounded-full"></div>
-                Cargando...
-            </div>
-        );
-    }
-
-    if (items.length === 0) {
-        return <p className="text-xs text-yellow-600">No hay productos disponibles</p>;
-    }
-
-    return (
-        <select
-            value={value || ''}
-            onChange={e => onChange(e.target.value ? parseInt(e.target.value) : null)}
-            className="w-full border border-gray-300 rounded p-2 text-sm"
-        >
-            <option value="">Seleccionar {label.toLowerCase()}...</option>
-            {items.map(item => (
-                <option key={item.id} value={item.id}>
-                    {getItemNombre(item)} — Disp: {item.cantidad_disponible}
-                </option>
-            ))}
-        </select>
-    );
-};
-
-// ── Componente auxiliar: Fila de Producto para Labor ──────────────────────────
-const ProductoLaborRow: React.FC<{
-    producto: ProductoLabor;
-    tiposInventario: any[];
-    onUpdate: (updates: Partial<ProductoLabor>) => void;
-    onRemove: () => void;
-}> = ({ producto, tiposInventario, onUpdate, onRemove }) => {
-
-    // Cargar items cuando cambia el tipo de inventario de este producto
-    useEffect(() => {
-        if (!producto.tipo_inventario_id) {
-            onUpdate({ items: [], inventario_item_id: null });
-            return;
-        }
-        onUpdate({ loadingItems: true });
-        inventarioDinamicoService.listarItems(producto.tipo_inventario_id)
-            .then(data => onUpdate({
-                items: data.filter((i: any) => i.cantidad_disponible > 0),
-                loadingItems: false,
-                inventario_item_id: null
-            }))
-            .catch(() => onUpdate({ items: [], loadingItems: false }));
-    }, [producto.tipo_inventario_id]);
-
-    return (
-        <div className="flex gap-2 items-start bg-white border border-purple-200 rounded-lg p-3">
-            <div className="flex-1 grid grid-cols-1 sm:grid-cols-4 gap-2">
-                <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Tipo inventario</label>
-                    <select
-                        value={producto.tipo_inventario_id || ''}
-                        onChange={e => onUpdate({ tipo_inventario_id: e.target.value ? parseInt(e.target.value) : null })}
-                        className="w-full border border-gray-300 rounded p-2 text-sm"
-                    >
-                        <option value="">Seleccionar tipo...</option>
-                        {tiposInventario.map(t => (
-                            <option key={t.id} value={t.id}>{t.nombre}</option>
-                        ))}
-                    </select>
-                </div>
-                <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Producto</label>
-                    <InventarioItemSelect
-                        items={producto.items}
-                        loading={producto.loadingItems}
-                        value={producto.inventario_item_id}
-                        onChange={(id) => onUpdate({ inventario_item_id: id })}
-                    />
-                </div>
-                <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Dosis</label>
-                    <input type="number" value={producto.dosis} onChange={e => onUpdate({ dosis: e.target.value })}
-                        className="w-full border border-gray-300 rounded p-2 text-sm" placeholder="Ej: 2.5" min="0" step="any" />
-                </div>
-                <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Unidad</label>
-                    <input type="text" value={producto.unidad} onChange={e => onUpdate({ unidad: e.target.value })}
-                        className="w-full border border-gray-300 rounded p-2 text-sm" placeholder="L/ha, kg, ml..." />
-                </div>
-            </div>
-            <button type="button" onClick={onRemove}
-                className="text-red-500 hover:text-red-700 mt-5 p-1"><i className="fas fa-trash text-xs"></i></button>
-        </div>
-    );
-};
 
 const LaborForm: React.FC<LaborFormProps> = ({
     labor,
@@ -179,13 +51,6 @@ const LaborForm: React.FC<LaborFormProps> = ({
     const [formulario, setFormulario] = useState<Record<string, any>>({});
     const [loadingCampos, setLoadingCampos] = useState(false);
 
-    // Productos de la labor (múltiples, cada uno con su tipo de inventario)
-    const [productosLabor, setProductosLabor] = useState<ProductoLabor[]>([]);
-
-    // Tipos de inventario (cargados por programa)
-    const [tiposInventario, setTiposInventario] = useState<any[]>([]);
-    const [programaId, setProgramaId] = useState<number | null>(null);
-
     // Evidencias
     const [archivos, setArchivos] = useState<File[]>([]);
     const [descripcionesEvidencias, setDescripcionesEvidencias] = useState<string[]>([]);
@@ -194,7 +59,7 @@ const LaborForm: React.FC<LaborFormProps> = ({
     // Roles
     const esAdmin = currentUser?.rol_id === 1;
     const esDocente = currentUser?.rol_id === 2 || currentUser?.rol_id === 5;
-    const esTalentoHumano = currentUser?.rol_id === 6;
+    const esTalentoHumano = currentUser?.rol_id === 6 || currentUser?.rol === 'jefe_talento_humano';
     const esTrabajador = currentUser?.rol_id === 3;
 
     // Auto-seleccionar trabajador si es trabajador
@@ -203,26 +68,6 @@ const LaborForm: React.FC<LaborFormProps> = ({
             setFormData(prev => ({ ...prev, trabajador_id: currentUser.id }));
         }
     }, [currentUser, esEdicion, esTrabajador, formData.trabajador_id]);
-
-    // Cargar tipos de inventario cuando cambia el lote (obteniendo programa_id)
-    useEffect(() => {
-        if (!formData.lote_id) {
-            setTiposInventario([]);
-            setProgramaId(null);
-            return;
-        }
-        const lote = lotes.find(l => l.id === parseInt(formData.lote_id as string));
-        const progId = lote?.programa_id;
-        if (!progId) {
-            setTiposInventario([]);
-            setProgramaId(null);
-            return;
-        }
-        setProgramaId(progId);
-        inventarioDinamicoService.listarTipos(progId)
-            .then(data => setTiposInventario(data.filter(t => t.activo)))
-            .catch(() => setTiposInventario([]));
-    }, [formData.lote_id, lotes]);
 
     // Resetear form cuando se cambia labor
     useEffect(() => {
@@ -238,17 +83,6 @@ const LaborForm: React.FC<LaborFormProps> = ({
             });
             setFormulario(labor.formulario_labor || {});
 
-            // Cargar productos existentes de la labor
-            if ((labor as any).productos?.length > 0) {
-                setProductosLabor((labor as any).productos.map((item: any) => ({
-                    ...newProductoLabor(),
-                    inventario_item_id: item.inventario_item_id,
-                    dosis: item.cantidad_usada ? String(item.cantidad_usada) : '',
-                    unidad: item.unidad_dosis || '',
-                })));
-            } else {
-                setProductosLabor([]);
-            }
         } else if (!esEdicion) {
             setFormData({
                 tipo_labor_id: '',
@@ -260,7 +94,6 @@ const LaborForm: React.FC<LaborFormProps> = ({
                 comentario: '',
             });
             setFormulario({});
-            setProductosLabor([]);
         }
     }, [labor, esEdicion, esTrabajador, currentUser]);
 
@@ -416,15 +249,6 @@ const LaborForm: React.FC<LaborFormProps> = ({
             datosSubmit.formulario_labor = formulario;
         }
 
-        // Incluir productos de la labor
-        datosSubmit.productos = productosLabor
-            .filter(p => p.inventario_item_id)
-            .map(p => ({
-                inventario_item_id: p.inventario_item_id,
-                cantidad_usada: p.dosis ? parseFloat(p.dosis) : null,
-                unidad_dosis: p.unidad || null,
-            }));
-
         if (evidencias.length > 0) {
             datosSubmit.evidencias = evidencias;
         }
@@ -574,35 +398,6 @@ const LaborForm: React.FC<LaborFormProps> = ({
                             </div>
                         </div>
                     )}
-
-                    {/* Productos de la labor (múltiples, cada uno con su tipo de inventario) */}
-                    <div className="border border-purple-200 rounded-xl p-4 bg-purple-50">
-                        <div className="flex items-center justify-between mb-3">
-                            <h4 className="font-semibold text-purple-800 text-sm">
-                                <i className="fas fa-boxes mr-1"></i>
-                                Productos a usar en esta labor
-                            </h4>
-                            <button type="button" onClick={() => setProductosLabor(prev => [...prev, newProductoLabor()])}
-                                className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1">
-                                <i className="fas fa-plus"></i> Agregar producto
-                            </button>
-                        </div>
-                        {productosLabor.length === 0 ? (
-                            <p className="text-xs text-purple-600">No hay productos asignados. Agrega uno si la labor requiere insumos.</p>
-                        ) : (
-                            <div className="space-y-3">
-                                {productosLabor.map((prod, idx) => (
-                                    <ProductoLaborRow
-                                        key={idx}
-                                        producto={prod}
-                                        tiposInventario={tiposInventario}
-                                        onUpdate={(updates) => setProductosLabor(prev => prev.map((p, i) => i === idx ? { ...p, ...updates } : p))}
-                                        onRemove={() => setProductosLabor(prev => prev.filter((_, i) => i !== idx))}
-                                    />
-                                ))}
-                            </div>
-                        )}
-                    </div>
 
                     {/* Estado (solo en edición) */}
                     {esEdicion && (esAdmin || esTalentoHumano || esTrabajador) && (

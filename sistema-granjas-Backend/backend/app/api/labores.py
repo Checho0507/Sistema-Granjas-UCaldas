@@ -26,11 +26,11 @@ def crear_labor(
     data: LaborCreate,
     db: Session = Depends(get_db),
     usuario = Depends(get_current_user),
-    _ = Depends(require_any_role(["admin", "talento_humano", "docente", "asesor"]))
+    _ = Depends(require_any_role(["admin", "talento_humano", "jefe_talento_humano"]))
 ):
     """
-    Crear una nueva labor
-    Ahora incluye tipo_labor_id (ya validado en el CRUD).
+    Crear una nueva labor.
+    Solo talento humano y admin pueden crear labores.
     """
     return crear_labor_crud(db, data, usuario)
 
@@ -74,11 +74,11 @@ def actualizar_labor(
     id: int,
     data: LaborUpdate,
     db: Session = Depends(get_db),
-    usuario = Depends(require_any_role(["admin", "talento_humano", "trabajador"]))
+    usuario = Depends(require_any_role(["admin", "talento_humano", "jefe_talento_humano"]))
 ):
     """
     Actualizar una labor.
-    Ahora soporta actualizar tipo_labor_id si es enviado.
+    Solo talento humano y admin pueden actualizar labores.
     """
     labor = obtener_labor_objeto(db, id, usuario)  # Usar obtener_labor_objeto para actualizar
     if not labor:
@@ -91,7 +91,7 @@ def eliminar_labor(
     id: int,
     db: Session = Depends(get_db),
     usuario = Depends(get_current_user),
-    _ = Depends(require_any_role(["admin", "talento_humano", "trabajador"]))
+    _ = Depends(require_any_role(["admin", "talento_humano", "jefe_talento_humano"]))
 ):
     """Eliminar una labor"""
     labor = obtener_labor_objeto(db, id, usuario)  # Usar obtener_labor_objeto para eliminar
@@ -136,7 +136,7 @@ def registrar_avance(
     id: int,
     data: RegistroAvanceRequest,
     db: Session = Depends(get_db),
-    usuario = Depends(get_current_user)
+    usuario = Depends(require_any_role(["admin", "talento_humano", "jefe_talento_humano"]))
 ):
     labor = obtener_labor_objeto(db, id, usuario)  # Usar obtener_labor_objeto
     if not labor:
@@ -156,7 +156,7 @@ def completar_labor(
     id: int,
     data: Optional[CompletarLaborRequest] = None,
     db: Session = Depends(get_db),
-    usuario = Depends(require_any_role(["admin", "talento_humano", "trabajador"]))
+    usuario = Depends(require_any_role(["admin", "talento_humano", "jefe_talento_humano"]))
 ):
     labor = obtener_labor_objeto(db, id, usuario)
     if not labor:
@@ -221,7 +221,7 @@ def listar_labores_recomendacion(
 def obtener_estadisticas_labores(
     db: Session = Depends(get_db),
     usuario = Depends(get_current_user),
-    _ = Depends(require_any_role(["admin", "talento_humano", "trabajador"]))
+    _ = Depends(require_any_role(["admin", "talento_humano", "jefe_talento_humano", "trabajador"]))
 ):
     return obtener_estadisticas_labores_crud(db, usuario)
 

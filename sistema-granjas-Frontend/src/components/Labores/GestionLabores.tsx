@@ -305,7 +305,7 @@ const GestionLaboresPage: React.FC = () => {
                             Estadísticas
                         </button>
 
-                        {(user && [1, 6].includes(user.rol_id)) && (
+                        {(user && ([1, 6].includes(user.rol_id) || user.rol === 'jefe_talento_humano')) && (
                             <button
                                 onClick={() => setShowCrearModal(true)}
                                 className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center"
@@ -325,7 +325,7 @@ const GestionLaboresPage: React.FC = () => {
                     >
                         <i className="fas fa-tasks mr-2"></i>Labores
                     </button>
-                    {user && [1, 2, 5, 6].includes(user.rol_id) && (
+                    {user && ([1, 2, 5, 6].includes(user.rol_id) || user.rol === 'jefe_talento_humano') && (
                         <button 
                             onClick={() => setTabActivo('tipos')}
                             className={`px-5 py-2.5 text-sm font-medium border-b-2 transition ${tabActivo === 'tipos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}

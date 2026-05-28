@@ -18,9 +18,10 @@ from app.schemas.labor_schema import (
 # inventario dinámico. Las funciones de asignación de recursos serán migradas posteriormente.
 
 def crear_labor_crud(db: Session, data: LaborCreate, usuario: Usuario):
-    recomendacion = db.query(Recomendacion).filter(Recomendacion.id == data.recomendacion_id).first()
-    if not recomendacion:
-        raise HTTPException(404, "Recomendación no encontrada")
+    if data.recomendacion_id:
+        recomendacion = db.query(Recomendacion).filter(Recomendacion.id == data.recomendacion_id).first()
+        if not recomendacion:
+            raise HTTPException(404, "Recomendación no encontrada")
     
     # Verificar tipo de labor
     tipo_labor = db.query(TipoLabor).filter(TipoLabor.id == data.tipo_labor_id).first()
@@ -39,7 +40,7 @@ def crear_labor_crud(db: Session, data: LaborCreate, usuario: Usuario):
             if not trabajador_programa_ids.intersection(usuario_programa_ids):
                 raise HTTPException(403, "Solo puede asignar labores a trabajadores de su programa")
     
-    if data.lote_id:
+    if data.lote_id is not None:
         lote = db.query(Lote).filter(Lote.id == data.lote_id).first()
         if not lote:
             raise HTTPException(404, "Lote no encontrado")
@@ -106,7 +107,8 @@ def listar_labores_crud(
     if usuario.rol.nombre == "trabajador":
         query = query.filter(Labor.trabajador_id == usuario.id)
     elif usuario.rol.nombre == "docente" or usuario.rol.nombre == "asesor":
-        query = query.join(Recomendacion).filter(Recomendacion.docente_id == usuario.id)
+        query = query.outerjoin(Recomendacion, Labor.recomendacion_id == Recomendacion.id)\
+                     .filter(Recomendacion.docente_id == usuario.id)
     elif usuario.rol.nombre == "talento_humano":
         # Obtener IDs de programas del usuario de talento_humano
         programa_ids = [programa.id for programa in usuario.programas]
@@ -119,6 +121,7 @@ def listar_labores_crud(
         else:
             # Si el usuario no tiene programas, no muestra nada
             query = query.filter(False)
+    # jefe_talento_humano y admin ven todo (sin filtro adicional)
     
     total = query.count()
     items = query.offset(skip).limit(limit).all()
@@ -177,16 +180,12 @@ def obtener_labor_objeto(db: Session, id: int, usuario: Usuario = None):
             if not trabajador:
                 return None
             
-            # CORREGIDO: Verificar que comparten al menos un programa
-            # Obtener IDs de programas del trabajador
             trabajador_programa_ids = {programa.id for programa in trabajador.programas}
-            
-            # Obtener IDs de programas del usuario de talento_humano
             usuario_programa_ids = {programa.id for programa in usuario.programas}
             
-            # Verificar que comparten al menos un programa
             if not trabajador_programa_ids.intersection(usuario_programa_ids):
                 return None
+        # jefe_talento_humano y admin ven todo (sin restricción adicional)
     
     return labor
 
@@ -270,8 +269,11 @@ def asignar_insumo_crud(db: Session, labor: Labor, data: AsignacionInsumoRequest
     raise HTTPException(501, "La asignación de insumos está siendo migrada. Próximamente disponible en el nuevo módulo de inventario dinámico.")
 
 def registrar_avance_crud(db: Session, labor: Labor, data: RegistroAvanceRequest, usuario: Usuario):
-    if labor.trabajador_id != usuario.id:
-        raise HTTPException(403, "Solo el trabajador asignado puede registrar avance")
+    rol = usuario.rol.nombre
+    if rol == "trabajador":
+        raise HTTPException(403, "Los trabajadores no pueden registrar avance. Contacta a Talento Humano.")
+    if rol not in ("admin", "talento_humano", "jefe_talento_humano"):
+        raise HTTPException(403, "No tiene permisos para registrar avance en esta labor")
     
     ya_estaba_completada = labor.estado == "completada"
     labor.avance_porcentaje = data.avance_porcentaje
@@ -486,20 +488,18 @@ def obtener_estadisticas_labores_crud(db: Session, usuario: Usuario):
     if usuario.rol.nombre == "trabajador":
         query = query.filter(Labor.trabajador_id == usuario.id)
     elif usuario.rol.nombre == "docente" or usuario.rol.nombre == "asesor":
-        query = query.join(Recomendacion).filter(Recomendacion.docente_id == usuario.id)
+        query = query.outerjoin(Recomendacion, Labor.recomendacion_id == Recomendacion.id)\
+                     .filter(Recomendacion.docente_id == usuario.id)
     elif usuario.rol.nombre == "talento_humano":
-        # CORREGIDO: Filtrar por programas del usuario (relación many-to-many)
-        # Obtener IDs de programas del usuario
         programa_ids = [programa.id for programa in usuario.programas]
         
         if programa_ids:
-            # Filtrar trabajadores que compartan al menos un programa
             query = query.join(Usuario, Labor.trabajador_id == Usuario.id)\
                          .join(usuario_programa, Usuario.id == usuario_programa.c.usuario_id)\
                          .filter(usuario_programa.c.programa_id.in_(programa_ids))
         else:
-            # Usuario sin programas asignados - no muestra nada
             query = query.filter(False)
+    # jefe_talento_humano y admin ven todo (sin filtro)
     
     total = query.count()
     
@@ -522,7 +522,7 @@ def obtener_estadisticas_labores_crud(db: Session, usuario: Usuario):
 def _verificar_permisos_labor(labor: Labor, usuario: Usuario, accion: str):
     rol = usuario.rol.nombre
     
-    if rol == "admin":
+    if rol in ("admin", "jefe_talento_humano"):
         return
     
     if rol == "talento_humano":
