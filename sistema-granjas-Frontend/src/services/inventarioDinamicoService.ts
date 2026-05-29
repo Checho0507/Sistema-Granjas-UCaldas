@@ -53,7 +53,12 @@ export const inventarioDinamicoService = {
     await api.delete(`${BASE}/campos/${id}`);
   },
 
-  // Items
+  // Items - AGREGAR MÉTODO obtenerItem
+  async obtenerItem(id: number): Promise<ItemInventario> {
+    const res = await api.get(`${BASE}/items/${id}`);
+    return res.data;
+  },
+
   async listarItems(tipoId: number, skip = 0, limit = 500): Promise<ItemInventario[]> {
     const res = await api.get(`${BASE}/tipos/${tipoId}/items`, { params: { skip, limit } });
     return res.data;
