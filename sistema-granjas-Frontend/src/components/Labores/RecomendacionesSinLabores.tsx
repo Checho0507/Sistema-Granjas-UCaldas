@@ -121,49 +121,39 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
         
         for (const campo of camposPrioritarios) {
             if (valores[campo] && typeof valores[campo] === 'string' && valores[campo].trim()) {
-                console.log(`✅ Nombre encontrado en campo "${campo}":`, valores[campo]);
                 return valores[campo];
             }
         }
         
-        // Si no encuentra, buscar cualquier campo que contenga "nombre"
+        // Si no encuentra, buscar cualquier campo que contenga "nombre" o "producto"
         const keysConNombre = Object.keys(valores).filter(key => 
             key.toLowerCase().includes('nombre') || key.toLowerCase().includes('producto')
         );
         
         for (const key of keysConNombre) {
             if (valores[key] && typeof valores[key] === 'string' && valores[key].trim()) {
-                console.log(`✅ Nombre encontrado en campo "${key}":`, valores[key]);
                 return valores[key];
             }
         }
         
-        console.warn('⚠️ No se encontró nombre en valores:', valores);
         return 'Producto sin nombre';
     };
 
     // Cargar detalles de productos cuando se selecciona una recomendación
     const cargarDetallesProductos = async (recomendacion: Recomendacion) => {
         if (!recomendacion.items_sugeridos || recomendacion.items_sugeridos.length === 0) {
-            console.log('No hay productos sugeridos en esta recomendación');
             setProductosDetalle([]);
             return;
         }
 
-        console.log('Cargando productos sugeridos:', recomendacion.items_sugeridos);
         setLoadingProductos(true);
         const detalles: ProductoDetalle[] = [];
         
         for (const item of recomendacion.items_sugeridos) {
             try {
                 if (item.inventario_item_id) {
-                    console.log(`🔍 Buscando producto ID: ${item.inventario_item_id}`);
-                    
-                    // Obtener el producto completo del inventario
-                    const productoCompleto: ItemInventario = await inventarioDinamicoService.obtenerItemCompleto?.(item.inventario_item_id) || 
-                        await inventarioDinamicoService.obtenerItem(item.inventario_item_id);
-                    
-                    console.log('📦 Producto encontrado:', productoCompleto);
+                    // Usar el método obtenerItem que ya existe en el servicio
+                    const productoCompleto: ItemInventario = await inventarioDinamicoService.obtenerItem(item.inventario_item_id);
                     
                     // Obtener nombre desde valores
                     const valores = productoCompleto.valores || {};
@@ -179,7 +169,6 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
                         unidad: unidad,
                     });
                 } else {
-                    console.warn('Producto sin inventario_item_id:', item);
                     detalles.push({
                         id: 0,
                         nombre: item.descripcion || 'Producto sugerido',
@@ -188,8 +177,7 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
                     });
                 }
             } catch (error) {
-                console.error(`❌ Error cargando producto ${item.inventario_item_id}:`, error);
-                // Fallback: mostrar información básica
+                console.error(`Error cargando producto ${item.inventario_item_id}:`, error);
                 detalles.push({
                     id: item.inventario_item_id || 0,
                     nombre: `Producto ID: ${item.inventario_item_id}`,
@@ -199,7 +187,6 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
             }
         }
         
-        console.log('✅ Productos procesados:', detalles);
         setProductosDetalle(detalles);
         setLoadingProductos(false);
     };
@@ -215,7 +202,6 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
     };
 
     const abrirModalCrearLabores = async (recomendacion: Recomendacion) => {
-        console.log('Abriendo modal para recomendación:', recomendacion.id);
         setSelectedRecomendacion(recomendacion);
         setLaboresForm([getEmptyLaborForm()]);
         setCamposDinamicos({});
