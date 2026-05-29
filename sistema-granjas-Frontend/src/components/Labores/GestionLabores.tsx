@@ -5,7 +5,7 @@ import laborService from '../../services/laboresService';
 import usuarioService from '../../services/usuarioService';
 import loteService from '../../services/loteService';
 import recomendacionService from '../../services/recomendacionService';
-import tipoLaborService from '../../services/tipoLaboresService';
+
 import granjaService from '../../services/granjaService';
 import type { Labor, LaborFilters } from '../../types/laboresTypes';
 import Modal from '../../components/Common/Modal';
@@ -134,17 +134,6 @@ const GestionLaboresPage: React.FC = () => {
                 } catch (userError) {
                     console.error('Error cargando trabajadores:', userError);
                     setTrabajadores([]);
-                }
-            }
-
-            if (tiposLabor.length === 0) {
-                try {
-                    const tiposData = await tipoLaborService.obtenerTiposLabor();
-                    const tiposArray = Array.isArray(tiposData) ? tiposData : (tiposData?.items || []);
-                    setTiposLabor(tiposArray);
-                } catch (tipoError) {
-                    console.error('Error cargando tipos de labor:', tipoError);
-                    setTiposLabor([]);
                 }
             }
 
