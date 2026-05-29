@@ -187,3 +187,16 @@ def eliminar_item(item_id: int, db: Session = Depends(get_db), usuario=role_requ
         _verificar_acceso_programa(usuario, tipo.programa_id)
     crud.delete_item(db, item)
     return {"message": "Item eliminado"}
+
+# En app/routers/inventario_dinamico.py, después de los otros endpoints de items
+
+@router.get("/items/{item_id}", response_model=ItemInventarioProgramaResponse)
+def obtener_item(item_id: int, db: Session = Depends(get_db), usuario=role_required):
+    """Obtiene un item de inventario por su ID."""
+    item = crud.get_item(db, item_id)
+    if not item:
+        raise HTTPException(404, "Item no encontrado")
+    tipo = crud.get_tipo(db, item.tipo_id)
+    if tipo:
+        _verificar_acceso_programa(usuario, tipo.programa_id)
+    return item
