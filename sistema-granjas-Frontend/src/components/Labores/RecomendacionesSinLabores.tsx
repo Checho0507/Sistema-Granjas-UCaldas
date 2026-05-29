@@ -55,10 +55,11 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
     const cargarRecomendaciones = async () => {
         setLoading(true);
         try {
-            const data = await recomendacionService.obtenerRecomendaciones({ estado: 'aprobada' });
+            // Cargar solo recomendaciones en estado PENDIENTE
+            const data = await recomendacionService.obtenerRecomendaciones({ estado: 'pendiente' });
             let recs = Array.isArray(data) ? data : (data?.items || []);
             
-            // Filtrar solo recomendaciones aprobadas que no tengan labores asociadas
+            // Filtrar solo recomendaciones que NO tengan labores asociadas
             const recsConLabores = await Promise.all(
                 recs.map(async (rec: Recomendacion) => {
                     try {
@@ -71,6 +72,7 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
                 })
             );
             
+            // Solo mostrar las que NO tienen labores
             const sinLabores = recsConLabores.filter(rec => !rec.tieneLabores);
             setRecomendaciones(sinLabores);
         } catch (error) {
@@ -186,6 +188,7 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
         let errores = 0;
         
         try {
+            // Crear todas las labores
             for (const labor of laboresForm) {
                 try {
                     await laborService.crearLabor(
@@ -215,6 +218,19 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
             }
             
             if (creadas > 0) {
+                // IMPORTANTE: Actualizar el estado de la recomendación a "aprobada"
+                try {
+                    await recomendacionService.actualizarRecomendacion(
+                        selectedRecomendacion.id,
+                        { estado: 'aprobada' },
+                        user
+                    );
+                    toast.success(`Recomendación "${selectedRecomendacion.titulo}" aprobada automáticamente`);
+                } catch (error) {
+                    console.error('Error actualizando estado de recomendación:', error);
+                    toast.warning('Las labores se crearon pero no se pudo actualizar el estado de la recomendación');
+                }
+                
                 toast.success(`${creadas} labor(es) creada(s) exitosamente`);
                 if (errores > 0) {
                     toast.warning(`${errores} labor(es) no se pudieron crear`);
@@ -334,7 +350,7 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
             <div className="bg-white rounded-xl shadow-sm p-8">
                 <div className="flex justify-center items-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                    <span className="ml-3 text-gray-600">Cargando recomendaciones...</span>
+                    <span className="ml-3 text-gray-600">Cargando recomendaciones pendientes...</span>
                 </div>
             </div>
         );
@@ -345,7 +361,7 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
             <div className="bg-white rounded-xl shadow-sm p-8 text-center">
                 <i className="fas fa-check-circle text-4xl text-green-400 mb-3"></i>
                 <p className="text-gray-600 font-medium">No hay recomendaciones pendientes</p>
-                <p className="text-gray-400 text-sm mt-1">Todas las recomendaciones ya tienen labores asociadas</p>
+                <p className="text-gray-400 text-sm mt-1">Todas las recomendaciones pendientes ya tienen labores asociadas</p>
             </div>
         );
     }
@@ -353,11 +369,11 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
     return (
         <>
             <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100">
+                <div className="px-6 py-4 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100">
                     <div className="flex items-center gap-3">
-                        <i className="fas fa-clipboard-list text-blue-600 text-xl"></i>
+                        <i className="fas fa-clock text-amber-600 text-xl"></i>
                         <div>
-                            <h2 className="text-lg font-semibold text-gray-800">Recomendaciones sin labores asociadas</h2>
+                            <h2 className="text-lg font-semibold text-gray-800">Recomendaciones Pendientes sin Labores</h2>
                             <p className="text-sm text-gray-500">Selecciona una recomendación para crear una o más labores</p>
                         </div>
                     </div>
@@ -370,12 +386,8 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
                                 <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-2">
                                         <span className="text-xs font-mono text-gray-400">#{recomendacion.id}</span>
-                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                            recomendacion.estado === 'aprobada' 
-                                                ? 'bg-green-100 text-green-700' 
-                                                : 'bg-yellow-100 text-yellow-700'
-                                        }`}>
-                                            {recomendacion.estado}
+                                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+                                            Pendiente
                                         </span>
                                     </div>
                                     <h3 className="font-semibold text-gray-800 mb-1">{recomendacion.titulo}</h3>
@@ -401,7 +413,7 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
                 </div>
                 
                 <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 text-sm text-gray-500">
-                    Total: {recomendaciones.length} recomendación(es) sin labores
+                    Total: {recomendaciones.length} recomendación(es) pendiente(s) sin labores
                 </div>
             </div>
 
@@ -416,8 +428,16 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
                         <i className="fas fa-tasks text-blue-600 text-2xl"></i>
                         <div>
                             <h2 className="text-xl font-bold text-gray-900">Crear Labores para Recomendación</h2>
-                            <p className="text-sm text-gray-500">
-                                #{selectedRecomendacion?.id} - {selectedRecomendacion?.titulo}
+                            <div className="flex items-center gap-2 mt-1">
+                                <p className="text-sm text-gray-500">
+                                    #{selectedRecomendacion?.id} - {selectedRecomendacion?.titulo}
+                                </p>
+                                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+                                    Pendiente
+                                </span>
+                            </div>
+                            <p className="text-xs text-gray-400 mt-1">
+                                Al crear las labores, la recomendación pasará automáticamente a estado "Aprobada"
                             </p>
                         </div>
                     </div>
@@ -594,7 +614,7 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
                                 ) : (
                                     <>
                                         <i className="fas fa-save"></i>
-                                        Crear {laboresForm.length} Labor(es)
+                                        Crear {laboresForm.length} Labor(es) y Aprobar
                                     </>
                                 )}
                             </button>
