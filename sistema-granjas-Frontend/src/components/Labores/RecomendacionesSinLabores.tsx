@@ -8,6 +8,7 @@ import loteService from '../../services/loteService';
 import { inventarioDinamicoService } from '../../services/inventarioDinamicoService';
 import Modal from '../Common/Modal';
 import type { Recomendacion } from '../../types/recomendacionTypes';
+import type { ItemInventario } from '../../types/inventarioDinamicoTypes';
 import { useAuth } from '../../hooks/useAuth';
 
 interface RecomendacionesSinLaboresProps {
@@ -42,6 +43,7 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
     const [loadingForm, setLoadingForm] = useState(false);
     const [mostrarDetallesCompletos, setMostrarDetallesCompletos] = useState(false);
     const [productosDetalle, setProductosDetalle] = useState<ProductoDetalle[]>([]);
+    const [loadingProductos, setLoadingProductos] = useState(false);
 
     function getEmptyLaborForm(): LaborFormData {
         return {
@@ -101,48 +103,74 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
 
     // Función para obtener el nombre del producto desde los valores
     const obtenerNombreProducto = (valores: Record<string, any>): string => {
-        // Buscar campos que contengan "nombre" (case insensitive)
-        const nombreKeys = Object.keys(valores).filter(key => 
-            key.toLowerCase().includes('nombre')
+        // Orden de prioridad para buscar el nombre
+        const camposPrioritarios = [
+            'Nombre Comercial',
+            'nombre_comercial',
+            'nombreComercial',
+            'Nombre',
+            'nombre',
+            'producto_nombre',
+            'productoNombre',
+            'PRODUCTO',
+            'Producto',
+            'producto',
+            'descripcion',
+            'Descripcion'
+        ];
+        
+        for (const campo of camposPrioritarios) {
+            if (valores[campo] && typeof valores[campo] === 'string' && valores[campo].trim()) {
+                console.log(`✅ Nombre encontrado en campo "${campo}":`, valores[campo]);
+                return valores[campo];
+            }
+        }
+        
+        // Si no encuentra, buscar cualquier campo que contenga "nombre"
+        const keysConNombre = Object.keys(valores).filter(key => 
+            key.toLowerCase().includes('nombre') || key.toLowerCase().includes('producto')
         );
         
-        for (const key of nombreKeys) {
+        for (const key of keysConNombre) {
             if (valores[key] && typeof valores[key] === 'string' && valores[key].trim()) {
+                console.log(`✅ Nombre encontrado en campo "${key}":`, valores[key]);
                 return valores[key];
             }
         }
         
-        // Si no hay campo de nombre, buscar "producto"
-        if (valores.producto) return valores.producto;
-        
+        console.warn('⚠️ No se encontró nombre en valores:', valores);
         return 'Producto sin nombre';
-    };
-
-    // Función para obtener la unidad del producto
-    const obtenerUnidadProducto = (valores: Record<string, any>, item: any): string => {
-        if (item.unidad_medida) return item.unidad_medida;
-        if (valores.unidad) return valores.unidad;
-        if (valores.unidad_medida) return valores.unidad_medida;
-        return 'unidades';
     };
 
     // Cargar detalles de productos cuando se selecciona una recomendación
     const cargarDetallesProductos = async (recomendacion: Recomendacion) => {
         if (!recomendacion.items_sugeridos || recomendacion.items_sugeridos.length === 0) {
+            console.log('No hay productos sugeridos en esta recomendación');
             setProductosDetalle([]);
             return;
         }
 
+        console.log('Cargando productos sugeridos:', recomendacion.items_sugeridos);
+        setLoadingProductos(true);
         const detalles: ProductoDetalle[] = [];
         
         for (const item of recomendacion.items_sugeridos) {
             try {
-                // Intentar obtener el detalle completo del producto desde el inventario
                 if (item.inventario_item_id) {
-                    const productoCompleto = await inventarioDinamicoService.obtenerItem(item.inventario_item_id);
+                    console.log(`🔍 Buscando producto ID: ${item.inventario_item_id}`);
+                    
+                    // Obtener el producto completo del inventario
+                    const productoCompleto: ItemInventario = await inventarioDinamicoService.obtenerItemCompleto?.(item.inventario_item_id) || 
+                        await inventarioDinamicoService.obtenerItem(item.inventario_item_id);
+                    
+                    console.log('📦 Producto encontrado:', productoCompleto);
+                    
+                    // Obtener nombre desde valores
                     const valores = productoCompleto.valores || {};
                     const nombre = obtenerNombreProducto(valores);
-                    const unidad = obtenerUnidadProducto(valores, productoCompleto);
+                    
+                    // Obtener unidad de medida directamente del item
+                    const unidad = productoCompleto.unidad_medida || item.unidad_dosis || 'unidades';
                     
                     detalles.push({
                         id: item.inventario_item_id,
@@ -151,7 +179,7 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
                         unidad: unidad,
                     });
                 } else {
-                    // Si no hay ID, mostrar información básica
+                    console.warn('Producto sin inventario_item_id:', item);
                     detalles.push({
                         id: 0,
                         nombre: item.descripcion || 'Producto sugerido',
@@ -160,17 +188,20 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
                     });
                 }
             } catch (error) {
-                console.error('Error cargando producto:', error);
+                console.error(`❌ Error cargando producto ${item.inventario_item_id}:`, error);
+                // Fallback: mostrar información básica
                 detalles.push({
                     id: item.inventario_item_id || 0,
-                    nombre: `Producto #${item.inventario_item_id}`,
+                    nombre: `Producto ID: ${item.inventario_item_id}`,
                     cantidad_sugerida: item.cantidad_sugerida || 0,
                     unidad: item.unidad_dosis || 'unidades',
                 });
             }
         }
         
+        console.log('✅ Productos procesados:', detalles);
         setProductosDetalle(detalles);
+        setLoadingProductos(false);
     };
 
     const cargarCamposDinamicosPorSubtipo = async (subtipoId: number, index: number) => {
@@ -184,6 +215,7 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
     };
 
     const abrirModalCrearLabores = async (recomendacion: Recomendacion) => {
+        console.log('Abriendo modal para recomendación:', recomendacion.id);
         setSelectedRecomendacion(recomendacion);
         setLaboresForm([getEmptyLaborForm()]);
         setCamposDinamicos({});
@@ -620,8 +652,23 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
                                     </div>
                                 )}
 
-                                {/* Productos sugeridos - Versión mejorada */}
-                                {productosDetalle.length > 0 && (
+                                {/* Productos sugeridos */}
+                                {loadingProductos ? (
+                                    <div className="mb-4">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <i className="fas fa-boxes text-blue-600 text-sm"></i>
+                                            <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
+                                                Productos sugeridos
+                                            </span>
+                                        </div>
+                                        <div className="bg-white rounded-lg p-3 border border-blue-100">
+                                            <div className="flex items-center justify-center py-4">
+                                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+                                                <span className="ml-2 text-sm text-gray-500">Cargando productos...</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : productosDetalle.length > 0 ? (
                                     <div className="mb-4">
                                         <div className="flex items-center gap-2 mb-2">
                                             <i className="fas fa-boxes text-blue-600 text-sm"></i>
@@ -633,17 +680,15 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
                                             <div className="space-y-3">
                                                 {productosDetalle.map((producto, idx) => (
                                                     <div key={idx} className="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
-                                                        <div className="flex items-start justify-between">
-                                                            <div className="flex-1">
-                                                                <div className="font-medium text-gray-800">
-                                                                    {producto.nombre}
-                                                                </div>
-                                                                <div className="flex items-center gap-3 mt-1">
-                                                                    <span className="inline-flex items-center gap-1 text-sm text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-                                                                        <i className="fas fa-flask text-xs"></i>
-                                                                        Dosis: {producto.cantidad_sugerida} {producto.unidad}
-                                                                    </span>
-                                                                </div>
+                                                        <div className="flex flex-col">
+                                                            <div className="font-medium text-gray-800">
+                                                                {producto.nombre}
+                                                            </div>
+                                                            <div className="flex items-center gap-3 mt-1">
+                                                                <span className="inline-flex items-center gap-1 text-sm text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                                                                    <i className="fas fa-flask text-xs"></i>
+                                                                    Dosis: {producto.cantidad_sugerida} {producto.unidad}
+                                                                </span>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -651,7 +696,7 @@ const RecomendacionesSinLabores: React.FC<RecomendacionesSinLaboresProps> = ({ o
                                             </div>
                                         </div>
                                     </div>
-                                )}
+                                ) : null}
 
                                 {/* Otros metadatos */}
                                 <div className="grid grid-cols-2 gap-3 text-xs">
