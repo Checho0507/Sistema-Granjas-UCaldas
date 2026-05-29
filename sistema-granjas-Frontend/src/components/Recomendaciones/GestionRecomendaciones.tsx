@@ -37,6 +37,9 @@ const GestionRecomendaciones: React.FC = () => {
     const [pendientes, setPendientes] = useState<DiagnosticoItem[]>([]);
     const [loadingPendientes, setLoadingPendientes] = useState(false);
 
+    // Estado para diagnósticos del estudiante
+    const [diagnosticosDelEstudiante, setDiagnosticosDelEstudiante] = useState<number[]>([]);
+
     // Modal states
     const [showCrearModal, setShowCrearModal] = useState(false);
     const [showEditarModal, setShowEditarModal] = useState(false);
@@ -67,6 +70,7 @@ const GestionRecomendaciones: React.FC = () => {
     );
     const esAdmin = user?.rol_id === 1;
     const esDocente = user?.rol_id === 2 || user?.rol_id === 5;
+    const esEstudiante = user?.rol_id === 4;
 
     // Load programs + check URL params on mount
     useEffect(() => {
@@ -89,6 +93,28 @@ const GestionRecomendaciones: React.FC = () => {
             setSearchParams({}, { replace: true });
         }
     }, []);
+
+    // Cargar diagnósticos del estudiante
+    useEffect(() => {
+        const cargarDiagnosticosDelEstudiante = async () => {
+            if (esEstudiante && user?.id) {
+                try {
+                    const response = await diagnosticoService.obtenerDiagnosticos({ 
+                        usuario_id: user.id 
+                    } as any);
+                    const diagnosticos = Array.isArray(response) ? response : (response?.items || []);
+                    const ids = diagnosticos.map((d: any) => d.id);
+                    setDiagnosticosDelEstudiante(ids);
+                    console.log('Diagnósticos del estudiante cargados:', ids);
+                } catch (error) {
+                    console.error('Error cargando diagnósticos del estudiante:', error);
+                    toast.error('Error al cargar diagnósticos del estudiante');
+                }
+            }
+        };
+        
+        cargarDiagnosticosDelEstudiante();
+    }, [user?.id, esEstudiante]);
 
     // Load pending diagnoses when tab activates (solo diagnósticos de sus programas)
     const cargarPendientes = useCallback(async () => {
@@ -171,11 +197,11 @@ const GestionRecomendaciones: React.FC = () => {
                         programasUsuario.includes(rec.programa_id) && rec.docente_id === user?.id
                     );
                 } else {
-                    // Docente sin programas asignados no ve ninguna recomendación
                     recomendacionesData = [];
                 }
             }
             
+            // Para estudiantes, no filtramos aquí (lo haremos en la tabla con los diagnósticos)
             setRecomendaciones(recomendacionesData);
 
             if (lotes.length === 0) {
@@ -298,6 +324,10 @@ const GestionRecomendaciones: React.FC = () => {
             const perteneceASuPrograma = programasUsuario.includes(rec.programa_id);
             return esSuRecomendacion && perteneceASuPrograma;
         }
+        if (esEstudiante) {
+            // Estudiante: NO filtramos aquí, pasamos todas y la tabla filtrará por diagnósticos
+            return true;
+        }
         return true;
     }) : [];
 
@@ -405,6 +435,7 @@ const GestionRecomendaciones: React.FC = () => {
                     ) : (
                         <RecomendacionesTable
                             recomendaciones={recomendacionesFiltradas}
+                            diagnosticosDelEstudiante={diagnosticosDelEstudiante}
                             onEditar={openEditarModal}
                             onEliminar={handleEliminarRecomendacion}
                             onAprobar={openAprobarModal}
