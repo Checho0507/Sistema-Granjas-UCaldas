@@ -14,7 +14,7 @@ from app.schemas.inventario_dinamico_schema import (
 from app.db.models import Programa
 
 router = APIRouter(prefix="/inventario-dinamico", tags=["Inventario Dinámico"])
-role_required = Depends(require_any_role(["admin", "asesor", "docente", "talento_humano"]))
+role_required = Depends(require_any_role(["admin", "asesor", "docente", "talento_humano", "jefe_talento_humano"]))
 
 
 def _verificar_acceso_programa(usuario, programa_id: int):
