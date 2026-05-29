@@ -19,9 +19,11 @@ role_required = Depends(require_any_role(["admin", "asesor", "docente", "talento
 
 def _verificar_acceso_programa(usuario, programa_id: int):
     """Verifica que el usuario tiene acceso al programa indicado.
-    Admin tiene acceso a todo. Docentes, asesores y talento_humano
+    Admin y jefe de talento humano tiene acceso a todo. Docentes, asesores y talento_humano
     solo pueden operar sobre sus programas asignados."""
     if usuario.rol.nombre == "admin":
+        return
+    if usuario.rol.nombre == "jefe_talento_humano":
         return
     programa_ids = {p.id for p in usuario.programas}
     if programa_id not in programa_ids:
