@@ -51,9 +51,22 @@ const RecomendacionesTable: React.FC<RecomendacionesTableProps> = ({
         }
         
         if (esEstudiante) {
-            // Estudiante: solo ve recomendaciones asociadas a sus diagnósticos
-            // (esto se filtra mejor desde el backend, pero aquí como respaldo)
-            return true;
+            // Estudiante: solo ve recomendaciones asociadas a diagnósticos creados por él
+            // Asumiendo que la recomendación tiene una relación con diagnóstico
+            // y el diagnóstico tiene un campo 'estudiante_id' o 'usuario_id'
+            
+            // Opción A: Si la recomendación viene con información del estudiante que creó el diagnóstico
+            if (rec.estudiante_id) {
+                return rec.estudiante_id === currentUser?.id;
+            }
+            
+            // Opción B: Si necesitas filtrar por diagnóstico (requiere datos adicionales)
+            // Necesitarás que el backend incluya el estudiante_id en la recomendación
+            // o pasar un array de diagnósticos del estudiante como prop adicional
+            
+            // Por ahora, si no hay estudiante_id, devolvemos false para que no vea nada
+            console.warn('La recomendación no tiene estudiante_id asociado:', rec.id);
+            return false;
         }
         
         return true;
@@ -83,20 +96,26 @@ const RecomendacionesTable: React.FC<RecomendacionesTableProps> = ({
     // Funciones de permisos
     const puedeEditar = (recomendacion: Recomendacion) => {
         if (esAdmin) return true;
-        return false;
+        // Los estudiantes NO pueden editar recomendaciones
+        if (esEstudiante) return false;
         if (esDocente && recomendacion.docente_id === currentUser?.id && recomendacion.estado === 'pendiente') return true;
+        return false;
     };
 
     const puedeAprobar = (recomendacion: Recomendacion) => {
+        // Los estudiantes NO pueden aprobar recomendaciones
+        if (esEstudiante) return false;
         if (esAdmin && recomendacion.estado === 'pendiente') return true;
         if (esDocente && recomendacion.docente_id === currentUser?.id && recomendacion.estado === 'pendiente') return true;
         return false;
     };
 
     const puedeEliminar = (recomendacion: Recomendacion) => {
+        // Los estudiantes NO pueden eliminar recomendaciones
+        if (esEstudiante) return false;
         if (esAdmin) return true;
-        return false;
         if (esDocente && recomendacion.docente_id === currentUser?.id && recomendacion.estado === 'pendiente') return true;
+        return false;
     };
 
     if (recomendacionesFiltradas.length === 0) {
@@ -105,6 +124,11 @@ const RecomendacionesTable: React.FC<RecomendacionesTableProps> = ({
                 <div className="text-center py-12 text-gray-500">
                     <i className="fas fa-lightbulb text-4xl mb-3 text-gray-300"></i>
                     <p className="text-lg mb-1">No hay recomendaciones disponibles</p>
+                    {esEstudiante && (
+                        <p className="text-sm text-gray-400 mt-2">
+                            No hay recomendaciones asociadas a tus diagnósticos.
+                        </p>
+                    )}
                     {esDocente && programasUsuario.length === 0 && (
                         <p className="text-sm text-gray-400 mt-2">
                             No tiene programas asignados. Contacte al administrador.
