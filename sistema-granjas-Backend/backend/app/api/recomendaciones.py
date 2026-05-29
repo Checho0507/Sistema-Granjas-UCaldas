@@ -22,7 +22,7 @@ from app.schemas.recomendacion_schema import (
 
 router = APIRouter(prefix="/recomendaciones", tags=["Recomendaciones"])
 
-roles_recomendacion = ["admin", "docente", "asesor", "estudiante", "talento_humano", "jefe_talento_humano"]
+roles_recomendacion = ["admin", "docente", "asesor", "estudiante"]
 
 
 @router.post("/", response_model=RecomendacionResponse)

@@ -149,7 +149,7 @@ const TableroLabores: React.FC = () => {
         try {
           let url = '', method = 'PUT', body: any = {};
           if (accion.tipo === 'avance') {
-            url = `${API_BASE}/labores/${accion.labor_id}/avance`;
+            url = `${API_BASE}/labores/${accion.labor_id}/registrar-avance`;
             method = 'POST';
             body = { avance_porcentaje: accion.avance, comentario: accion.comentario };
           } else if (accion.tipo === 'completar') {
@@ -185,7 +185,7 @@ const TableroLabores: React.FC = () => {
     setAvanceModal({ labor: null, valor: 0, comentario: '' });
     if (navigator.onLine) {
       try {
-        const res = await fetch(`${API_BASE}/labores/${labor.id}/avance`, {
+        const res = await fetch(`${API_BASE}/labores/${labor.id}/registrar-avance`, {
           method: 'POST',
           headers: getHeaders(),
           body: JSON.stringify({ avance_porcentaje: valor, comentario }),

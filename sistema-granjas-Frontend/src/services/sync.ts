@@ -21,7 +21,7 @@ export const syncPendingData = async () => {
           let url = '';
           let body: any = {};
           if (accion.tipo === 'avance') {
-            url = `${API_BASE}/labores/${accion.labor_id}/avance`;
+            url = `${API_BASE}/labores/${accion.labor_id}/registrar-avance`;
             body = { avance_porcentaje: accion.avance, comentario: accion.comentario };
           } else if (accion.tipo === 'completar') {
             url = `${API_BASE}/labores/${accion.labor_id}/completar`;
