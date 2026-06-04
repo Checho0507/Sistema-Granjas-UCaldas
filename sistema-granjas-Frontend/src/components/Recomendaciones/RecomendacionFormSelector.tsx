@@ -12,6 +12,7 @@ import { inventarioDinamicoService } from '../../services/inventarioDinamicoServ
 import type { TipoInventario, ItemInventario } from '../../types/inventarioDinamicoTypes';
 import type { DiagnosticoTipo } from '../../services/diagnosticoDinamicoService';
 import { useAuth } from '../../hooks/useAuth';
+import Modal from '../Common/Modal';
 
 // ── Interfaces ──────────────────────────────────────────────────────────────────
 interface ProductoSugerido {
@@ -49,6 +50,211 @@ interface Props {
 const TIPOS_DATO_LABELS: Record<string, string> = {
     text: 'Texto', textarea: 'Texto largo', number: 'Número',
     date: 'Fecha', select: 'Selección', boolean: 'Sí / No',
+};
+
+// ── Componente auxiliar: Modal de detalles del diagnóstico ──────────────────────
+const DetallesDiagnosticoModal: React.FC<{
+    isOpen: boolean;
+    diagnosticoId: number | null;
+    onClose: () => void;
+}> = ({ isOpen, diagnosticoId, onClose }) => {
+    const [loading, setLoading] = useState(false);
+    const [diagnostico, setDiagnostico] = useState<any>(null);
+
+    useEffect(() => {
+        if (isOpen && diagnosticoId) {
+            cargarDetalles();
+        }
+    }, [isOpen, diagnosticoId]);
+
+    const cargarDetalles = async () => {
+        setLoading(true);
+        try {
+            const data = await diagnosticoService.obtenerDiagnosticoPorId(diagnosticoId!);
+            setDiagnostico(data);
+        } catch (error) {
+            console.error('Error cargando detalles del diagnóstico:', error);
+            toast.error('Error al cargar los detalles del diagnóstico');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const formatFieldName = (key: string): string => {
+        return key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} width="max-w-4xl">
+            <div className="p-6 max-h-[90vh] overflow-y-auto">
+                {loading ? (
+                    <div className="flex flex-col items-center justify-center py-12 gap-3">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                        <p className="text-gray-500 text-sm">Cargando detalles del diagnóstico...</p>
+                    </div>
+                ) : diagnostico ? (
+                    <>
+                        <div className="flex justify-between items-start mb-4 pb-3 border-b">
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-800">
+                                    Diagnóstico #{diagnostico.id}
+                                </h2>
+                                <p className="text-gray-500 text-sm">
+                                    {diagnostico.tipo_diagnostico?.replace(/_/g, ' ')}
+                                </p>
+                            </div>
+                            <button
+                                onClick={onClose}
+                                className="text-gray-400 hover:text-gray-600 transition-colors"
+                            >
+                                <i className="fas fa-times text-xl"></i>
+                            </button>
+                        </div>
+
+                        {/* Información general */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-100">
+                                <h3 className="font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                    <i className="fas fa-info-circle text-blue-500"></i>
+                                    Información
+                                </h3>
+                                <p><strong>Condiciones:</strong> {diagnostico.condiciones_dia}</p>
+                                <p><strong>Fecha:</strong> {new Date(diagnostico.fecha_creacion).toLocaleString()}</p>
+                                <p><strong>Estado revisión:</strong> 
+                                    <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+                                        diagnostico.estado_revision === 'revisado' 
+                                            ? 'bg-green-100 text-green-700' 
+                                            : 'bg-amber-100 text-amber-700'
+                                    }`}>
+                                        {diagnostico.estado_revision === 'revisado' ? 'Revisado' : 'Pendiente'}
+                                    </span>
+                                </p>
+                            </div>
+                            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border border-green-100">
+                                <h3 className="font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                    <i className="fas fa-map-marker-alt text-green-500"></i>
+                                    Ubicación
+                                </h3>
+                                <p><strong>Programa:</strong> {diagnostico.programa_nombre || 'N/A'}</p>
+                                <p><strong>Lote:</strong> {diagnostico.lote_nombre || 'N/A'}</p>
+                                <p><strong>Granja:</strong> {diagnostico.granja_nombre || 'N/A'}</p>
+                                <p><strong>Usuario:</strong> {diagnostico.usuario_nombre || 'N/A'}</p>
+                            </div>
+                        </div>
+
+                        {/* Plantas muestreadas */}
+                        {diagnostico.plantas && diagnostico.plantas.length > 0 && (
+                            <div className="mb-6">
+                                <h3 className="font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                    <i className="fas fa-seedling text-green-500"></i>
+                                    Plantas muestreadas ({diagnostico.plantas.length})
+                                </h3>
+                                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                        {diagnostico.plantas.map((planta: any, idx: number) => (
+                                            <div key={idx} className="text-sm text-gray-700 flex items-center gap-1">
+                                                <i className="fas fa-map-pin text-green-400 text-xs"></i>
+                                                {planta.label || `Surco ${planta.surco}, Planta ${planta.numero}`}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Caracterización */}
+                        {diagnostico.formulario?.caracterizacion && 
+                         Object.keys(diagnostico.formulario.caracterizacion).length > 0 && (
+                            <div className="mb-6">
+                                <h3 className="font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                    <i className="fas fa-chart-bar text-blue-500"></i>
+                                    Caracterización
+                                </h3>
+                                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-2">
+                                    {Object.entries(diagnostico.formulario.caracterizacion).map(([key, value]) => (
+                                        <div key={key} className="border-b border-gray-200 pb-2 last:border-0">
+                                            <span className="font-medium text-gray-600 capitalize">
+                                                {formatFieldName(key)}:
+                                            </span>
+                                            <span className="ml-2 text-gray-800">{String(value)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Formularios por planta */}
+                        {diagnostico.formulario?.formularios_por_planta && 
+                         Object.keys(diagnostico.formulario.formularios_por_planta).length > 0 && (
+                            <div className="mb-6">
+                                <h3 className="font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                    <i className="fas fa-list-ul text-purple-500"></i>
+                                    Evaluación por planta
+                                </h3>
+                                <div className="space-y-3">
+                                    {Object.entries(diagnostico.formulario.formularios_por_planta).map(([plantaId, valores]) => {
+                                        const planta = diagnostico.plantas?.find((p: any) => p.id === parseInt(plantaId));
+                                        return (
+                                            <div key={plantaId} className="bg-purple-50 rounded-lg p-3 border border-purple-200">
+                                                <div className="font-medium text-purple-800 mb-2">
+                                                    {planta?.label || `Planta ID: ${plantaId}`}
+                                                </div>
+                                                <div className="space-y-1">
+                                                    {Object.entries(valores as Record<string, string>).map(([campo, valor]) => (
+                                                        <div key={campo} className="text-sm">
+                                                            <span className="font-medium text-gray-600">{formatFieldName(campo)}:</span>
+                                                            <span className="ml-2 text-gray-800">{String(valor)}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Fotos */}
+                        {diagnostico.formulario?.fotos_subidas && 
+                         Object.keys(diagnostico.formulario.fotos_subidas).length > 0 && (
+                            <div>
+                                <h3 className="font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                    <i className="fas fa-camera text-orange-500"></i>
+                                    Evidencias fotográficas
+                                </h3>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    {Object.values(diagnostico.formulario.fotos_subidas).flat().map((url: string, idx: number) => (
+                                        <a 
+                                            key={idx} 
+                                            href={url} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="block overflow-hidden rounded-lg border border-gray-200 hover:shadow-md transition"
+                                        >
+                                            <img 
+                                                src={url} 
+                                                alt="Evidencia" 
+                                                className="w-full h-24 object-cover"
+                                                loading="lazy"
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=Error';
+                                                }}
+                                            />
+                                        </a>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <div className="text-center py-8 text-gray-500">
+                        <i className="fas fa-exclamation-circle text-3xl mb-2 block"></i>
+                        <p>No se pudieron cargar los detalles del diagnóstico</p>
+                    </div>
+                )}
+            </div>
+        </Modal>
+    );
 };
 
 // ── Componente auxiliar: Selector de items del inventario ──────────────────────
@@ -102,7 +308,6 @@ const ProductoRow: React.FC<{
     onRemove: () => void;
 }> = ({ producto, tiposInventario, onUpdate, onRemove }) => {
 
-    // Cargar items cuando cambia el tipo de inventario de este producto
     useEffect(() => {
         if (!producto.tipo_inventario_id) {
             onUpdate({ items: [], inventario_item_id: null, loadingItems: false });
@@ -112,7 +317,7 @@ const ProductoRow: React.FC<{
         const cargarItems = async () => {
             onUpdate({ loadingItems: true });
             try {
-                const data = await inventarioDinamicoService.listarItems(producto.tipo_inventario_id);
+                const data = await inventarioDinamicoService.listarItems(producto.tipo_inventario_id!);
                 const itemsConStock = data.filter((i: any) => (i.cantidad_disponible || 0) > 0);
                 onUpdate({
                     items: itemsConStock,
@@ -210,6 +415,7 @@ const FormVinculadaDiagnostico: React.FC<{
     const [titulo, setTitulo] = useState('');
     const [descripcion, setDescripcion] = useState('');
     const [loading, setLoading] = useState(true);
+    const [showDetallesDiagnostico, setShowDetallesDiagnostico] = useState(false);
 
     const [productosRecomendacion, setProductosRecomendacion] = useState<ProductoSugerido[]>([]);
     const [tiposInventario, setTiposInventario] = useState<TipoInventario[]>([]);
@@ -233,7 +439,6 @@ const FormVinculadaDiagnostico: React.FC<{
                 if (programaId) {
                     const tipos = await inventarioDinamicoService.listarTipos(programaId);
                     const tiposActivos = tipos.filter(t => t.activo);
-                    console.log('Tipos de inventario cargados:', tiposActivos);
                     setTiposInventario(tiposActivos);
                 }
             } catch (e) {
@@ -317,82 +522,101 @@ const FormVinculadaDiagnostico: React.FC<{
     }
 
     return (
-        <div className="space-y-5">
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-2">
-                    <i className="fas fa-microscope text-blue-600"></i>
-                    <span className="font-semibold text-blue-800 text-sm">Diagnóstico #{diagnosticoId}</span>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-blue-700">
-                    <span><strong>Tipo:</strong> {(diagnostico as any)?.tipo_diagnostico?.replace(/_/g, ' ') || '—'}</span>
-                    <span><strong>Monitoreo:</strong> {(diagnostico as any)?.tipo_monitoreo_nombre || '—'}</span>
-                    <span><strong>Lote:</strong> {(diagnostico as any)?.lote_nombre || '—'}</span>
-                    <span><strong>Fecha:</strong> {diagnostico?.fecha_creacion ? new Date((diagnostico as any).fecha_creacion).toLocaleDateString('es-CO') : '—'}</span>
-                </div>
-            </div>
-
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
-                <input type="text" value={titulo} onChange={e => setTitulo(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" placeholder="Título de la recomendación..." required />
-            </div>
-
-            {campos.length > 0 && (
-                <div className="border border-orange-200 rounded-xl p-4 bg-orange-50">
-                    <h4 className="font-semibold text-orange-800 mb-4 text-sm"><i className="fas fa-wpforms mr-1"></i>Formulario de recomendación</h4>
-                    <div className="space-y-4">
-                        {campos.map(campo => (
-                            <div key={campo.id}>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    {campo.etiqueta}{campo.requerido && <span className="text-red-500 ml-1">*</span>}
-                                    <span className="ml-2 text-xs text-gray-400">({TIPOS_DATO_LABELS[campo.tipo_dato] || campo.tipo_dato})</span>
-                                </label>
-                                {renderCampo(campo)}
-                            </div>
-                        ))}
+        <>
+            <div className="space-y-5">
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                            <i className="fas fa-microscope text-blue-600"></i>
+                            <span className="font-semibold text-blue-800 text-sm">Diagnóstico #{diagnosticoId}</span>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowDetallesDiagnostico(true)}
+                            className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors"
+                        >
+                            <i className="fas fa-eye"></i>
+                            Ver detalles completos
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-blue-700">
+                        <span><strong>Tipo:</strong> {(diagnostico as any)?.tipo_diagnostico?.replace(/_/g, ' ') || '—'}</span>
+                        <span><strong>Monitoreo:</strong> {(diagnostico as any)?.tipo_monitoreo_nombre || '—'}</span>
+                        <span><strong>Lote:</strong> {(diagnostico as any)?.lote_nombre || '—'}</span>
+                        <span><strong>Fecha:</strong> {diagnostico?.fecha_creacion ? new Date((diagnostico as any).fecha_creacion).toLocaleDateString('es-CO') : '—'}</span>
                     </div>
                 </div>
-            )}
 
-            <div className="border border-purple-200 rounded-xl p-4 bg-purple-50">
-                <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-purple-800 text-sm"><i className="fas fa-boxes mr-1"></i>Productos sugeridos</h4>
-                    <button type="button" onClick={() => setProductosRecomendacion(prev => [...prev, newProductoRow()])}
-                        className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1">
-                        <i className="fas fa-plus"></i> Agregar producto
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
+                    <input type="text" value={titulo} onChange={e => setTitulo(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" placeholder="Título de la recomendación..." required />
+                </div>
+
+                {campos.length > 0 && (
+                    <div className="border border-orange-200 rounded-xl p-4 bg-orange-50">
+                        <h4 className="font-semibold text-orange-800 mb-4 text-sm"><i className="fas fa-wpforms mr-1"></i>Formulario de recomendación</h4>
+                        <div className="space-y-4">
+                            {campos.map(campo => (
+                                <div key={campo.id}>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        {campo.etiqueta}{campo.requerido && <span className="text-red-500 ml-1">*</span>}
+                                        <span className="ml-2 text-xs text-gray-400">({TIPOS_DATO_LABELS[campo.tipo_dato] || campo.tipo_dato})</span>
+                                    </label>
+                                    {renderCampo(campo)}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                <div className="border border-purple-200 rounded-xl p-4 bg-purple-50">
+                    <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-semibold text-purple-800 text-sm"><i className="fas fa-boxes mr-1"></i>Productos sugeridos</h4>
+                        <button type="button" onClick={() => setProductosRecomendacion(prev => [...prev, newProductoRow()])}
+                            className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1">
+                            <i className="fas fa-plus"></i> Agregar producto
+                        </button>
+                    </div>
+                    {tiposInventario.length === 0 && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 mb-3 text-xs text-yellow-700">
+                            <i className="fas fa-exclamation-triangle mr-1"></i> No hay tipos de inventario configurados para este programa.
+                        </div>
+                    )}
+                    {productosRecomendacion.length === 0 ? (
+                        <p className="text-xs text-purple-600">No hay productos sugeridos.</p>
+                    ) : (
+                        <div className="space-y-3">
+                            {productosRecomendacion.map((prod, idx) => (
+                                <ProductoRow
+                                    key={idx}
+                                    producto={prod}
+                                    tiposInventario={tiposInventario}
+                                    onUpdate={(updates) => setProductosRecomendacion(prev => prev.map((p, i) => i === idx ? { ...p, ...updates } : p))}
+                                    onRemove={() => setProductosRecomendacion(prev => prev.filter((_, i) => i !== idx))}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t">
+                    <button type="button" onClick={onCancel} className="px-5 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Cancelar</button>
+                    <button type="button" onClick={handleSubmit}
+                        disabled={submitting || !titulo}
+                        className="bg-orange-600 hover:bg-orange-700 text-white px-5 py-2.5 rounded-lg font-medium text-sm disabled:bg-gray-400 transition-colors">
+                        {submitting ? (<span className="flex items-center gap-2"><div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>Guardando...</span>) : 'Crear Recomendación'}
                     </button>
                 </div>
-                {tiposInventario.length === 0 && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 mb-3 text-xs text-yellow-700">
-                        <i className="fas fa-exclamation-triangle mr-1"></i> No hay tipos de inventario configurados para este programa.
-                    </div>
-                )}
-                {productosRecomendacion.length === 0 ? (
-                    <p className="text-xs text-purple-600">No hay productos sugeridos.</p>
-                ) : (
-                    <div className="space-y-3">
-                        {productosRecomendacion.map((prod, idx) => (
-                            <ProductoRow
-                                key={idx}
-                                producto={prod}
-                                tiposInventario={tiposInventario}
-                                onUpdate={(updates) => setProductosRecomendacion(prev => prev.map((p, i) => i === idx ? { ...p, ...updates } : p))}
-                                onRemove={() => setProductosRecomendacion(prev => prev.filter((_, i) => i !== idx))}
-                            />
-                        ))}
-                    </div>
-                )}
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t">
-                <button type="button" onClick={onCancel} className="px-5 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Cancelar</button>
-                <button type="button" onClick={handleSubmit}
-                    disabled={submitting || !titulo}
-                    className="bg-orange-600 hover:bg-orange-700 text-white px-5 py-2.5 rounded-lg font-medium text-sm disabled:bg-gray-400 transition-colors">
-                    {submitting ? (<span className="flex items-center gap-2"><div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>Guardando...</span>) : 'Crear Recomendación'}
-                </button>
-            </div>
-        </div>
+            {/* Modal de detalles del diagnóstico */}
+            <DetallesDiagnosticoModal
+                isOpen={showDetallesDiagnostico}
+                diagnosticoId={diagnosticoId}
+                onClose={() => setShowDetallesDiagnostico(false)}
+            />
+        </>
     );
 };
 
@@ -414,7 +638,6 @@ const FormGeneral: React.FC<{
     const esDocente = user?.rol_id === 2 || user?.rol_id === 5;
     const programasDocente = user?.programas?.map((p: any) => p.id) || [];
 
-    // Filtrar programas según rol del usuario
     const programasDisponibles = esAdmin 
         ? programas 
         : programas.filter(p => programasDocente.includes(p.id));
@@ -433,6 +656,7 @@ const FormGeneral: React.FC<{
     const [diagnosticoSeleccionadoId, setDiagnosticoSeleccionadoId] = useState<number | null>(null);
     const [diagnosticosPendientes, setDiagnosticosPendientes] = useState<any[]>([]);
     const [loadingDiagnosticos, setLoadingDiagnosticos] = useState(false);
+    const [showDetallesDiagnostico, setShowDetallesDiagnostico] = useState(false);
 
     const [productosRecomendacion, setProductosRecomendacion] = useState<ProductoSugerido[]>([]);
     const [tiposInventario, setTiposInventario] = useState<any[]>([]);
@@ -522,7 +746,6 @@ const FormGeneral: React.FC<{
     
     const lotesFiltrados = lotes.filter(l => l.programa_id === programaId);
 
-    // Validar acceso (early returns después de todos los hooks)
     if (esDocente && programasDocente.length === 0) {
         return (
             <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
@@ -580,7 +803,7 @@ const FormGeneral: React.FC<{
         try {
             await onSubmit({
                 titulo: titulo.trim(),
-                descripcion: `Recomendación para lote ${loteId}`, // Descripción automática
+                descripcion: `Recomendación para lote ${loteId}`,
                 estado: 'pendiente',
                 lote_id: loteId,
                 subtipo_id: subtipoId || null,
@@ -600,130 +823,152 @@ const FormGeneral: React.FC<{
     if (initialLoading) return (<div className="flex flex-col items-center justify-center py-12 gap-3"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div><p className="text-gray-500 text-sm">Cargando recomendación...</p></div>);
 
     return (
-        <div className="space-y-5">
-            {/* Título al inicio como en el modo vinculado */}
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
-                <input type="text" value={titulo} onChange={e => setTitulo(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" 
-                    placeholder="Título de la recomendación..." required />
-            </div>
-
-            {/* Selección de Programa */}
-            <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Programa *</label>
-                <select value={programaId || ''} onChange={e => { setProgramaId(e.target.value ? parseInt(e.target.value) : null); setMonitoreoId(null); setSubtipoId(null); setLoteId(null); setDiagnosticoSeleccionadoId(null); }}
-                    className="w-full border border-gray-300 rounded-lg p-3 text-sm" disabled={esEdicion}>
-                    <option value="">Seleccionar programa...</option>
-                    {programasDisponibles.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                </select>
-            </div>
-
-            {/* Monitoreos */}
-            {programaId && monitoreos.length > 0 && (
+        <>
+            <div className="space-y-5">
                 <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de Monitoreo</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {monitoreos.map(m => (
-                            <button key={m.id} type="button" onClick={() => { setMonitoreoId(m.id); setSubtipoId(null); setDiagnosticoSeleccionadoId(null); }}
-                                className={`p-3 border-2 rounded-lg text-sm text-center transition ${monitoreoId === m.id ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium' : 'border-gray-200 hover:border-orange-300'}`} disabled={esEdicion}>
-                                <i className="fas fa-leaf block text-lg mb-1"></i>{m.nombre}
-                            </button>
-                        ))}
-                    </div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
+                    <input type="text" value={titulo} onChange={e => setTitulo(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" 
+                        placeholder="Título de la recomendación..." required />
                 </div>
-            )}
 
-            {/* Subtipos */}
-            {monitoreoId && (
                 <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Subtipo</label>
-                    {subtipos.length === 0 ? (<p className="text-sm text-gray-500">No hay subtipos disponibles</p>) : (
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Programa *</label>
+                    <select value={programaId || ''} onChange={e => { setProgramaId(e.target.value ? parseInt(e.target.value) : null); setMonitoreoId(null); setSubtipoId(null); setLoteId(null); setDiagnosticoSeleccionadoId(null); }}
+                        className="w-full border border-gray-300 rounded-lg p-3 text-sm" disabled={esEdicion}>
+                        <option value="">Seleccionar programa...</option>
+                        {programasDisponibles.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                    </select>
+                </div>
+
+                {programaId && monitoreos.length > 0 && (
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de Monitoreo</label>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            {subtipos.map(s => (
-                                <button key={s.id} type="button" onClick={() => { setSubtipoId(s.id); setDiagnosticoSeleccionadoId(null); }}
-                                    className={`p-3 border-2 rounded-lg text-sm text-center transition ${subtipoId === s.id ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium' : 'border-gray-200 hover:border-orange-300'}`} disabled={esEdicion}>
-                                    {s.nombre}
+                            {monitoreos.map(m => (
+                                <button key={m.id} type="button" onClick={() => { setMonitoreoId(m.id); setSubtipoId(null); setDiagnosticoSeleccionadoId(null); }}
+                                    className={`p-3 border-2 rounded-lg text-sm text-center transition ${monitoreoId === m.id ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium' : 'border-gray-200 hover:border-orange-300'}`} disabled={esEdicion}>
+                                    <i className="fas fa-leaf block text-lg mb-1"></i>{m.nombre}
                                 </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {monitoreoId && (
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Subtipo</label>
+                        {subtipos.length === 0 ? (<p className="text-sm text-gray-500">No hay subtipos disponibles</p>) : (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                {subtipos.map(s => (
+                                    <button key={s.id} type="button" onClick={() => { setSubtipoId(s.id); setDiagnosticoSeleccionadoId(null); }}
+                                        className={`p-3 border-2 rounded-lg text-sm text-center transition ${subtipoId === s.id ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium' : 'border-gray-200 hover:border-orange-300'}`} disabled={esEdicion}>
+                                        {s.nombre}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Lote *</label>
+                    <select value={loteId || ''} onChange={e => { setLoteId(e.target.value ? parseInt(e.target.value) : null); setDiagnosticoSeleccionadoId(null); }}
+                        className="w-full border border-gray-300 rounded-lg p-2.5 text-sm" required disabled={esEdicion}>
+                        <option value="">Seleccionar lote...</option>
+                        {lotesFiltrados.map(l => <option key={l.id} value={l.id}>{l.nombre}{l.granja_nombre ? ` (${l.granja_nombre})` : ''}</option>)}
+                    </select>
+                </div>
+
+                {subtipoId && loteId && !esEdicion && (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1"><i className="fas fa-microscope mr-1 text-blue-500"></i>Diagnóstico asociado (opcional)</label>
+                        {loadingDiagnosticos ? (<div className="flex items-center text-gray-500 text-sm gap-2 py-2"><div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>Cargando...</div>)
+                        : diagnosticosPendientes.length === 0 ? (<div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-700"><i className="fas fa-info-circle mr-2"></i>No hay diagnósticos pendientes.</div>)
+                        : (
+                            <>
+                                <select value={diagnosticoSeleccionadoId || ''} onChange={e => setDiagnosticoSeleccionadoId(e.target.value ? parseInt(e.target.value) : null)} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
+                                    <option value="">Sin diagnóstico (recomendación general)</option>
+                                    {diagnosticosPendientes.map(diag => (<option key={diag.id} value={diag.id}>#{diag.id} - {(diag as any).tipo_diagnostico?.replace(/_/g, ' ') || 'Sin tipo'} - {new Date(diag.fecha_creacion).toLocaleDateString('es-CO')}</option>))}
+                                </select>
+                                {diagnosticoSeleccionadoId && (
+                                    <div className="mt-2 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                        <div className="flex items-center gap-2">
+                                            <i className="fas fa-microscope text-blue-600"></i>
+                                            <span className="text-sm text-blue-800">
+                                                Diagnóstico #{diagnosticoSeleccionadoId} seleccionado
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowDetallesDiagnostico(true)}
+                                            className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors"
+                                        >
+                                            <i className="fas fa-eye"></i>
+                                            Ver detalles
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+                )}
+
+                {campos.length > 0 && (
+                    <div className="border border-orange-200 rounded-xl p-4 bg-orange-50">
+                        <h4 className="font-semibold text-orange-800 mb-4 text-sm"><i className="fas fa-wpforms mr-1"></i>Formulario de recomendación</h4>
+                        <div className="space-y-4">
+                            {campos.map(campo => (
+                                <div key={campo.id}>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        {campo.etiqueta}{campo.requerido && <span className="text-red-500 ml-1">*</span>}
+                                        <span className="ml-2 text-xs text-gray-400">({TIPOS_DATO_LABELS[campo.tipo_dato] || campo.tipo_dato})</span>
+                                    </label>
+                                    {renderCampo(campo)}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                <div className="border border-purple-200 rounded-xl p-4 bg-purple-50">
+                    <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-semibold text-purple-800 text-sm"><i className="fas fa-boxes mr-1"></i>Productos sugeridos</h4>
+                        <button type="button" onClick={() => setProductosRecomendacion(prev => [...prev, newProductoRow()])}
+                            className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1"><i className="fas fa-plus"></i> Agregar producto</button>
+                    </div>
+                    {tiposInventario.length === 0 && programaId && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 mb-3 text-xs text-yellow-700">
+                            <i className="fas fa-exclamation-triangle mr-1"></i> No hay tipos de inventario configurados para este programa.
+                        </div>
+                    )}
+                    {productosRecomendacion.length === 0 ? (<p className="text-xs text-purple-600">No hay productos sugeridos.</p>) : (
+                        <div className="space-y-3">
+                            {productosRecomendacion.map((prod, idx) => (
+                                <ProductoRow key={idx} producto={prod} tiposInventario={tiposInventario}
+                                    onUpdate={(updates) => setProductosRecomendacion(prev => prev.map((p, i) => i === idx ? { ...p, ...updates } : p))}
+                                    onRemove={() => setProductosRecomendacion(prev => prev.filter((_, i) => i !== idx))} />
                             ))}
                         </div>
                     )}
                 </div>
-            )}
 
-            {/* Lote */}
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Lote *</label>
-                <select value={loteId || ''} onChange={e => { setLoteId(e.target.value ? parseInt(e.target.value) : null); setDiagnosticoSeleccionadoId(null); }}
-                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm" required disabled={esEdicion}>
-                    <option value="">Seleccionar lote...</option>
-                    {lotesFiltrados.map(l => <option key={l.id} value={l.id}>{l.nombre}{l.granja_nombre ? ` (${l.granja_nombre})` : ''}</option>)}
-                </select>
+                <div className="flex justify-end gap-3 pt-4 border-t">
+                    <button type="button" onClick={onCancel} className="px-5 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Cancelar</button>
+                    <button type="button" onClick={handleSubmit} disabled={submitting || !loteId || !titulo}
+                        className="bg-orange-600 hover:bg-orange-700 text-white px-5 py-2.5 rounded-lg font-medium text-sm disabled:bg-gray-400">
+                        {submitting ? 'Guardando...' : (esEdicion ? 'Actualizar' : 'Crear Recomendación')}
+                    </button>
+                </div>
             </div>
 
-            {/* Diagnóstico asociado (opcional) */}
-            {subtipoId && loteId && !esEdicion && (
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1"><i className="fas fa-microscope mr-1 text-blue-500"></i>Diagnóstico asociado (opcional)</label>
-                    {loadingDiagnosticos ? (<div className="flex items-center text-gray-500 text-sm gap-2 py-2"><div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>Cargando...</div>)
-                    : diagnosticosPendientes.length === 0 ? (<div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-700"><i className="fas fa-info-circle mr-2"></i>No hay diagnósticos pendientes.</div>)
-                    : (<select value={diagnosticoSeleccionadoId || ''} onChange={e => setDiagnosticoSeleccionadoId(e.target.value ? parseInt(e.target.value) : null)} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
-                        <option value="">Sin diagnóstico (recomendación general)</option>
-                        {diagnosticosPendientes.map(diag => (<option key={diag.id} value={diag.id}>#{diag.id} - {(diag as any).tipo_diagnostico?.replace(/_/g, ' ') || 'Sin tipo'} - {new Date(diag.fecha_creacion).toLocaleDateString('es-CO')}</option>))}
-                    </select>)}
-                </div>
-            )}
-
-            {/* Formulario dinámico (igual que en modo vinculado) */}
-            {campos.length > 0 && (
-                <div className="border border-orange-200 rounded-xl p-4 bg-orange-50">
-                    <h4 className="font-semibold text-orange-800 mb-4 text-sm"><i className="fas fa-wpforms mr-1"></i>Formulario de recomendación</h4>
-                    <div className="space-y-4">
-                        {campos.map(campo => (
-                            <div key={campo.id}>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    {campo.etiqueta}{campo.requerido && <span className="text-red-500 ml-1">*</span>}
-                                    <span className="ml-2 text-xs text-gray-400">({TIPOS_DATO_LABELS[campo.tipo_dato] || campo.tipo_dato})</span>
-                                </label>
-                                {renderCampo(campo)}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* Productos sugeridos */}
-            <div className="border border-purple-200 rounded-xl p-4 bg-purple-50">
-                <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-purple-800 text-sm"><i className="fas fa-boxes mr-1"></i>Productos sugeridos</h4>
-                    <button type="button" onClick={() => setProductosRecomendacion(prev => [...prev, newProductoRow()])}
-                        className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1"><i className="fas fa-plus"></i> Agregar producto</button>
-                </div>
-                {tiposInventario.length === 0 && programaId && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 mb-3 text-xs text-yellow-700">
-                        <i className="fas fa-exclamation-triangle mr-1"></i> No hay tipos de inventario configurados para este programa.
-                    </div>
-                )}
-                {productosRecomendacion.length === 0 ? (<p className="text-xs text-purple-600">No hay productos sugeridos.</p>) : (
-                    <div className="space-y-3">
-                        {productosRecomendacion.map((prod, idx) => (
-                            <ProductoRow key={idx} producto={prod} tiposInventario={tiposInventario}
-                                onUpdate={(updates) => setProductosRecomendacion(prev => prev.map((p, i) => i === idx ? { ...p, ...updates } : p))}
-                                onRemove={() => setProductosRecomendacion(prev => prev.filter((_, i) => i !== idx))} />
-                        ))}
-                    </div>
-                )}
-            </div>
-
-            {/* Botones de acción */}
-            <div className="flex justify-end gap-3 pt-4 border-t">
-                <button type="button" onClick={onCancel} className="px-5 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Cancelar</button>
-                <button type="button" onClick={handleSubmit} disabled={submitting || !loteId || !titulo}
-                    className="bg-orange-600 hover:bg-orange-700 text-white px-5 py-2.5 rounded-lg font-medium text-sm disabled:bg-gray-400">
-                    {submitting ? 'Guardando...' : (esEdicion ? 'Actualizar' : 'Crear Recomendación')}
-                </button>
-            </div>
-        </div>
+            {/* Modal de detalles del diagnóstico */}
+            <DetallesDiagnosticoModal
+                isOpen={showDetallesDiagnostico}
+                diagnosticoId={diagnosticoSeleccionadoId}
+                onClose={() => setShowDetallesDiagnostico(false)}
+            />
+        </>
     );
 };
 
