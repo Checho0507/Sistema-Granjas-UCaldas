@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import type { DiagnosticoCampo } from '../../services/diagnosticoDinamicoService';
 
 interface Props {
@@ -9,108 +9,6 @@ interface Props {
   contexto?: string;
 }
 
-// Componente para un campo que pertenece a un contexto específico (ej: un cuadrante)
-const CampoConContexto: React.FC<{
-  campo: DiagnosticoCampo;
-  valor: any;
-  contextoPath: string[];
-  onChange: (valor: any) => void;
-  required: boolean;
-}> = ({ campo, valor, contextoPath, onChange, required }) => {
-  const baseClass = "w-full border rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
-  
-  // Construir el breadcrumb solo con los valores
-  const breadcrumb = contextoPath.length > 0 ? contextoPath.join(' → ') : '';
-  
-  const renderInput = () => {
-    switch (campo.tipo_dato) {
-      case 'textarea':
-        return (
-          <textarea
-            value={valor || ''}
-            onChange={e => onChange(e.target.value)}
-            className={baseClass}
-            rows={3}
-            required={required}
-          />
-        );
-      case 'number':
-        return (
-          <input
-            type="number"
-            value={valor || ''}
-            onChange={e => onChange(e.target.value)}
-            className={baseClass}
-            required={required}
-            step="any"
-          />
-        );
-      case 'date':
-        return (
-          <input
-            type="date"
-            value={valor || ''}
-            onChange={e => onChange(e.target.value)}
-            className={baseClass}
-            required={required}
-          />
-        );
-      case 'select':
-        return (
-          <select
-            value={valor || ''}
-            onChange={e => onChange(e.target.value)}
-            className={baseClass}
-            required={required}
-          >
-            <option value="">Seleccionar...</option>
-            {(Array.isArray(campo.opciones) ? campo.opciones : []).map((op: string) => (
-              <option key={op} value={op}>{op}</option>
-            ))}
-          </select>
-        );
-      case 'boolean':
-        return (
-          <select
-            value={valor || ''}
-            onChange={e => onChange(e.target.value)}
-            className={baseClass}
-            required={required}
-          >
-            <option value="">Seleccionar...</option>
-            <option value="true">Sí</option>
-            <option value="false">No</option>
-          </select>
-        );
-      default:
-        return (
-          <input
-            type="text"
-            value={valor || ''}
-            onChange={e => onChange(e.target.value)}
-            className={baseClass}
-            required={required}
-          />
-        );
-    }
-  };
-
-  return (
-    <div className="mb-4 pb-3 border-b border-gray-100 last:border-0">
-      {breadcrumb && (
-        <div className="text-xs text-gray-400 mb-1">
-          {breadcrumb}
-        </div>
-      )}
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        {campo.etiqueta}
-        {required && <span className="text-red-500 ml-1">*</span>}
-      </label>
-      {renderInput()}
-    </div>
-  );
-};
-
 const FormularioDinamicoSection: React.FC<Props> = ({ 
   campos, 
   valores, 
@@ -118,9 +16,6 @@ const FormularioDinamicoSection: React.FC<Props> = ({
   prefix = '',
   contexto = ''
 }) => {
-  // Estado para expandir campos multiselect en múltiples instancias
-  const [multiselectExpansions, setMultiselectExpansions] = useState<Record<string, string[]>>({});
-
   // Construir el árbol de dependencias
   const campoPorId = useMemo(() => {
     const map = new Map<number, DiagnosticoCampo>();
@@ -133,42 +28,38 @@ const FormularioDinamicoSection: React.FC<Props> = ({
     return valores[nombreCampo];
   };
 
-  // Obtener la ruta de contexto (solo valores) para un campo específico y un valor específico
-  const getContextoPath = (campo: DiagnosticoCampo, valorEspecifico?: string): string[] => {
-    const path: string[] = [];
+  // Obtener el contexto completo para un campo (breadcrumb SOLO con valores, sin etiquetas)
+  const getCampoContexto = (campo: DiagnosticoCampo): string => {
+    const breadcrumb: string[] = [];
+    let current: DiagnosticoCampo | undefined = campo;
+    let visited = new Set<number>();
     
-    // Agregar contexto general (planta)
+    // Agregar contexto general si existe (para saber a qué planta pertenece)
     if (contexto) {
-      path.push(contexto);
+      breadcrumb.push(contexto);
     }
     
-    // Construir la ruta desde la raíz hasta este campo
-    const buildPath = (currentCampo: DiagnosticoCampo, visited: Set<number> = new Set()): void => {
-      if (visited.has(currentCampo.id)) return;
-      visited.add(currentCampo.id);
+    while (current?.campo_padre_id && !visited.has(current.id)) {
+      visited.add(current.id);
+      const padre = campoPorId.get(current.campo_padre_id);
+      if (!padre) break;
       
-      if (currentCampo.campo_padre_id) {
-        const padre = campoPorId.get(currentCampo.campo_padre_id);
-        if (padre) {
-          buildPath(padre, visited);
-          const valorPadre = getValorCampo(padre.nombre_campo);
-          if (valorPadre) {
-            // Si el padre es multiselect y tenemos un valor específico, usamos ese
-            if (Array.isArray(valorPadre) && valorEspecifico) {
-              path.push(valorEspecifico);
-            } else if (!Array.isArray(valorPadre)) {
-              path.push(String(valorPadre));
-            }
-          }
-        }
+      const valorPadre = getValorCampo(padre.nombre_campo);
+      if (valorPadre && valorPadre !== '') {
+        // Solo mostrar el valor, no la etiqueta
+        const valorStr = Array.isArray(valorPadre) ? valorPadre.join(', ') : String(valorPadre);
+        breadcrumb.push(valorStr);
       }
-    };
+      current = padre;
+    }
     
-    buildPath(campo);
-    return path;
+    if (breadcrumb.length > 0) {
+      return `${breadcrumb.join(' → ')} → ${campo.etiqueta}`;
+    }
+    return campo.etiqueta;
   };
 
-  // Helper: saber si un campo es visible
+  // Helper: saber si un campo es visible según el valor actual de su padre
   const esCampoVisible = (campo: DiagnosticoCampo, visitados: Set<number> = new Set()): boolean => {
     if (visitados.has(campo.id)) return true;
     visitados.add(campo.id);
@@ -188,135 +79,199 @@ const FormularioDinamicoSection: React.FC<Props> = ({
     return campo.opciones_padre.includes(valorPadre);
   };
 
-  // Inicializar expansiones para campos multiselect
+  // Helper: obtener todos los IDs de campos que dependen de un campo
+  const obtenerDependientes = (campoId: number): number[] => {
+    const hijos = campos.filter(c => c.campo_padre_id === campoId);
+    let todos: number[] = [];
+    hijos.forEach(hijo => {
+      todos.push(hijo.id);
+      todos = [...todos, ...obtenerDependientes(hijo.id)];
+    });
+    return todos;
+  };
+
+  // Limpiar valores de campos que se vuelven invisibles
   useEffect(() => {
-    const newExpansions: Record<string, string[]> = {};
-    
     campos.forEach(campo => {
-      if (campo.tipo_dato === 'multiselect') {
-        const valorActual = getValorCampo(campo.nombre_campo);
-        if (Array.isArray(valorActual) && valorActual.length > 0) {
-          newExpansions[campo.nombre_campo] = valorActual;
+      if (!esCampoVisible(campo)) {
+        if (valores[campo.nombre_campo] !== undefined && valores[campo.nombre_campo] !== '') {
+          onChange(campo.nombre_campo, '');
         }
+        
+        const dependientes = obtenerDependientes(campo.id);
+        dependientes.forEach(depId => {
+          const depCampo = campos.find(c => c.id === depId);
+          if (depCampo && valores[depCampo.nombre_campo] !== undefined && valores[depCampo.nombre_campo] !== '') {
+            onChange(depCampo.nombre_campo, '');
+          }
+        });
       }
     });
-    
-    setMultiselectExpansions(prev => ({
-      ...prev,
-      ...newExpansions
-    }));
-  }, [campos, valores]);
+  }, [campos, valores, onChange]);
 
-  // Manejar cambio en un campo
+  // Manejar cambio en campo padre limpiando hijos que ya no aplican
   const handleChange = (campo: DiagnosticoCampo, nuevoValor: any) => {
     onChange(campo.nombre_campo, nuevoValor);
     
-    // Limpiar expansiones si el campo cambió
-    if (campo.tipo_dato === 'multiselect') {
-      if (Array.isArray(nuevoValor)) {
-        setMultiselectExpansions(prev => ({
-          ...prev,
-          [campo.nombre_campo]: nuevoValor
-        }));
-      } else {
-        const newExpansions = { ...multiselectExpansions };
-        delete newExpansions[campo.nombre_campo];
-        setMultiselectExpansions(newExpansions);
-      }
-    }
-  };
-
-  // Generar campos expandidos para multiselect
-  const generateExpandedFields = (campo: DiagnosticoCampo, selectedValues: string[]) => {
-    const hijos = campos.filter(c => c.campo_padre_id === campo.id);
-    if (hijos.length === 0) return null;
+    const hijosDirectos = campos.filter(c => c.campo_padre_id === campo.id);
     
-    return selectedValues.map(valorSeleccionado => {
-      // Filtrar hijos que son visibles con esta selección
-      const hijosVisibles = hijos.filter(hijo => {
-        if (!hijo.opciones_padre) return true;
-        return hijo.opciones_padre.includes(valorSeleccionado);
-      });
-      
-      if (hijosVisibles.length === 0) return null;
-      
-      const contextoPath = getContextoPath(campo, valorSeleccionado);
-      
-      return (
-        <div key={`${campo.nombre_campo}_${valorSeleccionado}`} className="ml-4 pl-4 border-l-2 border-blue-200 mt-3 mb-3">
-          <div className="text-xs text-blue-600 font-medium mb-2">
-            {contextoPath.length > 0 ? contextoPath.join(' → ') : valorSeleccionado}
-          </div>
-          {hijosVisibles.map(hijo => (
-            <CampoConContexto
-              key={hijo.id}
-              campo={hijo}
-              valor={getValorCampo(hijo.nombre_campo)}
-              contextoPath={[...contextoPath, valorSeleccionado]}
-              onChange={(newVal) => handleChange(hijo, newVal)}
-              required={hijo.requerido}
-            />
-          ))}
-        </div>
-      );
+    hijosDirectos.forEach(hijo => {
+      if (hijo.opciones_padre) {
+        const valorArray = Array.isArray(nuevoValor) ? nuevoValor : [nuevoValor];
+        const hijoVisible = hijo.opciones_padre.some(op => valorArray.includes(op));
+        
+        if (!hijoVisible) {
+          onChange(hijo.nombre_campo, '');
+          limpiarDependientes(hijo.id);
+        }
+      }
     });
   };
 
-  // Renderizar un campo normal (no multiselect)
-  const renderCampoNormal = (campo: DiagnosticoCampo) => {
-    const valor = getValorCampo(campo.nombre_campo);
-    const contextoPath = getContextoPath(campo);
-    const hijos = campos.filter(c => c.campo_padre_id === campo.id);
-    const hijosVisibles = hijos.filter(h => esCampoVisible(h));
-    
-    return (
-      <div key={campo.id} className="mb-4">
-        <CampoConContexto
-          campo={campo}
-          valor={valor}
-          contextoPath={contextoPath}
-          onChange={(newVal) => handleChange(campo, newVal)}
-          required={campo.requerido}
-        />
-        
-        {/* Renderizar hijos no multiselect */}
-        {hijosVisibles.length > 0 && (
-          <div className="ml-4 pl-4 border-l-2 border-gray-200 mt-3">
-            {hijosVisibles.map(hijo => renderCampoNormal(hijo))}
-          </div>
-        )}
-      </div>
-    );
+  const limpiarDependientes = (campoId: number) => {
+    const dependientes = campos.filter(c => c.campo_padre_id === campoId);
+    dependientes.forEach(dep => {
+      if (valores[dep.nombre_campo] !== undefined && valores[dep.nombre_campo] !== '') {
+        onChange(dep.nombre_campo, '');
+      }
+      limpiarDependientes(dep.id);
+    });
   };
 
-  // Renderizar un campo multiselect con sus hijos expandidos
-  const renderCampoMultiselect = (campo: DiagnosticoCampo) => {
-    const valor = getValorCampo(campo.nombre_campo);
-    const selectedValues = Array.isArray(valor) ? valor : [];
-    const contextoPath = getContextoPath(campo);
+  // Render de celda de matriz
+  const renderCeldaMatriz = (
+    valorCelda: any,
+    tipoCelda: string,
+    onChangeCelda: (nuevoValor: any) => void,
+    fila: string,
+    columna: string,
+    nombreCampo: string,
+    valorMatriz: Record<string, Record<string, any>>
+  ) => {
+    const inputBase = "text-center border border-gray-300 rounded p-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500";
     
-    return (
-      <div key={campo.id} className="mb-4">
-        <div className="mb-2">
-          {contextoPath.length > 0 && (
-            <div className="text-xs text-gray-400 mb-1">
-              {contextoPath.join(' → ')}
-            </div>
-          )}
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            {campo.etiqueta}
-            {campo.requerido && <span className="text-red-500 ml-1">*</span>}
-          </label>
-          <div className="space-y-2">
+    switch (tipoCelda) {
+      case 'boolean':
+        return (
+          <input
+            type="checkbox"
+            checked={valorCelda === true || valorCelda === 'true'}
+            onChange={e => onChangeCelda(e.target.checked ? true : false)}
+            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 mx-auto block"
+          />
+        );
+
+      case 'number':
+        return (
+          <input
+            type="number"
+            value={valorCelda !== undefined && valorCelda !== '' ? valorCelda : ''}
+            onChange={e => onChangeCelda(e.target.value === '' ? '' : e.target.value)}
+            className={`${inputBase} w-20`}
+            min="0"
+            step="any"
+          />
+        );
+
+      case 'radio': {
+        const seleccionado = valorMatriz[fila]?.['_selected'] || '';
+        const radioName = prefix 
+          ? `${prefix}_${nombreCampo}_${fila.replace(/\s+/g, '_')}` 
+          : `${nombreCampo}_${fila.replace(/\s+/g, '_')}`;
+        return (
+          <input
+            type="radio"
+            name={radioName}
+            checked={seleccionado === columna}
+            onChange={() => onChangeCelda(columna)}
+            className="w-4 h-4 text-blue-600 focus:ring-blue-500 mx-auto block"
+          />
+        );
+      }
+
+      default:
+        return (
+          <input
+            type="text"
+            value={valorCelda || ''}
+            onChange={e => onChangeCelda(e.target.value)}
+            className={`${inputBase} w-20`}
+          />
+        );
+    }
+  };
+
+  const renderCampo = (campo: DiagnosticoCampo) => {
+    const valor = valores[campo.nombre_campo] ?? '';
+    const baseClass = "w-full border rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+    const etiquetaConContexto = getCampoContexto(campo);
+
+    switch (campo.tipo_dato) {
+      case 'textarea':
+        return (
+          <textarea
+            value={valor}
+            onChange={e => handleChange(campo, e.target.value)}
+            className={baseClass}
+            rows={3}
+            placeholder={etiquetaConContexto}
+            required={campo.requerido}
+          />
+        );
+
+      case 'number':
+        return (
+          <input
+            type="number"
+            value={valor}
+            onChange={e => handleChange(campo, e.target.value)}
+            className={baseClass}
+            placeholder="0"
+            required={campo.requerido}
+            step="any"
+          />
+        );
+
+      case 'date':
+        return (
+          <input
+            type="date"
+            value={valor}
+            onChange={e => handleChange(campo, e.target.value)}
+            className={baseClass}
+            required={campo.requerido}
+          />
+        );
+
+      case 'select':
+        return (
+          <select
+            value={Array.isArray(valor) ? '' : valor}
+            onChange={e => handleChange(campo, e.target.value)}
+            className={baseClass}
+            required={campo.requerido}
+          >
+            <option value="">Seleccionar...</option>
             {(Array.isArray(campo.opciones) ? campo.opciones : []).map((op: string) => (
+              <option key={op} value={op}>{op}</option>
+            ))}
+          </select>
+        );
+
+      case 'multiselect': {
+        const seleccionados: string[] = Array.isArray(valor) ? valor : [];
+        const opciones = Array.isArray(campo.opciones) ? campo.opciones : [];
+        return (
+          <div className="space-y-1.5">
+            {opciones.map((op: string) => (
               <label key={op} className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={selectedValues.includes(op)}
+                  checked={seleccionados.includes(op)}
                   onChange={e => {
                     const nuevo = e.target.checked
-                      ? [...selectedValues, op]
-                      : selectedValues.filter(v => v !== op);
+                      ? [...seleccionados, op]
+                      : seleccionados.filter(v => v !== op);
                     handleChange(campo, nuevo);
                   }}
                   className="w-4 h-4 rounded"
@@ -325,21 +280,122 @@ const FormularioDinamicoSection: React.FC<Props> = ({
               </label>
             ))}
           </div>
-        </div>
-        
-        {/* Expandir hijos por cada valor seleccionado */}
-        {selectedValues.length > 0 && (
-          <div className="ml-4 space-y-4">
-            {generateExpandedFields(campo, selectedValues)}
+        );
+      }
+
+      case 'boolean':
+        return (
+          <select
+            value={valor}
+            onChange={e => handleChange(campo, e.target.value)}
+            className={baseClass}
+            required={campo.requerido}
+          >
+            <option value="">Seleccionar...</option>
+            <option value="true">Sí</option>
+            <option value="false">No</option>
+          </select>
+        );
+
+      case 'matrix': {
+        const matrixData = campo.opciones as { filas: string[]; columnas: string[]; tipo_celda: string } | null;
+        if (!matrixData || !matrixData.filas || !matrixData.columnas) {
+          return <p className="text-red-500 text-sm">Error: matriz mal configurada</p>;
+        }
+        const { filas, columnas, tipo_celda } = matrixData;
+        const valorMatriz: Record<string, Record<string, any>> =
+          (typeof valor === 'object' && valor !== null && !Array.isArray(valor))
+            ? valor as Record<string, Record<string, any>>
+            : {};
+
+        const handleCeldaChange = (fila: string, columna: string, nuevoValor: any) => {
+          const nuevaMatriz = { ...valorMatriz };
+          
+          if (!nuevaMatriz[fila]) {
+            nuevaMatriz[fila] = {};
+          } else {
+            nuevaMatriz[fila] = { ...nuevaMatriz[fila] };
+          }
+
+          if (tipo_celda === 'radio') {
+            if (nuevoValor === columna) {
+              nuevaMatriz[fila]['_selected'] = columna;
+            }
+          } else {
+            if (nuevoValor === '' || nuevoValor === false || nuevoValor === undefined) {
+              delete nuevaMatriz[fila][columna];
+            } else {
+              nuevaMatriz[fila][columna] = nuevoValor;
+            }
+          }
+          
+          if (Object.keys(nuevaMatriz[fila]).length === 0) {
+            delete nuevaMatriz[fila];
+          }
+          
+          handleChange(campo, Object.keys(nuevaMatriz).length > 0 ? nuevaMatriz : '');
+        };
+
+        return (
+          <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
+                    {etiquetaConContexto}
+                  </th>
+                  {columnas.map((col, idx) => (
+                    <th key={idx} className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filas.map((fila, idx) => (
+                  <tr key={fila} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                    <td className="px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-inherit whitespace-nowrap">
+                      {fila}
+                    </td>
+                    {columnas.map((col, colIdx) => (
+                      <td key={colIdx} className="px-2 py-1 text-center">
+                        {renderCeldaMatriz(
+                          tipo_celda === 'radio' 
+                            ? valorMatriz[fila]?.['_selected'] 
+                            : valorMatriz[fila]?.[col] ?? '',
+                          tipo_celda,
+                          (nuevoValor) => handleCeldaChange(fila, col, nuevoValor),
+                          fila,
+                          col,
+                          campo.nombre_campo,
+                          valorMatriz
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
-    );
+        );
+      }
+
+      default:
+        return (
+          <input
+            type="text"
+            value={valor}
+            onChange={e => handleChange(campo, e.target.value)}
+            className={baseClass}
+            placeholder={etiquetaConContexto}
+            required={campo.requerido}
+          />
+        );
+    }
   };
 
-  // Ordenar campos: primeros los que no tienen padre
-  const camposRaiz = campos.filter(c => !c.campo_padre_id);
-  const camposOrdenados = [...camposRaiz].sort((a, b) => a.orden - b.orden);
+  // Campos visibles ordenados
+  const camposVisibles = campos.filter(c => esCampoVisible(c));
 
   if (!campos || campos.length === 0) {
     return (
@@ -352,11 +408,17 @@ const FormularioDinamicoSection: React.FC<Props> = ({
 
   return (
     <div className="space-y-4">
-      {camposOrdenados.map(campo => {
-        if (campo.tipo_dato === 'multiselect') {
-          return renderCampoMultiselect(campo);
-        }
-        return renderCampoNormal(campo);
+      {camposVisibles.map(campo => {
+        const etiquetaConContexto = getCampoContexto(campo);
+        return (
+          <div key={campo.id}>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {etiquetaConContexto}
+              {campo.requerido && <span className="text-red-500 ml-1">*</span>}
+            </label>
+            {renderCampo(campo)}
+          </div>
+        );
       })}
     </div>
   );
