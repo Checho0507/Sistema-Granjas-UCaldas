@@ -34,7 +34,6 @@ const FormularioDinamicoSection: React.FC<Props> = ({
     let current: DiagnosticoCampo | undefined = campo;
     let visited = new Set<number>();
     
-    // Agregar contexto general si existe (para saber a qué planta pertenece)
     if (contexto) {
       breadcrumb.push(contexto);
     }
@@ -46,7 +45,6 @@ const FormularioDinamicoSection: React.FC<Props> = ({
       
       const valorPadre = getValorCampo(padre.nombre_campo);
       if (valorPadre && valorPadre !== '') {
-        // Si el padre es multiselect y tenemos un valor específico, usar ese
         if (Array.isArray(valorPadre) && valorEspecifico && padre.id === campo.campo_padre_id) {
           breadcrumb.push(valorEspecifico);
         } else if (!Array.isArray(valorPadre)) {
@@ -163,7 +161,6 @@ const FormularioDinamicoSection: React.FC<Props> = ({
             className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 mx-auto block"
           />
         );
-
       case 'number':
         return (
           <input
@@ -175,7 +172,6 @@ const FormularioDinamicoSection: React.FC<Props> = ({
             step="any"
           />
         );
-
       case 'radio': {
         const seleccionado = valorMatriz[fila]?.['_selected'] || '';
         const radioName = prefix 
@@ -191,7 +187,6 @@ const FormularioDinamicoSection: React.FC<Props> = ({
           />
         );
       }
-
       default:
         return (
           <input
@@ -248,7 +243,6 @@ const FormularioDinamicoSection: React.FC<Props> = ({
                     </label>
                   ))}
                 </div>
-                {/* Recursión para hijos del multiselect */}
                 {valoresHijoSeleccionados.map(valorHijoSeleccionado => (
                   <div key={`${hijo.id}_${valorHijoSeleccionado}`}>
                     {renderHijosParaValor(hijo, valorHijoSeleccionado, nivel + 1)}
@@ -258,7 +252,7 @@ const FormularioDinamicoSection: React.FC<Props> = ({
             );
           }
           
-          // Para campos normales
+          // Para campos normales (NO multiselect)
           return (
             <div key={hijo.id}>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -434,12 +428,20 @@ const FormularioDinamicoSection: React.FC<Props> = ({
     }
   };
 
+  // Obtener hijos directos NO multiselect que NO tienen padre multiselect
+  const getHijosNormalesDirectos = (campo: DiagnosticoCampo): DiagnosticoCampo[] => {
+    return campos.filter(c => 
+      c.campo_padre_id === campo.id && 
+      c.tipo_dato !== 'multiselect'
+    );
+  };
+
   // Renderizar campo principal
   const renderCampo = (campo: DiagnosticoCampo) => {
     const valor = valores[campo.nombre_campo] ?? '';
     const etiquetaConContexto = getCampoContexto(campo);
 
-    // Para campos multiselect: mostrar checkboxes y luego expandir hijos por cada selección
+    // Para campos multiselect
     if (campo.tipo_dato === 'multiselect') {
       const seleccionados: string[] = Array.isArray(valor) ? valor : [];
       const opciones = Array.isArray(campo.opciones) ? campo.opciones : [];
@@ -486,20 +488,39 @@ const FormularioDinamicoSection: React.FC<Props> = ({
       );
     }
 
-    // Para campos normales
+    // Para campos normales (NO multiselect) - NO renderizar si tiene padre multiselect
+    // porque esos ya se renderizan en renderHijosParaValor
+    const tienePadreMultiselect = campos.some(c => 
+      c.id === campo.campo_padre_id && c.tipo_dato === 'multiselect'
+    );
+    
+    if (tienePadreMultiselect) {
+      return null;
+    }
+    
+    const hijosNormales = getHijosNormalesDirectos(campo);
+    
     return (
-      <div>
+      <div className="mb-4">
         <label className="block text-sm font-medium text-gray-700 mb-1">
           {etiquetaConContexto}
           {campo.requerido && <span className="text-red-500 ml-1">*</span>}
         </label>
         {renderCampoSimple(campo, valor, etiquetaConContexto)}
+        
+        {/* Renderizar hijos normales (no multiselect) */}
+        {hijosNormales.length > 0 && (
+          <div className="ml-4 pl-4 border-l-2 border-gray-200 mt-3">
+            {hijosNormales.map(hijo => renderCampo(hijo))}
+          </div>
+        )}
       </div>
     );
   };
 
-  // Campos visibles ordenados
-  const camposVisibles = campos.filter(c => esCampoVisible(c));
+  // Campos raíz (sin padre)
+  const camposRaiz = campos.filter(c => !c.campo_padre_id);
+  const camposVisibles = camposRaiz.filter(c => esCampoVisible(c));
 
   if (!campos || campos.length === 0) {
     return (
