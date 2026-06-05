@@ -47,7 +47,7 @@ interface DiagnosticoFormProps {
     condiciones_dia: string[];
     currentUser: any;
     esEdicion?: boolean;
-    porcentajeMuestreo?: number;
+    porcentajeMuestreo?: number; // Puede ser 10 o 5
 }
 
 // ── Función para ordenar plantas por surco y número ──────────────────────────
@@ -71,7 +71,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     condiciones_dia = ['Soleado', 'Nublado', 'Lluvia'],
     currentUser,
     esEdicion = false,
-    porcentajeMuestreo = 10,
+    porcentajeMuestreo = 10, // Valor por defecto, el padre puede pasar 5 o 10
 }) => {
     const [paso, setPaso] = useState(1);
 
@@ -151,6 +151,8 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         setErrorPlantas(null);
 
         const esArvenses = subtipoId != null && (subtipos.find(s => s.id === subtipoId)?.patron_arvenses === true);
+        // Para arvenses siempre son 5 puntos fijos
+        // Para otros, usamos el porcentajeMuestreo (que puede ser 10 o 5)
         const cantidad = esArvenses
             ? 5
             : Math.max(1, Math.floor(estructuraLote.total_plantas * porcentajeMuestreo / 100));
