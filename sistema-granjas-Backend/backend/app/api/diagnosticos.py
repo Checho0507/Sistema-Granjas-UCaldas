@@ -76,7 +76,7 @@ def _cargar_plantas(db: Session, diagnostico: Diagnostico) -> List[PlantaSimpleR
         )
         for p in plantas
     ]
-
+    
 @router.post("/generar-plantas", response_model=GenerarPlantasResponse)
 def generar_plantas_aleatorias(
     data: GenerarPlantasRequest,
@@ -96,8 +96,6 @@ def generar_plantas_aleatorias(
         surcos = lote.surcos or 1
         ppsr = lote.plantas_por_surco or 1
 
-        # X-pattern (< 100 plantas): 4 esquinas + centro
-        # W-pattern (>= 100 plantas): extremos superiores, valles inferiores + cima interior
         if total_plantas_lote < 100:
             patron = 'X'
             s_mid = max(1, round(surcos / 2))
@@ -123,7 +121,6 @@ def generar_plantas_aleatorias(
                 (1,      ppsr),
             ]
 
-        # Obtener todas las plantas productivas del lote
         todas_productivas = db.query(Planta).filter(
             Planta.lote_id == data.lote_id,
             Planta.estado == "productivo"
@@ -138,7 +135,6 @@ def generar_plantas_aleatorias(
                 advertencias=["No hay plantas productivas en este lote."]
             )
 
-        # Para cada objetivo, encontrar la planta más cercana (distancia euclidiana)
         seleccionadas: list = []
         ids_usados: set = set()
         for (obj_surco, obj_numero) in objetivos:
@@ -171,10 +167,14 @@ def generar_plantas_aleatorias(
             advertencias=advertencias
         )
 
-    # ── Lógica estándar: 10% de plantas productivas (IGNORA data.cantidad) ────
-    # Calcular el 10% real de las plantas productivas, mínimo 1
-    cantidad_real = max(1, int(productivas * 0.1))
-    advertencias.append(f"Generando {cantidad_real} plantas ({10}% de {productivas} plantas productivas)")
+    # ── Lógica estándar: 5% o 10% según cantidad de plantas productivas ────────
+    if productivas > 100:
+        porcentaje = 5
+    else:
+        porcentaje = 10
+    
+    cantidad_real = max(1, int(productivas * porcentaje / 100))
+    advertencias.append(f"Generando {cantidad_real} plantas ({porcentaje}% de {productivas} plantas productivas)")
 
     hace_un_mes = datetime.utcnow() - timedelta(days=30)
 
@@ -209,7 +209,6 @@ def generar_plantas_aleatorias(
         elegibles=elegibles,
         advertencias=advertencias
     )
-
 
 # ── ENDPOINTS CRUD ──────────────────────────────────────────────────────────────
 @router.get("/", response_model=DiagnosticoListResponse)
