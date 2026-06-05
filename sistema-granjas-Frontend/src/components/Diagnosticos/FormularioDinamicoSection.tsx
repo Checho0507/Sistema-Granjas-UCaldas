@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import type { DiagnosticoCampo } from '../../services/diagnosticoDinamicoService';
 
 interface Props {
@@ -6,30 +6,71 @@ interface Props {
   valores: Record<string, any>;
   onChange: (nombre: string, valor: any) => void;
   prefix?: string;
+  contexto?: string;
 }
 
 const FormularioDinamicoSection: React.FC<Props> = ({ 
   campos, 
   valores, 
   onChange,
-  prefix = '' 
+  prefix = '',
+  contexto = ''
 }) => {
-  if (!campos || campos.length === 0) {
-    return (
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-yellow-700 text-sm">
-        <i className="fas fa-info-circle mr-2"></i>
-        Este tipo de diagnóstico no tiene campos configurados. Contacta al administrador.
-      </div>
-    );
-  }
+  // Construir el árbol de dependencias
+  const campoPorId = useMemo(() => {
+    const map = new Map<number, DiagnosticoCampo>();
+    campos.forEach(campo => map.set(campo.id, campo));
+    return map;
+  }, [campos]);
+
+  // Obtener el valor de un campo por nombre
+  const getValorCampo = (nombreCampo: string): any => {
+    return valores[nombreCampo];
+  };
+
+  // Obtener el contexto completo para un campo (breadcrumb con valores)
+  const getCampoContexto = (campo: DiagnosticoCampo): string => {
+    const breadcrumb: string[] = [];
+    let current: DiagnosticoCampo | undefined = campo;
+    let visited = new Set<number>();
+    
+    // Agregar contexto general si existe (para saber a qué planta pertenece)
+    if (contexto) {
+      breadcrumb.push(contexto);
+    }
+    
+    while (current?.campo_padre_id && !visited.has(current.id)) {
+      visited.add(current.id);
+      const padre = campoPorId.get(current.campo_padre_id);
+      if (!padre) break;
+      
+      const valorPadre = getValorCampo(padre.nombre_campo);
+      if (valorPadre && valorPadre !== '') {
+        const valorStr = Array.isArray(valorPadre) ? valorPadre.join(', ') : String(valorPadre);
+        breadcrumb.push(`${padre.etiqueta}: ${valorStr}`);
+      }
+      current = padre;
+    }
+    
+    if (breadcrumb.length > 0) {
+      return `${breadcrumb.join(' → ')} → ${campo.etiqueta}`;
+    }
+    return campo.etiqueta;
+  };
 
   // Helper: saber si un campo es visible según el valor actual de su padre
-  const esCampoVisible = (campo: DiagnosticoCampo): boolean => {
+  const esCampoVisible = (campo: DiagnosticoCampo, visitados: Set<number> = new Set()): boolean => {
+    if (visitados.has(campo.id)) return true;
+    visitados.add(campo.id);
+    
     if (!campo.campo_padre_id) return true;
-    const padre = campos.find(c => c.id === campo.campo_padre_id);
+    const padre = campoPorId.get(campo.campo_padre_id);
     if (!padre) return true;
-    const valorPadre = valores[padre.nombre_campo];
+    
+    const valorPadre = getValorCampo(padre.nombre_campo);
     if (!valorPadre || !campo.opciones_padre) return false;
+    
+    if (!esCampoVisible(padre, visitados)) return false;
     
     if (Array.isArray(valorPadre)) {
       return campo.opciones_padre.some(op => valorPadre.includes(op));
@@ -68,7 +109,7 @@ const FormularioDinamicoSection: React.FC<Props> = ({
   }, [campos, valores, onChange]);
 
   // Manejar cambio en campo padre limpiando hijos que ya no aplican
-  const handleSelectChange = (campo: DiagnosticoCampo, nuevoValor: any) => {
+  const handleChange = (campo: DiagnosticoCampo, nuevoValor: any) => {
     onChange(campo.nombre_campo, nuevoValor);
     
     const hijosDirectos = campos.filter(c => c.campo_padre_id === campo.id);
@@ -162,16 +203,17 @@ const FormularioDinamicoSection: React.FC<Props> = ({
   const renderCampo = (campo: DiagnosticoCampo) => {
     const valor = valores[campo.nombre_campo] ?? '';
     const baseClass = "w-full border rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+    const etiquetaConContexto = getCampoContexto(campo);
 
     switch (campo.tipo_dato) {
       case 'textarea':
         return (
           <textarea
             value={valor}
-            onChange={e => onChange(campo.nombre_campo, e.target.value)}
+            onChange={e => handleChange(campo, e.target.value)}
             className={baseClass}
             rows={3}
-            placeholder={campo.etiqueta}
+            placeholder={etiquetaConContexto}
             required={campo.requerido}
           />
         );
@@ -181,7 +223,7 @@ const FormularioDinamicoSection: React.FC<Props> = ({
           <input
             type="number"
             value={valor}
-            onChange={e => onChange(campo.nombre_campo, e.target.value)}
+            onChange={e => handleChange(campo, e.target.value)}
             className={baseClass}
             placeholder="0"
             required={campo.requerido}
@@ -194,7 +236,7 @@ const FormularioDinamicoSection: React.FC<Props> = ({
           <input
             type="date"
             value={valor}
-            onChange={e => onChange(campo.nombre_campo, e.target.value)}
+            onChange={e => handleChange(campo, e.target.value)}
             className={baseClass}
             required={campo.requerido}
           />
@@ -204,7 +246,7 @@ const FormularioDinamicoSection: React.FC<Props> = ({
         return (
           <select
             value={Array.isArray(valor) ? '' : valor}
-            onChange={e => handleSelectChange(campo, e.target.value)}
+            onChange={e => handleChange(campo, e.target.value)}
             className={baseClass}
             required={campo.requerido}
           >
@@ -229,7 +271,7 @@ const FormularioDinamicoSection: React.FC<Props> = ({
                     const nuevo = e.target.checked
                       ? [...seleccionados, op]
                       : seleccionados.filter(v => v !== op);
-                    handleSelectChange(campo, nuevo);
+                    handleChange(campo, nuevo);
                   }}
                   className="w-4 h-4 rounded"
                 />
@@ -244,7 +286,7 @@ const FormularioDinamicoSection: React.FC<Props> = ({
         return (
           <select
             value={valor}
-            onChange={e => onChange(campo.nombre_campo, e.target.value)}
+            onChange={e => handleChange(campo, e.target.value)}
             className={baseClass}
             required={campo.requerido}
           >
@@ -290,7 +332,7 @@ const FormularioDinamicoSection: React.FC<Props> = ({
             delete nuevaMatriz[fila];
           }
           
-          onChange(campo.nombre_campo, Object.keys(nuevaMatriz).length > 0 ? nuevaMatriz : '');
+          handleChange(campo, Object.keys(nuevaMatriz).length > 0 ? nuevaMatriz : '');
         };
 
         return (
@@ -299,7 +341,7 @@ const FormularioDinamicoSection: React.FC<Props> = ({
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
-                    {campo.etiqueta}
+                    {etiquetaConContexto}
                   </th>
                   {columnas.map((col, idx) => (
                     <th key={idx} className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
@@ -342,95 +384,35 @@ const FormularioDinamicoSection: React.FC<Props> = ({
           <input
             type="text"
             value={valor}
-            onChange={e => onChange(campo.nombre_campo, e.target.value)}
+            onChange={e => handleChange(campo, e.target.value)}
             className={baseClass}
-            placeholder={campo.etiqueta}
+            placeholder={etiquetaConContexto}
             required={campo.requerido}
           />
         );
     }
   };
 
-  // Breadcrumb simple por campo
-  const getBreadcrumb = (campo: DiagnosticoCampo): Array<{etiqueta: string; valor: string}> | null => {
-    if (!campo.campo_padre_id) return null;
-    
-    const breadcrumb: Array<{etiqueta: string; valor: string}> = [];
-    let currentCampo: DiagnosticoCampo | undefined = campo;
-    let visited = new Set<number>();
-    
-    while (currentCampo?.campo_padre_id && !visited.has(currentCampo.id)) {
-      visited.add(currentCampo.id);
-      const padre = campos.find(c => c.id === currentCampo!.campo_padre_id);
-      if (!padre) break;
-      
-      const valorPadre = valores[padre.nombre_campo];
-      const valorLegible = Array.isArray(valorPadre) 
-        ? valorPadre.join(', ') 
-        : (valorPadre || 'No seleccionado');
-      
-      breadcrumb.unshift({
-        etiqueta: padre.etiqueta,
-        valor: valorLegible
-      });
-      
-      currentCampo = padre;
-    }
-    
-    return breadcrumb.length > 0 ? breadcrumb : null;
-  };
-
-  const getNivelAnidacion = (campo: DiagnosticoCampo): number => {
-    let nivel = 0;
-    let currentCampo: DiagnosticoCampo | undefined = campo;
-    let visited = new Set<number>();
-    
-    while (currentCampo?.campo_padre_id && !visited.has(currentCampo.id)) {
-      visited.add(currentCampo.id);
-      nivel++;
-      const padre = campos.find(c => c.id === currentCampo!.campo_padre_id);
-      if (!padre) break;
-      currentCampo = padre;
-    }
-    
-    return nivel;
-  };
-
   // Campos visibles ordenados
-  const camposVisibles = campos.filter(esCampoVisible);
+  const camposVisibles = campos.filter(c => esCampoVisible(c));
+
+  if (!campos || campos.length === 0) {
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-yellow-700 text-sm">
+        <i className="fas fa-info-circle mr-2"></i>
+        Este tipo de diagnóstico no tiene campos configurados. Contacta al administrador.
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       {camposVisibles.map(campo => {
-        const breadcrumb = getBreadcrumb(campo);
-        const nivel = getNivelAnidacion(campo);
-        const colors = ['border-yellow-300', 'border-orange-300', 'border-pink-300', 'border-purple-300'];
-        const borderColor = nivel > 0 ? colors[Math.min(nivel - 1, colors.length - 1)] : '';
-        
+        const etiquetaConContexto = getCampoContexto(campo);
         return (
-          <div 
-            key={campo.id} 
-            className={nivel > 0 ? `pl-4 border-l-2 ${borderColor}` : ''}
-          >
-            {/* Breadcrumb de dependencias */}
-            {breadcrumb && breadcrumb.length > 0 && (
-              <div className="mb-2 flex flex-wrap items-center gap-1 text-xs">
-                {breadcrumb.map((item, idx) => (
-                  <React.Fragment key={idx}>
-                    {idx > 0 && (
-                      <i className="fas fa-chevron-right text-gray-300 text-[10px]"></i>
-                    )}
-                    <span className="inline-flex items-center gap-1 bg-gray-100 border border-gray-200 rounded-full px-2 py-0.5">
-                      <span className="text-gray-500 font-medium">{item.etiqueta}:</span>
-                      <span className="text-gray-700 font-semibold">{item.valor}</span>
-                    </span>
-                  </React.Fragment>
-                ))}
-              </div>
-            )}
-            
+          <div key={campo.id}>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {campo.etiqueta}
+              {etiquetaConContexto}
               {campo.requerido && <span className="text-red-500 ml-1">*</span>}
             </label>
             {renderCampo(campo)}

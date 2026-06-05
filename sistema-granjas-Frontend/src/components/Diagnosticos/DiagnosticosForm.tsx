@@ -50,6 +50,16 @@ interface DiagnosticoFormProps {
     porcentajeMuestreo?: number;
 }
 
+// ── Función para ordenar plantas por surco y número ──────────────────────────
+const ordenarPlantas = (plantas: PlantaBase[]): PlantaBase[] => {
+    return [...plantas].sort((a, b) => {
+        if (a.surco !== b.surco) {
+            return a.surco - b.surco;
+        }
+        return a.planta - b.planta;
+    });
+};
+
 const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     isOpen,
     diagnostico,
@@ -162,15 +172,18 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                     surco: p.surco,
                     planta: p.numero,
                 }));
-                setPlantas(plantasFormateadas);
+                
+                // Ordenar las plantas antes de guardarlas
+                const plantasOrdenadas = ordenarPlantas(plantasFormateadas);
+                setPlantas(plantasOrdenadas);
                 setFormulariosPorPlanta({});
 
                 if (data.advertencias?.length) {
                     toast.warning(data.advertencias.join(' '));
                 } else if (esArvenses) {
-                    toast.success(`${plantasFormateadas.length} puntos de muestreo generados (Monitoreo de Arvenses)`);
+                    toast.success(`${plantasOrdenadas.length} puntos de muestreo generados (Monitoreo de Arvenses)`);
                 } else {
-                    toast.success(`${plantasFormateadas.length} plantas elegibles (${porcentajeMuestreo}% de ${estructuraLote.total_plantas})`);
+                    toast.success(`${plantasOrdenadas.length} plantas elegibles (${porcentajeMuestreo}% de ${estructuraLote.total_plantas})`);
                 }
             } else {
                 setPlantas([]);
@@ -204,11 +217,11 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     useEffect(() => {
         if (!tipoMonitoreoId) {
             setSubtipos([]);
-            if (!esEdicion) setSubtipoId(null); // Solo resetear si no es edición
+            if (!esEdicion) setSubtipoId(null);
             return;
         }
         setLoadingSubtipos(true);
-        if (!esEdicion) setSubtipoId(null); // Solo resetear si no es edición
+        if (!esEdicion) setSubtipoId(null);
         diagnosticoDinamicoService.listarSubtiposPorMonitoreo(tipoMonitoreoId)
             .then(data => setSubtipos(data.filter(s => s.activo)))
             .catch(() => toast.error('Error al cargar subtipos'))
@@ -296,11 +309,8 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         setPaso(2);
         const d = diagnostico as any;
         
-        // Establecer los IDs en orden correcto para que los useEffect los procesen
         if (d.programa_id) setProgramaId(d.programa_id);
         if (d.tipo_monitoreo_id) setTipoMonitoreoId(d.tipo_monitoreo_id);
-        // IMPORTANTE: Establecer subtipoId DESPUÉS de tipoMonitoreoId
-        // pero el useEffect de subtipos se encargará de cargar la lista
         if (d.diagnostico_tipo_id) setSubtipoId(d.diagnostico_tipo_id);
         if (d.lote_id) setLoteId(d.lote_id);
         if (d.tipo_diagnostico) setTipoDiagnostico(d.tipo_diagnostico);
@@ -674,6 +684,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                                         valores={formulariosPorPlanta[planta.id] || {}}
                                                         onChange={(campo, valor) => handleCambioPorPlanta(planta.id, campo, valor)}
                                                         prefix={`planta_${planta.id}`}
+                                                        contexto={`🌱 ${planta.label}`}
                                                     />
                                                 </div>
                                             </div>
@@ -681,7 +692,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                     </div>
                                 )}
 
-                                {/* Formulario global o fallback con GenericDynamicSection */}
+                                {/* Formulario global o fallback con FormularioDinamicoSection */}
                                 {!mostrarPorPlanta && camposDinamicos.length > 0 && (
                                     <div className="border border-blue-200 rounded-xl p-4 bg-blue-50">
                                         <p className="text-xs text-blue-700 font-semibold mb-3">
@@ -692,6 +703,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                             campos={camposDinamicos}
                                             valores={caracterizacion}
                                             onChange={handleCaracterizacionChange}
+                                            contexto="📋 General"
                                         />
                                     </div>
                                 )}
@@ -702,6 +714,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
                                         tipoNombre={tipoDiagnostico}
                                         caracterizacion={caracterizacion}
                                         onCampoChange={handleCaracterizacionChange}
+                                        contexto={plantas.length > 0 ? `🌱 ${plantas.length} plantas seleccionadas` : "📋 General"}
                                     />
                                 )}
                             </div>

@@ -4,12 +4,14 @@ interface GenericDynamicSectionProps {
     caracterizacion: Record<string, string>;
     onCampoChange: (campo: string, valor: string) => void;
     tipoNombre: string;
+    contexto?: string;
 }
 
 const GenericDynamicSection: React.FC<GenericDynamicSectionProps> = ({
     caracterizacion,
     onCampoChange,
     tipoNombre,
+    contexto = '',
 }) => {
     const [campos, setCampos] = useState<string[]>(() => {
         const existentes = Object.keys(caracterizacion).filter(k => !k.startsWith('__'));
@@ -35,6 +37,12 @@ const GenericDynamicSection: React.FC<GenericDynamicSectionProps> = ({
     return (
         <div className="space-y-4">
             <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-purple-800">
+                {contexto && (
+                    <span className="font-medium block mb-1">
+                        <i className="fas fa-location-dot mr-1"></i>
+                        {contexto}
+                    </span>
+                )}
                 <strong>Monitoreo:</strong> {tipoNombre} — Formulario dinámico.
                 Agrega los campos que necesites para registrar los datos de este tipo de monitoreo.
             </div>
