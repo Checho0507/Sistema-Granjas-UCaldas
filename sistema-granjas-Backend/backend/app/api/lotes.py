@@ -14,7 +14,7 @@ from app.CRUD import lote_cultivos
 from app.schemas.lote_schema import (
     LoteCreate, LoteUpdate, LoteResponse, LoteWithRelations
 )
-from app.db.models import Lote, LoteCultivo, CultivoEspecie
+from app.db.models import Lote, LoteCultivo, CultivoEspecie, Planta
 
 router = APIRouter(prefix="/lotes", tags=["Lotes"])
 
@@ -32,11 +32,8 @@ def construir_lote_dict(lote: Lote):
         "fecha_inicio": lote.fecha_inicio,
         "estado": lote.estado,
         "fecha_creacion": lote.created_at if hasattr(lote, 'created_at') else None,
-
-        # 👇 NUEVOS CAMPOS
         "surcos": lote.surcos,
         "plantas_por_surco": lote.plantas_por_surco,
-
         "cultivos_ids": [lc.cultivo_id for lc in lote.cultivos_asignados]
     }
 
@@ -79,12 +76,20 @@ def obtener_estructura_lote(
     if not lote:
         raise HTTPException(status_code=404, detail="Lote no encontrado")
     
+    # 🔹 CONTAR PLANTAS PRODUCTIVAS REALES
+    plantas_productivas = db.query(Planta).filter(
+        Planta.lote_id == lote_id,
+        Planta.estado == "productivo"
+    ).count()
+    
+    # 🔹 CALCULAR PORCENTAJE DE MUESTREO
+    porcentaje_muestreo = 5 if plantas_productivas > 100 else 10
+    
     # Generar la estructura de plantas basada en surcos y plantas_por_surco
     plantas = []
     
     if lote.surcos and lote.plantas_por_surco:
         # Limitar la cantidad de plantas para no sobrecargar el frontend
-        # Mostrar máximo 1000 plantas (o ajustar según necesidad)
         MAX_PLANTAS = 1000
         total_plantas = lote.surcos * lote.plantas_por_surco
         
@@ -100,7 +105,6 @@ def obtener_estructura_lote(
                     })
         else:
             # Si hay muchas plantas, generar una muestra representativa
-            # Por ejemplo, tomar cada N plantas
             intervalo_surco = max(1, lote.surcos // 10)
             intervalo_planta = max(1, lote.plantas_por_surco // 10)
             
@@ -134,6 +138,8 @@ def obtener_estructura_lote(
         "surcos": lote.surcos,
         "plantas_por_surco": lote.plantas_por_surco,
         "total_plantas": lote.surcos * lote.plantas_por_surco if lote.surcos and lote.plantas_por_surco else 0,
+        "plantas_productivas": plantas_productivas,
+        "porcentaje_muestreo": porcentaje_muestreo,
         "plantas": plantas,
         "cultivos": cultivos_info,
         "granja": {

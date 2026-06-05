@@ -82,7 +82,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     const [subtipos, setSubtipos] = useState<DiagnosticoTipo[]>([]);
     const [camposDinamicos, setCamposDinamicos] = useState<DiagnosticoCampo[]>([]);
     const [loadingSubtipos, setLoadingSubtipos] = useState(false);
-    const [estructuraLote, setEstructuraLote] = useState<EstruturaLote | null>(null);
+    const [estructuraLote, setEstructuraLote] = useState<EstructuraLote | null>(null);
     const [cargandoEstructura, setCargandoEstructura] = useState(false);
 
     const [plantasOriginales, setPlantasOriginales] = useState<PlantaBase[]>([]);
@@ -92,14 +92,14 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
     const loadingPlantsRef = useRef(false);
     const [submitting, setSubmitting] = useState(false);
     
-    // Estado para el porcentaje de muestreo calculado automáticamente
+    // Estado para el porcentaje de muestreo (viene del backend)
     const [porcentajeMuestreoCalculado, setPorcentajeMuestreoCalculado] = useState<number>(10);
 
     // Paso 2
     const [tipoDiagnostico, setTipoDiagnostico] = useState('');
     const [condicionesDia, setCondicionesDia] = useState('');
     const [caracterizacion, setCaracterizacion] = useState<Record<string, string>>({});
-    const [formulariosPorPlanta, setFormulariosPorPlanta] = useState<Record<number, Record<string, string>>>({}); // ← CORREGIDO: llave cerrada correctamente
+    const [formulariosPorPlanta, setFormulariosPorPlanta] = useState<Record<number, Record<string, string>>>({});
 
     // ── Determinar modo de visualización ──────────────────────────────────────
     const mostrarPorPlanta = useMemo(() => {
@@ -240,7 +240,7 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
             .catch(() => setCamposDinamicos([]));
     }, [subtipoId]);
 
-    // ── Cargar estructura del lote y calcular porcentaje ──────────────────────
+    // ── Cargar estructura del lote (ahora con porcentaje_muestreo incluido) ───
     useEffect(() => {
         if (!loteId) {
             setEstructuraLote(null);
@@ -250,27 +250,17 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         }
         setCargandoEstructura(true);
         loteService.obtenerEstructuraLote(loteId)
-            .then(async (estructura) => {
+            .then((estructura) => {
                 setEstructuraLote(estructura);
                 if (estructura.plantas?.length) {
                     setPlantasOriginales(estructura.plantas);
                     
-                    try {
-                        const productivasResponse = await api.get(`/lotes/${loteId}/plantas-productivas-count`);
-                        const productivas = productivasResponse.data?.count || 0;
-                        
-                        const nuevoPorcentaje = productivas > 100 ? 5 : 10;
-                        setPorcentajeMuestreoCalculado(nuevoPorcentaje);
-                        
-                        if (!esEdicion) {
-                            toast.success(`Lote cargado: ${estructura.total_plantas.toLocaleString()} plantas. ${productivas} productivas → Muestreo del ${nuevoPorcentaje}%`);
-                        }
-                    } catch (error) {
-                        console.error('Error obteniendo plantas productivas:', error);
-                        setPorcentajeMuestreoCalculado(10);
-                        if (!esEdicion) {
-                            toast.success(`Lote cargado: ${estructura.total_plantas.toLocaleString()} plantas.`);
-                        }
+                    // 🔹 Usar el porcentaje que viene del backend
+                    const nuevoPorcentaje = estructura.porcentaje_muestreo || 10;
+                    setPorcentajeMuestreoCalculado(nuevoPorcentaje);
+                    
+                    if (!esEdicion) {
+                        toast.success(`Lote cargado: ${estructura.total_plantas.toLocaleString()} plantas. ${estructura.plantas_productivas || 0} productivas → Muestreo del ${nuevoPorcentaje}%`);
                     }
                 } else {
                     toast.warning('Lote sin surcos/plantas configurados');

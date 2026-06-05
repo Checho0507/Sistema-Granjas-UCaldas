@@ -32,6 +32,8 @@ export interface EstructuraLote {
     surcos: number | null;
     plantas_por_surco: number | null;
     total_plantas: number;
+    plantas_productivas: number;  // ← NUEVO: Cantidad de plantas productivas reales
+    porcentaje_muestreo: number;   // ← NUEVO: Porcentaje de muestreo (5 o 10)
     plantas: Array<{
         codigo: string;
         label: string;
