@@ -9,6 +9,8 @@ import { StatsCard } from "../Common/StatsCard";
 import CultivosTable from "./CultivosTable";
 import CultivoForm from "./CultivosForm";
 import type { CultivoFormData, CultivoEspecie } from "../../types/cultivoTypes";
+import exportService from "../../services/exportService";
+import ExportButton from "../Common/ExportButton";
 
 export default function GestionCultivos() {
     const [searchParams] = useSearchParams();
@@ -178,19 +180,22 @@ export default function GestionCultivos() {
 
     return (
         <div className="p-6">
-            {canWrite && (
-            <button
-                onClick={() => {
-                    resetFormulario();
-                    setEditando(false);
-                    setModalCrear(true);
-                }}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg mb-4"
-            >
-                <i className="fas fa-plus mr-2"></i>
-                Nuevo Cultivo
-            </button>
-        )}
+            <div className="flex items-center gap-3 mb-4">
+                <ExportButton onExport={() => exportService.exportarCultivos()} />
+                {canWrite && (
+                <button
+                    onClick={() => {
+                        resetFormulario();
+                        setEditando(false);
+                        setModalCrear(true);
+                    }}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg"
+                >
+                    <i className="fas fa-plus mr-2"></i>
+                    Nuevo Cultivo
+                </button>
+            )}
+            </div>
 
             {/* Mensaje si no hay cultivos */}
             {!cargando && programaId && cultivos.length === 0 && (

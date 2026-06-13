@@ -6,6 +6,7 @@ import programaService from "../../services/programaService";
 import usuarioService from "../../services/usuarioService";
 import granjaService from "../../services/granjaService";
 import exportService from "../../services/exportService";
+import ExportButton from "../Common/ExportButton";
 import { StatsCard } from "../Common/StatsCard";
 import { ProgramaForm } from "./ProgramasForm";
 import { DetallesPrograma } from "./DetallesPrograma";
@@ -45,10 +46,6 @@ export default function GestionProgramas() {
   const [granjasPrograma, setGranjasPrograma] = useState<Granja[]>([]);
   const [usuarioSeleccionado, setUsuarioSeleccionado] = useState<number>(0);
   const [granjaSeleccionada, setGranjaSeleccionada] = useState<number>(0);
-
-  // Exportación
-  const [exporting, setExporting] = useState(false);
-  const [exportMessage, setExportMessage] = useState('');
 
   // Formulario
   const [editando, setEditando] = useState(false);
@@ -286,23 +283,6 @@ export default function GestionProgramas() {
     }
   };
 
-  const handleExportProgramas = async () => {
-    if (exporting) return;
-    setExporting(true);
-    setExportMessage("Exportando programas...");
-    try {
-      const result = granjaId
-        ? await exportService.exportarProgramasPorGranja(Number(granjaId))
-        : await exportService.exportarProgramas();
-      setExportMessage(`¡Exportación completada! (${result.filename})`);
-      setTimeout(() => setExportMessage(""), 5000);
-    } catch (error) {
-      setExportMessage("Error al exportar.");
-      setTimeout(() => setExportMessage(""), 5000);
-    } finally {
-      setExporting(false);
-    }
-  };
 
   const obtenerLabelTipo = (tipo: string) => {
     const tipoObj = tiposPrograma.find(t => t.value === tipo);
@@ -325,8 +305,9 @@ export default function GestionProgramas() {
 
   return (
     <div className="p-6">
-      {canWrite && (
-        <div className="mb-6">
+      <div className="mb-6 flex items-center gap-3 flex-wrap">
+        <ExportButton onExport={() => granjaId ? exportService.exportarProgramasPorGranja(Number(granjaId)) : exportService.exportarProgramas()} />
+        {canWrite && (
           <button
             onClick={() => {
               setDatosFormulario({
@@ -344,8 +325,8 @@ export default function GestionProgramas() {
             <i className="fas fa-plus"></i>
             Nuevo Programa
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       <ProgramasTable
         programas={programas}

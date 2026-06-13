@@ -359,6 +359,41 @@ class DataframeFetchers:
             logger.error(f"Error obteniendo cultivos: {str(e)}")
             return pd.DataFrame({"Error": [f"No se pudieron obtener cultivos: {str(e)}"]})
     
+    def get_plantas_dataframe(self) -> pd.DataFrame:
+        """Obtener DataFrame de plantas bien formateado"""
+        from app.db.models import Planta, Lote
+        
+        try:
+            plantas_data = (
+                self.db.query(
+                    Planta.id,
+                    Planta.codigo,
+                    Planta.surco,
+                    Planta.numero,
+                    Planta.estado,
+                    Lote.nombre.label('lote_nombre')
+                )
+                .outerjoin(Lote, Planta.lote_id == Lote.id)
+                .all()
+            )
+            
+            data = []
+            for p in plantas_data:
+                data.append({
+                    'id': p.id,
+                    'codigo': p.codigo,
+                    'surco': p.surco,
+                    'numero': p.numero,
+                    'estado': p.estado,
+                    'lote': p.lote_nombre or '',
+                })
+            
+            df = pd.DataFrame(data)
+            return self._format_dataframe(df)
+        except Exception as e:
+            logger.error(f"Error obteniendo plantas: {str(e)}")
+            return pd.DataFrame({"Error": [f"No se pudieron obtener plantas: {str(e)}"]})
+    
     def get_movimientos_dataframe(self) -> pd.DataFrame:
         """Obtener DataFrame de movimientos bien formateado"""
         from app.db.models import MovimientoInsumo, MovimientoHerramienta, Labor

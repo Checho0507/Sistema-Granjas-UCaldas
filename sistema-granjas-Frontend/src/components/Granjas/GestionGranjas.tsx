@@ -7,6 +7,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { puedeEscribir } from '../../utils/permissions';
 import { GranjaForm } from './GranjasForm';
 import type { Granja, Programa } from '../../types/granjaTypes';
+import exportService from '../../services/exportService';
+import ExportButton from '../Common/ExportButton';
 
 interface ProgramaResumen {
   id: number;
@@ -164,8 +166,9 @@ const GestionGranjas: React.FC = () => {
       {/* Cabecera */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h2 className="text-2xl font-bold text-gray-800">Mis Granjas</h2>
-        {canWrite && (
-          <div className="flex space-x-3">
+        <div className="flex items-center gap-3">
+          <ExportButton onExport={() => exportService.exportarGranjas()} />
+          {canWrite && (
             <button
               onClick={abrirModalNueva}
               className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
@@ -173,8 +176,8 @@ const GestionGranjas: React.FC = () => {
               <i className="fas fa-plus mr-2"></i>
               Nueva Granja
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Error */}

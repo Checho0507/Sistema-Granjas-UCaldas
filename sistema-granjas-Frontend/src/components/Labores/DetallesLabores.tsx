@@ -44,7 +44,7 @@ const DetallesLaborModal: React.FC<DetallesLaborModalProps> = ({
     const totalesInsumos = calcularTotalesInsumos();
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} width="max-w-6xl">
+        <Modal isOpen={isOpen} onClose={onClose} width="max-w-6xl" showCloseButton={false}>
             <div className="p-6 max-h-[90vh] overflow-y-auto">
                 <LaborHeader
                     data={data}

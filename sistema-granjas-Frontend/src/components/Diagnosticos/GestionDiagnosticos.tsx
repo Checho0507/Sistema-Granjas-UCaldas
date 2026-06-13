@@ -17,6 +17,7 @@ import GestionTiposDiagnostico from './GestionTiposDiagnostico';
 import { useAuth } from '../../hooks/useAuth';
 import granjaService from '../../services/granjaService';
 import exportService from '../../services/exportService';
+import ExportButton from '../Common/ExportButton';
 
 type TabType = 'diagnosticos' | 'tipos';
 
@@ -52,8 +53,6 @@ const GestionDiagnosticos: React.FC = () => {
   const [filtros, setFiltros] = useState<DiagnosticoFiltros>({});
   const [subtiposFiltro, setSubtiposFiltro] = useState<DiagnosticoTipo[]>([]);
   const [cargandoSubtipos, setCargandoSubtipos] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const [exportMessage, setExportMessage] = useState('');
 
   const [showCrearModal, setShowCrearModal] = useState(false);
   const [showEditarModal, setShowEditarModal] = useState(false);
@@ -240,21 +239,6 @@ const GestionDiagnosticos: React.FC = () => {
     }
   };
 
-  const handleExportar = async () => {
-    if (exporting) return;
-    setExporting(true);
-    setExportMessage('Exportando diagnósticos...');
-    try {
-      const result = await exportService.exportarDiagnosticos();
-      setExportMessage(`¡Completado! (${result.filename})`);
-      setTimeout(() => setExportMessage(''), 5000);
-    } catch {
-      setExportMessage('Error al exportar.');
-      setTimeout(() => setExportMessage(''), 5000);
-    } finally {
-      setExporting(false);
-    }
-  };
 
   const crearRecomendacionDesdeDiagnostico = (diag: DiagnosticoItem) => {
     if (!puedeCrearRecomendacion) { toast.error('Sin permisos'); return; }
@@ -290,11 +274,7 @@ const GestionDiagnosticos: React.FC = () => {
                 <i className="fas fa-plus"></i> Nuevo Diagnóstico
               </button>
             )}
-            {exportMessage && (
-              <span className={`px-3 py-2 rounded text-sm ${exportMessage.includes('Error') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                {exportMessage}
-              </span>
-            )}
+            <ExportButton onExport={() => exportService.exportarDiagnosticos()} />
           </div>
         </div>
 

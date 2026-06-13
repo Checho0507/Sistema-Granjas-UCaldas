@@ -239,6 +239,12 @@ class ExportService:
         fecha = (datetime.utcnow()-timedelta(hours=5)).strftime("%Y%m%d")
         return self._create_single_excel_response(df, f"cultivos_{fecha}", "Cultivos")
     
+    def export_plantas_excel(self) -> StreamingResponse:
+        """Exportar plantas en Excel"""
+        df = self.dataframe_fetcher.get_plantas_dataframe()
+        fecha = (datetime.utcnow()-timedelta(hours=5)).strftime("%Y%m%d")
+        return self._create_single_excel_response(df, f"plantas_{fecha}", "Plantas")
+    
     def export_movimientos_excel(self) -> StreamingResponse:
         """Exportar movimientos de inventario en Excel"""
         df = self.dataframe_fetcher.get_movimientos_dataframe()

@@ -13,6 +13,7 @@ import type { TipoInventario, ItemInventario } from '../../types/inventarioDinam
 import type { DiagnosticoTipo } from '../../services/diagnosticoDinamicoService';
 import { useAuth } from '../../hooks/useAuth';
 import Modal from '../Common/Modal';
+import AISummaryModal from '../AI/AISummaryModal';
 
 // ── Interfaces ──────────────────────────────────────────────────────────────────
 interface ProductoSugerido {
@@ -416,6 +417,7 @@ const FormVinculadaDiagnostico: React.FC<{
     const [descripcion, setDescripcion] = useState('');
     const [loading, setLoading] = useState(true);
     const [showDetallesDiagnostico, setShowDetallesDiagnostico] = useState(false);
+    const [showResumenIA, setShowResumenIA] = useState(false);
 
     const [productosRecomendacion, setProductosRecomendacion] = useState<ProductoSugerido[]>([]);
     const [tiposInventario, setTiposInventario] = useState<TipoInventario[]>([]);
@@ -530,14 +532,25 @@ const FormVinculadaDiagnostico: React.FC<{
                             <i className="fas fa-microscope text-blue-600"></i>
                             <span className="font-semibold text-blue-800 text-sm">Diagnóstico #{diagnosticoId}</span>
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => setShowDetallesDiagnostico(true)}
-                            className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors"
-                        >
-                            <i className="fas fa-eye"></i>
-                            Ver detalles completos
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setShowDetallesDiagnostico(true)}
+                                className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors"
+                            >
+                                <i className="fas fa-eye"></i>
+                                Ver detalles completos
+                            </button>
+                            <span className="text-blue-300">|</span>
+                            <button
+                                type="button"
+                                onClick={() => setShowResumenIA(true)}
+                                className="text-xs text-emerald-600 hover:text-emerald-800 flex items-center gap-1 transition-colors font-medium"
+                            >
+                                <i className="fas fa-robot"></i>
+                                Ver resumen IA
+                            </button>
+                        </div>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-blue-700">
                         <span><strong>Tipo:</strong> {(diagnostico as any)?.tipo_diagnostico?.replace(/_/g, ' ') || '—'}</span>
@@ -616,6 +629,13 @@ const FormVinculadaDiagnostico: React.FC<{
                 diagnosticoId={diagnosticoId}
                 onClose={() => setShowDetallesDiagnostico(false)}
             />
+
+            {/* Modal de resumen IA */}
+            <AISummaryModal
+                isOpen={showResumenIA}
+                diagnosticoId={diagnosticoId}
+                onClose={() => setShowResumenIA(false)}
+            />
         </>
     );
 };
@@ -657,6 +677,7 @@ const FormGeneral: React.FC<{
     const [diagnosticosPendientes, setDiagnosticosPendientes] = useState<any[]>([]);
     const [loadingDiagnosticos, setLoadingDiagnosticos] = useState(false);
     const [showDetallesDiagnostico, setShowDetallesDiagnostico] = useState(false);
+    const [showResumenIA, setShowResumenIA] = useState(false);
 
     const [productosRecomendacion, setProductosRecomendacion] = useState<ProductoSugerido[]>([]);
     const [tiposInventario, setTiposInventario] = useState<any[]>([]);
@@ -899,14 +920,25 @@ const FormGeneral: React.FC<{
                                                 Diagnóstico #{diagnosticoSeleccionadoId} seleccionado
                                             </span>
                                         </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowDetallesDiagnostico(true)}
-                                            className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors"
-                                        >
-                                            <i className="fas fa-eye"></i>
-                                            Ver detalles
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowDetallesDiagnostico(true)}
+                                                className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors"
+                                            >
+                                                <i className="fas fa-eye"></i>
+                                                Ver detalles
+                                            </button>
+                                            <span className="text-blue-300">|</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowResumenIA(true)}
+                                                className="text-xs text-emerald-600 hover:text-emerald-800 flex items-center gap-1 transition-colors font-medium"
+                                            >
+                                                <i className="fas fa-robot"></i>
+                                                Resumen IA
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
                             </>
@@ -967,6 +999,13 @@ const FormGeneral: React.FC<{
                 isOpen={showDetallesDiagnostico}
                 diagnosticoId={diagnosticoSeleccionadoId}
                 onClose={() => setShowDetallesDiagnostico(false)}
+            />
+
+            {/* Modal de resumen IA */}
+            <AISummaryModal
+                isOpen={showResumenIA}
+                diagnosticoId={diagnosticoSeleccionadoId}
+                onClose={() => setShowResumenIA(false)}
             />
         </>
     );

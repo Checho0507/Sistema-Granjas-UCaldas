@@ -5,6 +5,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { syncPendingData } from './services/sync';
 import { checkBackendConnection } from './api/auth';
 import { Toaster } from 'react-hot-toast';
+import AIChatbot from './components/AI/AIChatbot';
 
 // Pages
 import Home from './pages/Home';
@@ -78,6 +79,7 @@ function AppContent() {
           },
         }}
       />
+      <AIChatbot />
 
       {/* Banners de estado de conexión */}
       {!navigator.onLine && (

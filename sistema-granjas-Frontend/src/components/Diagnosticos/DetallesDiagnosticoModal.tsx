@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { DiagnosticoDetalle } from '../../types/diagnosticoTypes';
 import Modal from '../Common/Modal';
 import diagnosticoService from '../../services/diagnosticoService';
+import { exportarDiagnosticoPDF } from '../../utils/pdfExport';
 
 interface DetallesDiagnosticoModalProps {
     isOpen: boolean;
@@ -9,489 +10,390 @@ interface DetallesDiagnosticoModalProps {
     onClose: () => void;
 }
 
-const DetallesDiagnosticoModal: React.FC<DetallesDiagnosticoModalProps> = ({
-    isOpen,
-    diagnostico,
-    onClose
-}) => {
-    const [loadingDetalles, setLoadingDetalles] = useState(false);
-    const [diagnosticoDetallado, setDiagnosticoDetallado] = useState<DiagnosticoDetalle | null>(null);
+type Pestana = 'general' | 'plantas' | 'fotos';
+
+const CONDICION_ICONS: Record<string, string> = {
+    soleado: 'fas fa-sun text-yellow-500',
+    nublado: 'fas fa-cloud text-gray-400',
+    lluvia: 'fas fa-cloud-rain text-blue-400',
+};
+
+const DetallesDiagnosticoModal: React.FC<DetallesDiagnosticoModalProps> = ({ isOpen, diagnostico, onClose }) => {
+    const [loading, setLoading] = useState(false);
+    const [data, setData] = useState<DiagnosticoDetalle | null>(null);
     const [imagenSeleccionada, setImagenSeleccionada] = useState<string | null>(null);
-    const [pestanaActiva, setPestanaActiva] = useState<'general' | 'plantas' | 'fotos'>('general');
+    const [pestana, setPestana] = useState<Pestana>('general');
+    const [loadingPDF, setLoadingPDF] = useState(false);
 
     useEffect(() => {
         if (isOpen && diagnostico) {
-            setDiagnosticoDetallado(null);
-            setPestanaActiva('general');
+            setData(diagnostico);
+            setPestana('general');
             setImagenSeleccionada(null);
-            cargarDetallesCompletos(diagnostico.id);
+            setLoading(true);
+            diagnosticoService.obtenerDiagnosticoPorId(diagnostico.id)
+                .then(setData)
+                .catch(() => {})
+                .finally(() => setLoading(false));
         }
     }, [isOpen, diagnostico]);
 
-    const cargarDetallesCompletos = async (id: number) => {
-        try {
-            setLoadingDetalles(true);
-            const detalles = await diagnosticoService.obtenerDiagnosticoPorId(id);
-            setDiagnosticoDetallado(detalles);
-        } catch (err) {
-            console.error('Error cargando detalles:', err);
-        } finally {
-            setLoadingDetalles(false);
-        }
-    };
-
     if (!diagnostico) return null;
+    const d = data || diagnostico;
 
-    const data = diagnosticoDetallado || diagnostico;
-    const fotosSubidas = data.formulario?.fotos_subidas as Record<string, string[]> | undefined;
+    const fotosSubidas = d.formulario?.fotos_subidas as Record<string, string[]> | undefined;
     const tieneFotos = fotosSubidas && Object.keys(fotosSubidas).length > 0;
-    const tienePlantas = data.formulario?.plantas && data.formulario.plantas.length > 0;
-    const tieneCaracterizacion = data.formulario?.caracterizacion && Object.keys(data.formulario.caracterizacion).length > 0;
-    const tieneFormulariosPorPlanta = data.formulario?.formularios_por_planta && Object.keys(data.formulario.formularios_por_planta).length > 0;
+    const totalFotos = tieneFotos ? Object.values(fotosSubidas!).flat().length : 0;
+    const tienePlantas = !!d.formulario?.plantas?.length;
+    const tieneCaracterizacion = d.formulario?.caracterizacion && Object.keys(d.formulario.caracterizacion).length > 0;
+    const tieneFormulariosPorPlanta = d.formulario?.formularios_por_planta && Object.keys(d.formulario.formularios_por_planta).length > 0;
+    const tieneEvaluacion = tienePlantas || tieneCaracterizacion || tieneFormulariosPorPlanta;
 
-    const formatFieldName = (key: string): string => {
-        return key
-            .replace(/_/g, ' ')
-            .replace(/\b\w/g, (l) => l.toUpperCase());
-    };
+    const fmtKey = (k: string) => k.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    const fmtDate = (s: string) => new Date(s).toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' });
 
-    const getBadgeRevision = (estado?: string) => {
-        if (!estado || estado === 'pendiente_revision') {
-            return (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                    Pendiente de revisión
-                </span>
-            );
+    const parseVal = (v: any): string => {
+        if (typeof v === 'string' && (v.startsWith('[') || v.startsWith('{'))) {
+            try {
+                const p = JSON.parse(v);
+                if (Array.isArray(p)) return p.join(', ');
+            } catch {}
         }
-        return (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200">
-                <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                Revisado
-            </span>
-        );
+        return String(v ?? '—');
     };
 
-    const getCondicionIcon = (condicion: string) => {
-        switch (condicion?.toLowerCase()) {
-            case 'soleado': return '☀️';
-            case 'nublado': return '☁️';
-            case 'lluvia': return '🌧️';
-            default: return '🌡️';
-        }
-    };
+    const estadoBadge = d.estado_revision === 'revisado'
+        ? <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Revisado</span>
+        : <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>Pendiente de revisión</span>;
+
+    const tabs: { id: Pestana; label: string; icon: string; count?: number; show: boolean }[] = [
+        { id: 'general', label: 'Información general', icon: 'fas fa-info-circle', show: true },
+        { id: 'plantas', label: 'Evaluación', icon: 'fas fa-seedling', count: d.formulario?.plantas?.length, show: tieneEvaluacion },
+        { id: 'fotos', label: 'Evidencias', icon: 'fas fa-camera', count: totalFotos, show: !!tieneFotos },
+    ];
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} width="max-w-6xl">
-            <div className="relative">
-                {/* Header con gradiente */}
-                <div className="sticky top-0 z-10 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-xl px-6 py-4">
+        <>
+        <Modal isOpen={isOpen} onClose={onClose} width="max-w-6xl" showCloseButton={false}>
+            <div className="flex flex-col max-h-[92vh]">
+
+                {/* ── Header ── */}
+                <div className="bg-gradient-to-r from-green-600 to-emerald-700 px-6 py-5 rounded-t-lg flex-shrink-0">
                     <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-xl">
-                                    🔬
-                                </div>
-                                <div>
-                                    <h2 className="text-2xl font-bold">
-                                        Diagnóstico #{data.id}
-                                    </h2>
-                                    <p className="text-blue-100 text-sm mt-0.5">
-                                        {data.tipo_diagnostico?.replace(/_/g, ' ')}
-                                    </p>
-                                </div>
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                                <i className="fas fa-microscope text-white text-xl"></i>
                             </div>
-                            <div className="flex items-center gap-3 mt-3 flex-wrap">
-                                {getBadgeRevision(data.estado_revision)}
-                                <span className="inline-flex items-center gap-1 text-sm bg-white/20 px-3 py-1 rounded-full">
-                                    <span>{getCondicionIcon(data.condiciones_dia)}</span>
-                                    <span>{data.condiciones_dia}</span>
-                                </span>
-                                <span className="inline-flex items-center gap-1 text-sm bg-white/20 px-3 py-1 rounded-full">
-                                    📅 {new Date(data.fecha_creacion).toLocaleDateString('es-CO', {
-                                        year: 'numeric',
-                                        month: 'long',
-                                        day: 'numeric',
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                    })}
-                                </span>
+                            <div>
+                                <p className="text-green-200 text-xs font-medium uppercase tracking-wider mb-0.5">Diagnóstico</p>
+                                <h2 className="text-white text-2xl font-bold leading-tight">
+                                    #{d.id} — {d.tipo_diagnostico?.replace(/_/g, ' ') || 'Sin tipo'}
+                                </h2>
                             </div>
                         </div>
-                        <button
-                            onClick={onClose}
-                            className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
-                        >
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
+                        <button onClick={onClose} className="text-white/70 hover:text-white hover:bg-white/15 rounded-xl p-2 transition-colors">
+                            <i className="fas fa-times text-lg"></i>
                         </button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 mt-4">
+                        {estadoBadge}
+                        {d.condiciones_dia && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-white/15 text-white">
+                                <i className={CONDICION_ICONS[d.condiciones_dia?.toLowerCase()] || 'fas fa-thermometer-half text-white'}></i>
+                                {d.condiciones_dia}
+                            </span>
+                        )}
+                        {d.fecha_creacion && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-white/15 text-white">
+                                <i className="fas fa-calendar-alt"></i>
+                                {fmtDate(d.fecha_creacion)}
+                            </span>
+                        )}
                     </div>
                 </div>
 
-                {/* Pestañas de navegación */}
-                <div className="bg-gray-100 border-b border-gray-200 px-6">
-                    <div className="flex gap-2">
+                {/* ── Tabs ── */}
+                <div className="bg-white border-b border-gray-200 px-6 flex gap-1 flex-shrink-0">
+                    {tabs.filter(t => t.show).map(t => (
                         <button
-                            onClick={() => setPestanaActiva('general')}
-                            className={`px-4 py-3 text-sm font-medium transition-all ${
-                                pestanaActiva === 'general'
-                                    ? 'text-blue-600 border-b-2 border-blue-600 bg-white -mb-px'
-                                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-t-lg'
+                            key={t.id}
+                            onClick={() => setPestana(t.id)}
+                            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                                pestana === t.id
+                                    ? 'text-green-700 border-green-600'
+                                    : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
                             }`}
                         >
-                            <i className="fas fa-info-circle mr-2"></i>
-                            Información general
-                        </button>
-                        {(tienePlantas || tieneCaracterizacion || tieneFormulariosPorPlanta) && (
-                            <button
-                                onClick={() => setPestanaActiva('plantas')}
-                                className={`px-4 py-3 text-sm font-medium transition-all ${
-                                    pestanaActiva === 'plantas'
-                                        ? 'text-blue-600 border-b-2 border-blue-600 bg-white -mb-px'
-                                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-t-lg'
-                                }`}
-                            >
-                                <i className="fas fa-seedling mr-2"></i>
-                                Evaluación
-                                {tienePlantas && <span className="ml-1 text-xs bg-green-100 text-green-600 px-1.5 py-0.5 rounded-full">{data.formulario.plantas.length}</span>}
-                            </button>
-                        )}
-                        {tieneFotos && (
-                            <button
-                                onClick={() => setPestanaActiva('fotos')}
-                                className={`px-4 py-3 text-sm font-medium transition-all ${
-                                    pestanaActiva === 'fotos'
-                                        ? 'text-blue-600 border-b-2 border-blue-600 bg-white -mb-px'
-                                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-t-lg'
-                                }`}
-                            >
-                                <i className="fas fa-camera mr-2"></i>
-                                Evidencias
-                                <span className="ml-1 text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full">
-                                    {Object.values(fotosSubidas || {}).flat().length}
+                            <i className={t.icon}></i>
+                            {t.label}
+                            {t.count !== undefined && t.count > 0 && (
+                                <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${pestana === t.id ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                    {t.count}
                                 </span>
-                            </button>
-                        )}
-                    </div>
+                            )}
+                        </button>
+                    ))}
                 </div>
 
-                {/* Contenido */}
-                <div className="p-6 max-h-[70vh] overflow-y-auto">
-                    {loadingDetalles ? (
-                        <div className="flex flex-col items-center justify-center py-12">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-                            <p className="text-gray-500">Cargando detalles del diagnóstico...</p>
+                {/* ── Body ── */}
+                <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center py-16">
+                            <div className="w-10 h-10 border-3 border-green-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                            <p className="text-gray-500 text-sm">Cargando detalles...</p>
                         </div>
                     ) : (
                         <>
-                            {/* Pestaña: Información general */}
-                            {pestanaActiva === 'general' && (
-                                <div className="space-y-6">
-                                    {/* Tarjeta de usuario y ubicación */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-100">
-                                            <div className="flex items-center gap-3 mb-4">
-                                                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
-                                                    <i className="fas fa-user text-lg"></i>
-                                                </div>
-                                                <h3 className="font-bold text-gray-800 text-lg">Usuario</h3>
-                                            </div>
-                                            <p className="text-gray-700 font-medium">{data.usuario_nombre || 'N/A'}</p>
-                                            {data.usuario_email && (
-                                                <p className="text-sm text-gray-500 mt-1">{data.usuario_email}</p>
-                                            )}
-                                        </div>
-
-                                        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-5 border border-green-100">
-                                            <div className="flex items-center gap-3 mb-4">
-                                                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-600">
-                                                    <i className="fas fa-map-marker-alt text-lg"></i>
-                                                </div>
-                                                <h3 className="font-bold text-gray-800 text-lg">Ubicación</h3>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <p><span className="font-semibold">Programa:</span> {data.programa_nombre || 'N/A'}</p>
-                                                <p><span className="font-semibold">Lote:</span> {data.lote_nombre || 'N/A'}</p>
-                                                <p><span className="font-semibold">Granja:</span> {data.granja_nombre || 'N/A'}</p>
-                                                {data.formulario?.total_plantas_lote && (
-                                                    <p className="text-sm text-green-600 mt-2">
-                                                        <i className="fas fa-chart-line mr-1"></i>
-                                                        Total plantas en lote: {data.formulario.total_plantas_lote.toLocaleString()}
-                                                        {data.formulario.porcentaje_muestreo && 
-                                                            ` (Muestreo: ${data.formulario.porcentaje_muestreo}%)`
-                                                        }
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Resumen del monitoreo */}
-                                    <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                        {/* ── General ── */}
+                        {pestana === 'general' && (
+                            <div className="space-y-5">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    {/* Usuario */}
+                                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
                                         <div className="flex items-center gap-3 mb-4">
-                                            <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-purple-600">
-                                                <i className="fas fa-clipboard-list text-lg"></i>
+                                            <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center">
+                                                <i className="fas fa-user text-green-600 text-sm"></i>
                                             </div>
-                                            <h3 className="font-bold text-gray-800 text-lg">Resumen del monitoreo</h3>
+                                            <h3 className="font-semibold text-gray-800">Autor</h3>
                                         </div>
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                            <div className="text-center p-3 bg-white rounded-lg">
-                                                <div className="text-2xl font-bold text-blue-600">
-                                                    {data.formulario?.plantas?.length || 0}
-                                                </div>
-                                                <div className="text-xs text-gray-500">Plantas evaluadas</div>
+                                        <p className="text-gray-800 font-medium">{d.usuario_nombre || 'N/A'}</p>
+                                        {d.usuario_email && <p className="text-sm text-gray-500 mt-1">{d.usuario_email}</p>}
+                                    </div>
+                                    {/* Ubicación */}
+                                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center">
+                                                <i className="fas fa-map-marker-alt text-emerald-600 text-sm"></i>
                                             </div>
-                                            <div className="text-center p-3 bg-white rounded-lg">
-                                                <div className="text-2xl font-bold text-green-600">
-                                                    {tieneCaracterizacion ? Object.keys(data.formulario.caracterizacion).length : 0}
-                                                </div>
-                                                <div className="text-xs text-gray-500">Campos evaluados</div>
+                                            <h3 className="font-semibold text-gray-800">Ubicación</h3>
+                                        </div>
+                                        <div className="space-y-1.5 text-sm">
+                                            <div className="flex justify-between py-1 border-b border-gray-50">
+                                                <span className="text-gray-500">Programa</span>
+                                                <span className="font-medium text-gray-800">{d.programa_nombre || '—'}</span>
                                             </div>
-                                            <div className="text-center p-3 bg-white rounded-lg">
-                                                <div className="text-2xl font-bold text-orange-600">
-                                                    {tieneFormulariosPorPlanta ? Object.keys(data.formulario.formularios_por_planta).length : 0}
-                                                </div>
-                                                <div className="text-xs text-gray-500">Con evaluación individual</div>
+                                            <div className="flex justify-between py-1 border-b border-gray-50">
+                                                <span className="text-gray-500">Lote</span>
+                                                <span className="font-medium text-gray-800">{d.lote_nombre || '—'}</span>
                                             </div>
-                                            <div className="text-center p-3 bg-white rounded-lg">
-                                                <div className="text-2xl font-bold text-purple-600">
-                                                    {tieneFotos ? Object.values(fotosSubidas || {}).flat().length : 0}
-                                                </div>
-                                                <div className="text-xs text-gray-500">Fotos subidas</div>
+                                            <div className="flex justify-between py-1">
+                                                <span className="text-gray-500">Granja</span>
+                                                <span className="font-medium text-gray-800">{d.granja_nombre || '—'}</span>
                                             </div>
+                                        </div>
+                                        {d.formulario?.total_plantas_lote && (
+                                            <p className="text-xs text-emerald-600 mt-3 flex items-center gap-1">
+                                                <i className="fas fa-chart-line"></i>
+                                                Total plantas: {d.formulario.total_plantas_lote.toLocaleString()}
+                                                {d.formulario.porcentaje_muestreo ? ` · Muestreo: ${d.formulario.porcentaje_muestreo}%` : ''}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Métricas */}
+                                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
+                                            <i className="fas fa-clipboard-list text-blue-600 text-sm"></i>
+                                        </div>
+                                        <h3 className="font-semibold text-gray-800">Resumen del monitoreo</h3>
+                                    </div>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        {[
+                                            { label: 'Plantas evaluadas', value: d.formulario?.plantas?.length || 0, color: 'text-green-600', bg: 'bg-green-50' },
+                                            { label: 'Campos evaluados', value: tieneCaracterizacion ? Object.keys(d.formulario.caracterizacion).length : 0, color: 'text-blue-600', bg: 'bg-blue-50' },
+                                            { label: 'Eval. individual', value: tieneFormulariosPorPlanta ? Object.keys(d.formulario.formularios_por_planta).length : 0, color: 'text-orange-600', bg: 'bg-orange-50' },
+                                            { label: 'Fotos subidas', value: totalFotos, color: 'text-purple-600', bg: 'bg-purple-50' },
+                                        ].map(m => (
+                                            <div key={m.label} className={`rounded-xl ${m.bg} p-4 text-center`}>
+                                                <div className={`text-2xl font-bold ${m.color}`}>{m.value}</div>
+                                                <div className="text-xs text-gray-500 mt-1">{m.label}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Recomendaciones vinculadas */}
+                                {d.recomendaciones && d.recomendaciones.length > 0 && (
+                                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center">
+                                                <i className="fas fa-lightbulb text-amber-600 text-sm"></i>
+                                            </div>
+                                            <h3 className="font-semibold text-gray-800">Recomendaciones vinculadas</h3>
+                                            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">{d.recomendaciones.length}</span>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {d.recomendaciones.map((r: any, i: number) => (
+                                                <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-100">
+                                                    <i className="fas fa-chevron-right text-amber-500 text-xs mt-1"></i>
+                                                    <div>
+                                                        <p className="font-medium text-gray-800 text-sm">{r.titulo}</p>
+                                                        {r.descripcion && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{r.descripcion}</p>}
+                                                        <p className="text-xs text-gray-400 mt-1">{new Date(r.fecha_creacion).toLocaleDateString('es-CO')}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
+                                )}
+                            </div>
+                        )}
 
-                                    {/* Recomendaciones si existen */}
-                                    {data.recomendaciones && data.recomendaciones.length > 0 && (
-                                        <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-5 border border-orange-100">
-                                            <div className="flex items-center gap-3 mb-4">
-                                                <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center text-orange-600">
-                                                    <i className="fas fa-lightbulb text-lg"></i>
-                                                </div>
-                                                <h3 className="font-bold text-gray-800 text-lg">Recomendaciones</h3>
+                        {/* ── Evaluación ── */}
+                        {pestana === 'plantas' && (
+                            <div className="space-y-5">
+                                {tienePlantas && (
+                                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center">
+                                                <i className="fas fa-seedling text-green-600 text-sm"></i>
                                             </div>
-                                            <div className="space-y-3">
-                                                {data.recomendaciones.map((rec: any, idx: number) => (
-                                                    <div key={idx} className="bg-white rounded-lg p-3 border border-orange-100">
-                                                        <p className="font-medium text-gray-800">{rec.titulo}</p>
-                                                        {rec.descripcion && (
-                                                            <p className="text-sm text-gray-600 mt-1">{rec.descripcion}</p>
+                                            <h3 className="font-semibold text-gray-800">Plantas muestreadas <span className="text-gray-400 font-normal text-sm">({d.formulario.plantas.length})</span></h3>
+                                        </div>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                            {d.formulario.plantas.map((p: any, i: number) => (
+                                                <div key={i} className="flex items-center gap-2 bg-green-50 rounded-lg px-3 py-2 text-sm border border-green-100">
+                                                    <i className="fas fa-map-pin text-green-500 text-xs"></i>
+                                                    <span className="text-gray-700 truncate">{p.label}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {tieneCaracterizacion && (
+                                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
+                                                <i className="fas fa-chart-bar text-blue-600 text-sm"></i>
+                                            </div>
+                                            <h3 className="font-semibold text-gray-800">Caracterización general</h3>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {Object.entries(d.formulario.caracterizacion).map(([k, v]) => {
+                                                const val = parseVal(v);
+                                                const isArr = val.includes(', ');
+                                                return (
+                                                    <div key={k} className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                                                        <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">{fmtKey(k)}</div>
+                                                        {isArr ? (
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {val.split(', ').map((item, idx) => (
+                                                                    <span key={idx} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">{item}</span>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="text-sm font-medium text-gray-800">{val}</div>
                                                         )}
-                                                        <p className="text-xs text-gray-400 mt-2">
-                                                            {new Date(rec.fecha_creacion).toLocaleDateString()}
-                                                        </p>
                                                     </div>
-                                                ))}
-                                            </div>
+                                                );
+                                            })}
                                         </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Pestaña: Evaluación (Plantas y formularios) */}
-                            {pestanaActiva === 'plantas' && (
-                                <div className="space-y-6">
-                                    {/* Plantas muestreadas */}
-                                    {tienePlantas && (
-                                        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-5 border border-green-100">
-                                            <div className="flex items-center gap-3 mb-4">
-                                                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-600">
-                                                    <i className="fas fa-seedling text-lg"></i>
-                                                </div>
-                                                <h3 className="font-bold text-gray-800 text-lg">
-                                                    Plantas muestreadas
-                                                    <span className="ml-2 text-sm font-normal text-gray-500">
-                                                        ({data.formulario.plantas.length} plantas)
-                                                    </span>
-                                                </h3>
+                                    </div>
+                                )}
+                                {tieneFormulariosPorPlanta && (
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center">
+                                                <i className="fas fa-list-ul text-purple-600 text-sm"></i>
                                             </div>
-                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                                                {data.formulario.plantas.map((p: any, i: number) => (
-                                                    <div key={i} className="bg-white rounded-lg px-3 py-2 text-sm shadow-sm border border-green-100">
-                                                        <i className="fas fa-map-pin text-green-500 mr-1 text-xs"></i>
-                                                        {p.label}
+                                            <h3 className="font-semibold text-gray-800">Evaluación por planta</h3>
+                                        </div>
+                                        {Object.entries(d.formulario.formularios_por_planta).map(([plantaId, valores]) => {
+                                            const planta = d.formulario?.plantas?.find((p: any) => p.id === parseInt(plantaId));
+                                            return (
+                                                <div key={plantaId} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                                                    <div className="bg-purple-50 border-b border-purple-100 px-4 py-3 flex items-center gap-2">
+                                                        <i className="fas fa-seedling text-purple-600 text-sm"></i>
+                                                        <span className="font-semibold text-gray-800 text-sm">{planta?.label || `Planta ${plantaId}`}</span>
+                                                        {planta?.codigo && <span className="text-xs text-gray-400">({planta.codigo})</span>}
                                                     </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Caracterización general */}
-                                    {tieneCaracterizacion && (
-                                        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-5 border border-blue-100">
-                                            <div className="flex items-center gap-3 mb-4">
-                                                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
-                                                    <i className="fas fa-chart-bar text-lg"></i>
-                                                </div>
-                                                <h3 className="font-bold text-gray-800 text-lg">Caracterización general</h3>
-                                            </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                {Object.entries(data.formulario.caracterizacion).map(([k, v]) => {
-                                                    let valorMostrado = v as string;
-                                                    let esArray = false;
-                                                    
-                                                    if (typeof v === 'string' && (v.startsWith('[') || v.startsWith('{'))) {
-                                                        try {
-                                                            const parsed = JSON.parse(v);
-                                                            if (Array.isArray(parsed)) {
-                                                                valorMostrado = parsed.join(', ');
-                                                                esArray = true;
-                                                            }
-                                                        } catch (e) {}
-                                                    }
-                                                    
-                                                    return (
-                                                        <div key={k} className="bg-white rounded-lg p-3 border border-gray-200">
-                                                            <div className="text-xs text-gray-500 uppercase tracking-wide">
-                                                                {formatFieldName(k)}
+                                                    <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                        {Object.entries(valores as Record<string, string>).map(([campo, valor]) => (
+                                                            <div key={campo} className="bg-gray-50 rounded-lg p-2 border border-gray-100">
+                                                                <div className="text-xs text-gray-400">{fmtKey(campo)}</div>
+                                                                <div className="text-sm text-gray-800 font-medium">{parseVal(valor)}</div>
                                                             </div>
-                                                            <div className="text-gray-800 font-medium mt-1">
-                                                                {esArray ? (
-                                                                    <div className="flex flex-wrap gap-1">
-                                                                        {(valorMostrado as string).split(', ').map((item, idx) => (
-                                                                            <span key={idx} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">
-                                                                                {item}
-                                                                            </span>
-                                                                        ))}
-                                                                    </div>
-                                                                ) : (
-                                                                    valorMostrado || '—'
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Evaluación por planta */}
-                                    {tieneFormulariosPorPlanta && (
-                                        <div className="space-y-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-purple-600">
-                                                    <i className="fas fa-list-ul text-lg"></i>
-                                                </div>
-                                                <h3 className="font-bold text-gray-800 text-lg">Evaluación por planta</h3>
-                                            </div>
-                                            <div className="space-y-4">
-                                                {Object.entries(data.formulario.formularios_por_planta).map(([plantaId, valores]) => {
-                                                    const planta = data.formulario?.plantas?.find((p: any) => p.id === parseInt(plantaId));
-                                                    return (
-                                                        <div key={plantaId} className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-100 overflow-hidden">
-                                                            <div className="bg-purple-100 px-4 py-3">
-                                                                <div className="flex items-center gap-2">
-                                                                    <i className="fas fa-seedling text-purple-600"></i>
-                                                                    <span className="font-semibold text-gray-800">
-                                                                        {planta?.label || `Planta ID: ${plantaId}`}
-                                                                    </span>
-                                                                    {planta?.codigo && (
-                                                                        <span className="text-xs text-gray-500">({planta.codigo})</span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                                {Object.entries(valores as Record<string, string>).map(([campo, valor]) => {
-                                                                    let valorMostrado = valor;
-                                                                    if (typeof valor === 'string' && (valor.startsWith('[') || valor.startsWith('{'))) {
-                                                                        try {
-                                                                            const parsed = JSON.parse(valor);
-                                                                            if (Array.isArray(parsed)) {
-                                                                                valorMostrado = parsed.join(', ');
-                                                                            }
-                                                                        } catch (e) {}
-                                                                    }
-                                                                    return (
-                                                                        <div key={campo} className="bg-white rounded-lg p-2">
-                                                                            <div className="text-xs text-gray-500">{formatFieldName(campo)}</div>
-                                                                            <div className="text-sm text-gray-800">{valorMostrado || '—'}</div>
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {!tienePlantas && !tieneCaracterizacion && !tieneFormulariosPorPlanta && (
-                                        <div className="text-center py-12 text-gray-400">
-                                            <i className="fas fa-inbox text-5xl mb-3 block"></i>
-                                            <p>No hay información de evaluación disponible</p>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Pestaña: Fotos / Evidencias */}
-                            {pestanaActiva === 'fotos' && tieneFotos && (
-                                <div className="space-y-6">
-                                    {Object.entries(fotosSubidas).map(([campo, urls]) => (
-                                        <div key={campo} className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl p-5 border border-gray-200">
-                                            <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
-                                                <i className="fas fa-folder-open text-blue-500"></i>
-                                                {formatFieldName(campo)}
-                                                <span className="text-sm font-normal text-gray-500">({urls.length} fotos)</span>
-                                            </h3>
-                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                                                {urls.map((url, idx) => (
-                                                    <div
-                                                        key={`${campo}-${idx}`}
-                                                        className="relative group cursor-pointer"
-                                                        onClick={() => setImagenSeleccionada(url)}
-                                                    >
-                                                        <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 shadow-md hover:shadow-xl transition-all duration-300">
-                                                            <img
-                                                                src={url}
-                                                                alt={`${campo} - ${idx + 1}`}
-                                                                className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-300"
-                                                                loading="lazy"
-                                                                onError={(e) => {
-                                                                    (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300?text=Error+al+cargar';
-                                                                }}
-                                                            />
-                                                        </div>
-                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                                                            <i className="fas fa-search-plus text-white text-2xl"></i>
-                                                        </div>
+                                                        ))}
                                                     </div>
-                                                ))}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                                {!tieneEvaluacion && (
+                                    <div className="text-center py-16 text-gray-400">
+                                        <i className="fas fa-inbox text-5xl mb-3 block"></i>
+                                        <p className="text-sm">No hay datos de evaluación disponibles</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ── Fotos ── */}
+                        {pestana === 'fotos' && tieneFotos && (
+                            <div className="space-y-5">
+                                {Object.entries(fotosSubidas!).map(([campo, urls]) => (
+                                    <div key={campo} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
+                                                <i className="fas fa-folder-open text-indigo-600 text-sm"></i>
                                             </div>
+                                            <h3 className="font-semibold text-gray-800">{fmtKey(campo)}</h3>
+                                            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{urls.length} foto{urls.length !== 1 ? 's' : ''}</span>
                                         </div>
-                                    ))}
-                                </div>
-                            )}
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                            {urls.map((url, idx) => (
+                                                <div key={idx} className="relative group cursor-pointer aspect-square rounded-xl overflow-hidden bg-gray-100 shadow-sm hover:shadow-md transition-all" onClick={() => setImagenSeleccionada(url)}>
+                                                    <img src={url} alt={`${campo}-${idx + 1}`} className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-300" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300?text=Error'; }} />
+                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                        <i className="fas fa-search-plus text-white text-xl"></i>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                         </>
                     )}
                 </div>
-            </div>
 
-            {/* Modal de imagen ampliada */}
-            {imagenSeleccionada && (
-                <div
-                    className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
-                    onClick={() => setImagenSeleccionada(null)}
-                >
-                    <div className="relative max-w-4xl w-full">
-                        <button
-                            onClick={() => setImagenSeleccionada(null)}
-                            className="absolute -top-10 right-0 text-white hover:text-gray-300 text-2xl"
-                        >
-                            ✕
-                        </button>
-                        <img
-                            src={imagenSeleccionada}
-                            alt="Vista ampliada"
-                            className="w-full h-auto rounded-lg shadow-2xl"
-                        />
-                    </div>
+                {/* ── Footer ── */}
+                <div className="bg-white border-t border-gray-100 px-6 py-4 flex justify-between items-center flex-shrink-0">
+                    <button
+                        onClick={async () => {
+                            setLoadingPDF(true);
+                            try { exportarDiagnosticoPDF(d); }
+                            finally { setLoadingPDF(false); }
+                        }}
+                        disabled={loadingPDF || !d}
+                        className="flex items-center gap-2 px-5 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white rounded-lg text-sm font-medium transition-colors"
+                    >
+                        {loadingPDF
+                            ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>Generando...</>
+                            : <><i className="fas fa-file-pdf"></i>Exportar PDF</>
+                        }
+                    </button>
+                    <button onClick={onClose} className="px-5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors">
+                        Cerrar
+                    </button>
                 </div>
-            )}
+            </div>
         </Modal>
+
+        {/* Lightbox */}
+        {imagenSeleccionada && (
+            <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4" onClick={() => setImagenSeleccionada(null)}>
+                <button onClick={() => setImagenSeleccionada(null)} className="absolute top-4 right-4 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-3 transition-colors">
+                    <i className="fas fa-times text-lg"></i>
+                </button>
+                <img src={imagenSeleccionada} alt="Vista ampliada" className="max-w-full max-h-[90vh] rounded-xl shadow-2xl object-contain" onClick={e => e.stopPropagation()} />
+            </div>
+        )}
+        </>
     );
 };
 

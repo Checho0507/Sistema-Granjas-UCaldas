@@ -153,6 +153,18 @@ async def export_cultivos(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# ========================== PLANTAS ==========================
+@router.get("/plantas/excel")
+async def export_plantas(
+    db: Session = Depends(get_db),
+    usuario = Depends(get_current_user),
+    _ = Depends(require_any_role(["admin", "docente", "asesor"]))
+):
+    try:
+        return ExportService(db, usuario).export_plantas_excel()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ========================== MOVIMIENTOS ==========================
 @router.get("/movimientos/excel")
 async def export_movimientos(

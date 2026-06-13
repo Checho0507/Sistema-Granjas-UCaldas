@@ -388,3 +388,25 @@ class ProductoLabor(Base):
     created_at = Column(DateTime, default=colombia_now)
     labor = relationship("Labor", back_populates="productos")
     inventario_item = relationship("ItemInventarioPrograma")
+
+
+# ---------- Historial de Chat IA ----------
+class ChatSesion(Base):
+    __tablename__ = "chat_sesiones"
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False)
+    titulo = Column(String(200), nullable=False, default="Nueva conversación")
+    created_at = Column(DateTime, default=colombia_now)
+    updated_at = Column(DateTime, default=colombia_now, onupdate=colombia_now)
+    usuario = relationship("Usuario", backref="chat_sesiones")
+    mensajes = relationship("ChatMensaje", back_populates="sesion", cascade="all, delete-orphan", order_by="ChatMensaje.created_at")
+
+
+class ChatMensaje(Base):
+    __tablename__ = "chat_mensajes"
+    id = Column(Integer, primary_key=True, index=True)
+    sesion_id = Column(Integer, ForeignKey("chat_sesiones.id", ondelete="CASCADE"), nullable=False)
+    rol = Column(String(20), nullable=False)
+    contenido = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=colombia_now)
+    sesion = relationship("ChatSesion", back_populates="mensajes")

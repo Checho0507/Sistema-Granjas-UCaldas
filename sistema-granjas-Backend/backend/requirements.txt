@@ -33,3 +33,6 @@ openpyxl
 pandas
 
 email-validator
+
+# Asistente IA - Google Gemini
+google-generativeai==0.8.3

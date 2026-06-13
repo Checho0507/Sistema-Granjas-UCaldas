@@ -12,6 +12,7 @@ import LotesTable from "./LotesTable";
 import LoteForm from "./LotesForm";
 import TiposLoteModal from "./TiposLote";
 import exportService from "../../services/exportService";
+import ExportButton from "../Common/ExportButton";
 
 interface GestionLotesProps {
     programaId?: string;
@@ -40,8 +41,6 @@ export default function GestionLotes({ programaId }: GestionLotesProps) {
     // Selecciones
     const [loteSeleccionado, setLoteSeleccionado] = useState<any>(null);
     const [editando, setEditando] = useState(false);
-    const [exporting, setExporting] = useState(false);
-    const [exportMessage, setExportMessage] = useState('');
 
     // Cargar nombre del programa si hay programaId
     useEffect(() => {
@@ -58,38 +57,6 @@ export default function GestionLotes({ programaId }: GestionLotesProps) {
         cargarNombrePrograma();
     }, [programaId]);
 
-    // Handler para exportar lotes
-    const handleExportLotes = async () => {
-        if (exporting) return;
-        setExporting(true);
-        setExportMessage('Exportando lotes...');
-
-        try {
-            const loadingToast = toast.loading('Exportando lotes...');
-            const result = programaId 
-                ? await exportService.exportarLotesPorPrograma(Number(programaId))
-                : await exportService.exportarLotes();
-
-            toast.dismiss(loadingToast);
-            toast.success('Lotes exportados exitosamente', {
-                duration: 3000,
-                position: 'top-right'
-            });
-
-            setExportMessage(`¡Exportación completada! (${result.filename})`);
-            setTimeout(() => setExportMessage(''), 5000);
-        } catch (error: any) {
-            console.error('❌ Error exportando lotes:', error);
-            toast.error('Error al exportar lotes', {
-                duration: 4000,
-                position: 'top-right'
-            });
-            setExportMessage('Error al exportar.');
-            setTimeout(() => setExportMessage(''), 5000);
-        } finally {
-            setExporting(false);
-        }
-    };
 
     // Formulario - AGREGADOS surcos, plantas_por_surco y cultivos_ids
     const [datosFormulario, setDatosFormulario] = useState({
@@ -268,8 +235,10 @@ export default function GestionLotes({ programaId }: GestionLotesProps) {
     return (
         <div className="p-6">
             {/* Botones de acción */}
-            {canWrite && (
-              <div className="mb-6 flex gap-4">
+            <div className="mb-6 flex gap-4 items-center flex-wrap">
+                <ExportButton onExport={() => programaId ? exportService.exportarLotesPorPrograma(Number(programaId)) : exportService.exportarLotes()} />
+                {canWrite && (
+                  <>
                   <button
                       onClick={() => {
                           resetFormulario();
@@ -289,8 +258,9 @@ export default function GestionLotes({ programaId }: GestionLotesProps) {
                       <i className="fas fa-cog"></i>
                       Gestionar Tipos de Lote
                   </button>
-              </div>
-            )}
+                  </>
+                )}
+            </div>
 
             {/* Tabla de lotes */}
             <LotesTable

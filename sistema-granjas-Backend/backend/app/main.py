@@ -22,6 +22,7 @@ from app.api import (
     inventario_dinamico,
     plantas,
     diagnosticos_dinamico,
+    ai_assistant,
 )
 from app.db.database import engine, Base
 from app.db.models import Usuario, Granja, Programa, Lote, Labor, Rol
@@ -87,6 +88,30 @@ else:
 def _aplicar_migraciones_seguras():
     from sqlalchemy import text
     migraciones = [
+        """
+        CREATE TABLE IF NOT EXISTS chat_sesiones (
+            id SERIAL PRIMARY KEY,
+            usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+            titulo VARCHAR(200) NOT NULL DEFAULT 'Nueva conversación',
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS chat_mensajes (
+            id SERIAL PRIMARY KEY,
+            sesion_id INTEGER NOT NULL REFERENCES chat_sesiones(id) ON DELETE CASCADE,
+            rol VARCHAR(20) NOT NULL,
+            contenido TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW()
+        );
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_chat_sesiones_usuario ON chat_sesiones(usuario_id);
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_chat_mensajes_sesion ON chat_mensajes(sesion_id);
+        """,
         """
         ALTER TABLE diagnostico_tipos
         ADD COLUMN IF NOT EXISTS patron_arvenses BOOLEAN NOT NULL DEFAULT FALSE;
@@ -287,7 +312,7 @@ async def debug_auth_check(token: str = None):
     """Endpoint para verificar tokens JWT"""
     try:
         from app.core.security import verify_token
-        from jose import jwt
+        import jwt
         
         debug_info = {
             "token_provided": bool(token),
@@ -339,6 +364,7 @@ app.include_router(monitoreos.router, prefix="/api")
 app.include_router(inventario_dinamico.router, prefix="/api")
 app.include_router(plantas.router, prefix="/api")
 app.include_router(diagnosticos_dinamico.router, prefix="/api")
+app.include_router(ai_assistant.router, prefix="/api")
 
 # ========== ENDPOINTS PÚBLICOS ==========
 @app.get("/")

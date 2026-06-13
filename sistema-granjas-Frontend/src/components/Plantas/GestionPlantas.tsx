@@ -10,6 +10,8 @@ import { StatsCard } from "../Common/StatsCard";
 import PlantasTable from "./PlantasTable";
 import PlantaForm from "./PlantaForm";
 import type { PlantaResponse, PlantaCreate } from "../../types/plantaTypes";
+import exportService from "../../services/exportService";
+import ExportButton from "../Common/ExportButton";
 
 interface LoteSimple {
   id: number;
@@ -247,20 +249,23 @@ export default function GestionPlantas() {
         )}
       </div>
 
-      {/* Botón nuevo (solo si hay lote seleccionado y tiene permisos) */}
-      {loteSeleccionado && canWrite && (
-        <button
-          onClick={() => {
-            resetFormulario();
-            setEditando(false);
-            setModalCrear(true);
-          }}
-          className="bg-green-600 text-white px-4 py-2 rounded-lg mb-4"
-        >
-          <i className="fas fa-plus mr-2"></i>
-          Nueva Planta
-        </button>
-      )}
+      {/* Botones de acción */}
+      <div className="flex items-center gap-3 mb-4">
+        <ExportButton onExport={() => exportService.exportarPlantas()} />
+        {loteSeleccionado && canWrite && (
+          <button
+            onClick={() => {
+              resetFormulario();
+              setEditando(false);
+              setModalCrear(true);
+            }}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg"
+          >
+            <i className="fas fa-plus mr-2"></i>
+            Nueva Planta
+          </button>
+        )}
+      </div>
 
       {/* Tabla */}
       <PlantasTable

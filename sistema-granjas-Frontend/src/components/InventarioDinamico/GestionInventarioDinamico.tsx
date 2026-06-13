@@ -13,6 +13,8 @@ import { inventarioDinamicoService } from '../../services/inventarioDinamicoServ
 import programaService from '../../services/programaService';
 import type { TipoInventario, Campo, ItemInventario, TipoConItems } from '../../types/inventarioDinamicoTypes';
 import { toast } from 'react-hot-toast';
+import exportService from '../../services/exportService';
+import ExportButton from '../Common/ExportButton';
 
 const GestionInventarioDinamico: React.FC = () => {
   const { user } = useAuth();
@@ -174,6 +176,10 @@ const GestionInventarioDinamico: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-bold text-gray-800">Inventario</h1>
+          <ExportButton onExport={() => exportService.exportarInventario()} />
+        </div>
         <SelectorPrograma
           programas={programas}
           programaIdSeleccionado={programaId}

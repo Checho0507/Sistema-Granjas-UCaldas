@@ -21,6 +21,7 @@
     "axios": "^1.13.2",
     "google-one-tap": "^1.0.6",
     "idb": "^8.0.3",
+    "jspdf": "^4.2.1",
     "lucide-react": "^1.8.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",

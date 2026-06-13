@@ -113,6 +113,12 @@ export const exportService = {
     return handleExcelDownload(response, 'cultivos');
   },
 
+  async exportarPlantas(): Promise<{ success: boolean; filename: string }> {
+    const url = `${API_BASE_URL}/export/plantas/excel`;
+    const response = await fetch(url, { method: 'GET', headers: getHeaders() });
+    return handleExcelDownload(response, 'plantas');
+  },
+
   async exportarMovimientos(): Promise<{ success: boolean; filename: string }> {
     const url = `${API_BASE_URL}/export/movimientos/excel`;
     const response = await fetch(url, { method: 'GET', headers: getHeaders() });
@@ -148,6 +154,7 @@ export const exportUsuarios = exportService.exportarUsuarios;
 export const exportProgramas = exportService.exportarProgramas;
 export const exportProgramasPorGranja = exportService.exportarProgramasPorGranja;
 export const exportCultivos = exportService.exportarCultivos;
+export const exportPlantas = exportService.exportarPlantas;
 export const exportMovimientos = exportService.exportarMovimientos;
 export const exportResumen = exportService.exportarResumen;
 export const exportResource = exportService.exportarRecurso;
