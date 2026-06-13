@@ -22,6 +22,22 @@ class DataframeFetchers:
     # Helpers de filtrado por rol
     # ------------------------------------------------------------------
 
+    def _get_rol(self) -> str:
+        """Retorna el nombre del rol del usuario en minúsculas, o cadena vacía."""
+        if self.usuario is None or not self.usuario.rol:
+            return ""
+        return (self.usuario.rol.nombre or "").lower()
+
+    def _is_admin(self) -> bool:
+        rol = self._get_rol()
+        return any(r in rol for r in ("admin", "coordinador", "superuser"))
+
+    def _is_docente(self) -> bool:
+        return "docente" in self._get_rol()
+
+    def _is_estudiante(self) -> bool:
+        return "estudiante" in self._get_rol()
+
     def _get_program_ids(self) -> Optional[List[int]]:
         """
         Retorna lista de IDs de programa accesibles para el usuario.
@@ -29,8 +45,7 @@ class DataframeFetchers:
         """
         if self.usuario is None:
             return None
-        rol_nombre = (self.usuario.rol.nombre or "").lower() if self.usuario.rol else ""
-        if any(r in rol_nombre for r in ("admin", "coordinador", "superuser")):
+        if self._is_admin():
             return None
         ids = [p.id for p in (self.usuario.programas or [])]
         return ids
@@ -132,11 +147,17 @@ class DataframeFetchers:
             return pd.DataFrame({"Error": [f"No se pudieron obtener lotes: {str(e)}"]})
 
     # ------------------------------------------------------------------
-    # Diagnósticos  ← CORREGIDO (atributos reales del modelo)
+    # Diagnósticos  ← CORREGIDO + filtrado por rol
     # ------------------------------------------------------------------
 
     def get_diagnosticos_dataframe(self) -> pd.DataFrame:
-        """Obtener DataFrame de diagnósticos bien formateado"""
+        """Obtener DataFrame de diagnósticos bien formateado.
+
+        Reglas:
+          - Admin / Coordinador : todos los diagnósticos.
+          - Docente              : todos los diagnósticos de sus programas.
+          - Estudiante           : únicamente sus propios diagnósticos.
+        """
         from app.db.models import Diagnostico
 
         try:
@@ -147,9 +168,14 @@ class DataframeFetchers:
                 joinedload(Diagnostico.diagnostico_tipo),
             )
 
-            program_ids = self._get_program_ids()
-            if program_ids is not None:
-                query = query.filter(Diagnostico.programa_id.in_(program_ids))
+            if self._is_estudiante():
+                # Solo sus propios diagnósticos
+                query = query.filter(Diagnostico.usuario_id == self.usuario.id)
+            else:
+                # Docente / admin: filtrar por programas asignados (None = sin filtro)
+                program_ids = self._get_program_ids()
+                if program_ids is not None:
+                    query = query.filter(Diagnostico.programa_id.in_(program_ids))
 
             diagnosticos = query.all()
 
@@ -175,12 +201,19 @@ class DataframeFetchers:
             return pd.DataFrame({"Error": [f"No se pudieron obtener diagnósticos: {str(e)}"]})
 
     # ------------------------------------------------------------------
-    # Recomendaciones  ← CORREGIDO (diagnostico.tipo → tipo_diagnostico)
+    # Recomendaciones  ← CORREGIDO + filtrado por rol
     # ------------------------------------------------------------------
 
     def get_recomendaciones_dataframe(self) -> pd.DataFrame:
-        """Obtener DataFrame de recomendaciones bien formateado"""
-        from app.db.models import Recomendacion, Lote
+        """Obtener DataFrame de recomendaciones bien formateado.
+
+        Reglas:
+          - Admin / Coordinador : todas las recomendaciones.
+          - Docente              : solo las recomendaciones que él mismo creó.
+          - Estudiante           : solo las recomendaciones vinculadas a sus
+                                   propios diagnósticos.
+        """
+        from app.db.models import Recomendacion, Lote, Diagnostico
 
         try:
             query = self.db.query(Recomendacion).options(
@@ -190,11 +223,23 @@ class DataframeFetchers:
                 joinedload(Recomendacion.labores),
             )
 
-            program_ids = self._get_program_ids()
-            if program_ids is not None:
-                query = query.join(Recomendacion.lote).filter(
-                    Lote.programa_id.in_(program_ids)
+            if self._is_estudiante():
+                # Solo recomendaciones cuyo diagnóstico pertenece al estudiante
+                query = (
+                    query
+                    .join(Recomendacion.diagnostico)
+                    .filter(Diagnostico.usuario_id == self.usuario.id)
                 )
+            elif self._is_docente():
+                # Solo las recomendaciones que él mismo generó
+                query = query.filter(Recomendacion.docente_id == self.usuario.id)
+            else:
+                # Admin: opcionalmente restringir por programas (None = sin filtro)
+                program_ids = self._get_program_ids()
+                if program_ids is not None:
+                    query = query.join(Recomendacion.lote).filter(
+                        Lote.programa_id.in_(program_ids)
+                    )
 
             recomendaciones = query.all()
 
