@@ -19,18 +19,13 @@ interface MapaDiagData {
   planta_id: number;
   diagnosticos_count: number;
   ultima_fecha?: string;
-  presion_plagas?: 'alta' | 'media' | 'baja' | 'ninguna';
-  tiene_enfermedades?: boolean;
-  estadio_fenologico?: string;
 }
 
-type VistaMapaKey = 'estado' | 'diagnosticos' | 'plagas' | 'enfermedades';
+type VistaMapaKey = 'estado' | 'diagnosticos';
 
 const VISTAS: { key: VistaMapaKey; label: string; icon: string; desc: string }[] = [
   { key: 'estado', label: 'Estado', icon: '🌱', desc: 'Estado productivo de cada planta' },
-  { key: 'diagnosticos', label: 'Diagnósticos', icon: '🔬', desc: 'Intensidad de diagnósticos registrados' },
-  { key: 'plagas', label: 'Presión Plagas', icon: '🐛', desc: 'Nivel de presión de plagas por planta' },
-  { key: 'enfermedades', label: 'Enfermedades', icon: '🍂', desc: 'Plantas con enfermedades registradas' },
+  { key: 'diagnosticos', label: 'Diagnósticos', icon: '🔬', desc: 'Cantidad de diagnósticos registrados por planta' },
 ];
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
@@ -57,7 +52,7 @@ const LoteMapa: React.FC = () => {
   }, [loteId]);
 
   useEffect(() => {
-    if (loteId && vistaActual !== 'estado') {
+    if (loteId && vistaActual === 'diagnosticos') {
       cargarMapaData();
     }
   }, [vistaActual, loteId]);
@@ -118,33 +113,17 @@ const LoteMapa: React.FC = () => {
         case 'productivo': return { cls: 'bg-green-500 hover:bg-green-600 border-green-600' };
         case 'para_eliminar': return { cls: 'bg-red-500 hover:bg-red-600 border-red-600' };
         case 'punto_vacio': return { cls: 'bg-gray-300 hover:bg-gray-400 border-gray-400' };
+        case 'observacion': return { cls: 'bg-blue-400 hover:bg-blue-500 border-blue-500' };
         default: return { cls: 'bg-gray-100 border-gray-300' };
       }
     }
 
+    // Vista de diagnósticos
     const d = mapaData[planta.id];
-
-    if (vistaActual === 'diagnosticos') {
-      if (!d || d.diagnosticos_count === 0) return { cls: 'bg-gray-100 border-gray-300', label: '0' };
-      if (d.diagnosticos_count >= 5) return { cls: 'bg-red-600 hover:bg-red-700 border-red-700', label: String(d.diagnosticos_count) };
-      if (d.diagnosticos_count >= 3) return { cls: 'bg-orange-500 hover:bg-orange-600 border-orange-600', label: String(d.diagnosticos_count) };
-      if (d.diagnosticos_count >= 1) return { cls: 'bg-yellow-400 hover:bg-yellow-500 border-yellow-500', label: String(d.diagnosticos_count) };
-      return { cls: 'bg-gray-100 border-gray-300' };
-    }
-
-    if (vistaActual === 'plagas') {
-      const p = d?.presion_plagas;
-      if (p === 'alta') return { cls: 'bg-red-500 hover:bg-red-600 border-red-600' };
-      if (p === 'media') return { cls: 'bg-orange-400 hover:bg-orange-500 border-orange-500' };
-      if (p === 'baja') return { cls: 'bg-yellow-300 hover:bg-yellow-400 border-yellow-400' };
-      return { cls: 'bg-green-100 border-green-200' };
-    }
-
-    if (vistaActual === 'enfermedades') {
-      if (d?.tiene_enfermedades) return { cls: 'bg-purple-500 hover:bg-purple-600 border-purple-600' };
-      return { cls: 'bg-green-100 border-green-200' };
-    }
-
+    if (!d || d.diagnosticos_count === 0) return { cls: 'bg-gray-100 border-gray-300', label: '0' };
+    if (d.diagnosticos_count >= 5) return { cls: 'bg-red-600 hover:bg-red-700 border-red-700', label: String(d.diagnosticos_count) };
+    if (d.diagnosticos_count >= 3) return { cls: 'bg-orange-500 hover:bg-orange-600 border-orange-600', label: String(d.diagnosticos_count) };
+    if (d.diagnosticos_count >= 1) return { cls: 'bg-yellow-400 hover:bg-yellow-500 border-yellow-500', label: String(d.diagnosticos_count) };
     return { cls: 'bg-gray-100 border-gray-300' };
   };
 
@@ -152,14 +131,18 @@ const LoteMapa: React.FC = () => {
     if (!planta) return 'Sin planta registrada';
     const base = `${planta.codigo} (S${planta.surco}/P${planta.numero})`;
     const d = mapaData[planta.id];
+    
     if (vistaActual === 'estado') {
-      const estados: Record<string, string> = { productivo: 'Productivo', para_eliminar: 'Para Eliminar', punto_vacio: 'Punto Vacío' };
+      const estados: Record<string, string> = { 
+        productivo: 'Productivo', 
+        para_eliminar: 'Para Eliminar', 
+        punto_vacio: 'Punto Vacío',
+        observacion: 'Observación'
+      };
       return `${base} — ${estados[planta.estado] || planta.estado}`;
     }
-    if (vistaActual === 'diagnosticos') return `${base} — ${d?.diagnosticos_count ?? 0} diagnóstico(s)`;
-    if (vistaActual === 'plagas') return `${base} — Plagas: ${d?.presion_plagas ?? 'sin datos'}`;
-    if (vistaActual === 'enfermedades') return `${base} — ${d?.tiene_enfermedades ? 'Con enfermedades' : 'Sin enfermedades'}`;
-    return base;
+    
+    return `${base} — ${d?.diagnosticos_count ?? 0} diagnóstico(s)`;
   };
 
   const getLeyenda = () => {
@@ -168,6 +151,7 @@ const LoteMapa: React.FC = () => {
         { color: 'bg-green-500', label: 'Productivo' },
         { color: 'bg-red-500', label: 'Para Eliminar' },
         { color: 'bg-gray-300', label: 'Punto Vacío' },
+        { color: 'bg-blue-400', label: 'Observación' },
         { color: 'bg-white border border-gray-300', label: 'Sin registrar' },
       ];
       case 'diagnosticos': return [
@@ -175,16 +159,6 @@ const LoteMapa: React.FC = () => {
         { color: 'bg-yellow-400', label: '1–2 diagnósticos' },
         { color: 'bg-orange-500', label: '3–4 diagnósticos' },
         { color: 'bg-red-600', label: '5+ diagnósticos' },
-      ];
-      case 'plagas': return [
-        { color: 'bg-green-100 border', label: 'Sin datos / Sin presión' },
-        { color: 'bg-yellow-300', label: 'Presión baja' },
-        { color: 'bg-orange-400', label: 'Presión media' },
-        { color: 'bg-red-500', label: 'Presión alta' },
-      ];
-      case 'enfermedades': return [
-        { color: 'bg-green-100 border', label: 'Sin enfermedades' },
-        { color: 'bg-purple-500', label: 'Con enfermedades' },
       ];
       default: return [];
     }
@@ -272,8 +246,16 @@ const LoteMapa: React.FC = () => {
                 <div><span className="text-gray-500">Planta:</span> <span className="font-medium">{plantaSeleccionada.numero}</span></div>
                 <div>
                   <span className="text-gray-500">Estado:</span>{' '}
-                  <span className={`font-medium ${plantaSeleccionada.estado === 'productivo' ? 'text-green-600' : plantaSeleccionada.estado === 'para_eliminar' ? 'text-red-600' : 'text-gray-600'}`}>
-                    {plantaSeleccionada.estado === 'productivo' ? 'Productivo' : plantaSeleccionada.estado === 'para_eliminar' ? 'Para Eliminar' : 'Punto Vacío'}
+                  <span className={`font-medium ${
+                    plantaSeleccionada.estado === 'productivo' ? 'text-green-600' : 
+                    plantaSeleccionada.estado === 'para_eliminar' ? 'text-red-600' : 
+                    plantaSeleccionada.estado === 'observacion' ? 'text-blue-600' : 
+                    'text-gray-600'
+                  }`}>
+                    {plantaSeleccionada.estado === 'productivo' ? 'Productivo' : 
+                     plantaSeleccionada.estado === 'para_eliminar' ? 'Para Eliminar' : 
+                     plantaSeleccionada.estado === 'observacion' ? 'Observación' : 
+                     'Punto Vacío'}
                   </span>
                 </div>
                 {mapaData[plantaSeleccionada.id] && (
@@ -324,25 +306,22 @@ const LoteMapa: React.FC = () => {
             <StatCard value={plantas.filter(p => p.estado === 'productivo').length} label="Productivos" color="text-green-600" />
             <StatCard value={plantas.filter(p => p.estado === 'para_eliminar').length} label="Para Eliminar" color="text-red-600" />
             <StatCard value={plantas.filter(p => p.estado === 'punto_vacio').length} label="Puntos Vacíos" color="text-gray-500" />
+            <StatCard value={plantas.filter(p => p.estado === 'observacion').length} label="Observación" color="text-blue-500" />
             <StatCard value={lote.total_plantas - plantas.length} label="Sin registrar" color="text-gray-400" />
           </div>
 
-          {vistaActual !== 'estado' && (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {/* Estadísticas de diagnósticos (solo cuando la vista es diagnósticos) */}
+          {vistaActual === 'diagnosticos' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <StatCard
                 value={Object.values(mapaData).reduce((s, d) => s + d.diagnosticos_count, 0)}
                 label="Total diagnósticos"
                 color="text-blue-600"
               />
               <StatCard
-                value={Object.values(mapaData).filter(d => d.presion_plagas === 'alta').length}
-                label="Con presión alta"
-                color="text-red-600"
-              />
-              <StatCard
-                value={Object.values(mapaData).filter(d => d.tiene_enfermedades).length}
-                label="Con enfermedades"
-                color="text-purple-600"
+                value={Object.values(mapaData).filter(d => d.diagnosticos_count >= 3).length}
+                label="Plantas con 3+ diagnósticos"
+                color="text-orange-600"
               />
             </div>
           )}
