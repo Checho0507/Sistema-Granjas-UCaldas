@@ -207,9 +207,21 @@ const Dashboard: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Si es docente, cargar datos filtrados por sus programas
-      if (esDocente && programasUsuario.length > 0) {
-        // 👇 Cargar programas (solo los del docente)
+      // 👇 Si es docente, verificar si tiene programas asignados
+      if (esDocente) {
+        // 👇 Si NO tiene programas asignados, mostrar todo en 0
+        if (programasUsuario.length === 0) {
+          setStats({
+            granjas: 0,
+            programas: 0,
+            lotes: 0,
+            cultivos: 0,
+          });
+          setLoading(false);
+          return;
+        }
+
+        // 👇 Si tiene programas, cargar datos filtrados
         const programasResponse = await programaService.obtenerProgramas();
         const todosProgramas = normalizarArray(programasResponse);
         const programasDocente = todosProgramas.filter((p: any) => 
@@ -221,7 +233,6 @@ const Dashboard: React.FC = () => {
         const lotesSet = new Set<number>();
         const cultivosSet = new Set<number>();
 
-        // Para cada programa del docente, obtener sus lotes
         for (const programa of programasDocente) {
           try {
             const lotesResponse = await loteService.obtenerLotesPorPrograma(programa.id);
@@ -246,7 +257,7 @@ const Dashboard: React.FC = () => {
           cultivos: cultivosSet.size,
         });
       } else {
-        // Admin y otros roles: cargar todos los datos
+        // 👇 Admin y otros roles: cargar todos los datos
         const [granjasR, programasR, lotesR, cultivosR] = await Promise.allSettled([
           granjaService.obtenerGranjas(),
           programaService.obtenerProgramas(),
@@ -280,13 +291,6 @@ const Dashboard: React.FC = () => {
   const badge = getRoleBadge(rol);
   const quickActions = QUICK_ACTIONS[rol] ?? [];
   const roleProfile = ROLE_PROFILES[rol];
-
-  // 👇 Obtener nombres de programas del docente para mostrar
-  const programasDocenteNombres = useMemo(() => {
-    if (!esDocente || programasUsuario.length === 0) return '';
-    // Nota: los nombres no están disponibles aquí, se podrían cargar por separado
-    return programasUsuario.length > 0 ? `${programasUsuario.length} programa(s)` : '';
-  }, [esDocente, programasUsuario]);
 
   if (loading) {
     return (
