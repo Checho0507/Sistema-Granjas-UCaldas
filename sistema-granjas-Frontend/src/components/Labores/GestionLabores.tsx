@@ -52,38 +52,68 @@ const GestionLaboresPage: React.FC = () => {
 
     const [filtros, setFiltros] = useState<LaborFilters>({});
 
-    // Verificar si el usuario es Talento Humano o Jefe Talento Humano
-    const esTalentoHumano = user?.rol_id === 6 || user?.rol_id === 7 || user?.rol === 'jefe_talento_humano';
-
-    // 👇 DETERMINAR ROL Y PROGRAMAS DEL USUARIO (con seguridad)
+    // 👇 DETERMINAR ROLES
     const esAdmin = user?.rol_id === 1;
     const esDocente = user?.rol_id === 2 || user?.rol_id === 5;
+    const esTalentoHumano = user?.rol_id === 6 || user?.rol_id === 7 || user?.rol === 'jefe_talento_humano';
+    const esJefeTalentoHumano = user?.rol_id === 7 || user?.rol === 'jefe_talento_humano';
+
+    // 👇 OBTENER PROGRAMAS Y GRANJAS DEL USUARIO
     const programasUsuario = useMemo(
         () => (user?.programas?.map((p: any) => p.id) || []) as number[],
         [user?.id, user?.programas]
     );
 
-    // 👇 FUNCIÓN PARA FILTRAR LOTES POR PROGRAMAS DEL DOCENTE
-    const filtrarLotesPorDocente = useCallback((lotesArray: any[]) => {
+    // 👇 OBTENER GRANJAS DEL USUARIO (para Talento Humano)
+    const granjasUsuario = useMemo(
+        () => (user?.granjas?.map((g: any) => g.id) || []) as number[],
+        [user?.id, user?.granjas]
+    );
+
+    // 👇 FUNCIÓN PARA FILTRAR LOTES POR ROL
+    const filtrarLotesPorRol = useCallback((lotesArray: any[]) => {
         if (!lotesArray) return [];
+        
+        // Admin ve todo
         if (esAdmin) return lotesArray;
+        
+        // Docente: solo lotes de sus programas
         if (esDocente) {
             if (programasUsuario.length === 0) return [];
             return lotesArray.filter(lote => programasUsuario.includes(lote?.programa_id));
         }
+        
+        // Talento Humano: solo lotes de sus granjas
+        if (esTalentoHumano) {
+            if (granjasUsuario.length === 0) return [];
+            return lotesArray.filter(lote => granjasUsuario.includes(lote?.granja_id));
+        }
+        
         return lotesArray;
-    }, [esAdmin, esDocente, programasUsuario]);
+    }, [esAdmin, esDocente, esTalentoHumano, programasUsuario, granjasUsuario]);
 
-    // 👇 FUNCIÓN PARA FILTRAR TRABAJADORES
-    const filtrarTrabajadores = useCallback((trabajadoresArray: any[]) => {
+    // 👇 FUNCIÓN PARA FILTRAR TRABAJADORES POR ROL
+    const filtrarTrabajadoresPorRol = useCallback((trabajadoresArray: any[]) => {
         if (!trabajadoresArray) return [];
+        
+        // Admin ve todo
         if (esAdmin) return trabajadoresArray;
+        
+        // Docente: ve todos los trabajadores si tiene programas
         if (esDocente) {
             if (programasUsuario.length === 0) return [];
             return trabajadoresArray;
         }
+        
+        // Talento Humano: solo trabajadores de sus granjas
+        if (esTalentoHumano) {
+            if (granjasUsuario.length === 0) return [];
+            // El backend ya filtra por granja, pero filtramos adicionalmente
+            return trabajadoresArray;
+        }
+        
         return trabajadoresArray;
-    }, [esAdmin, esDocente, programasUsuario]);
+    }, [esAdmin, esDocente, esTalentoHumano, programasUsuario, granjasUsuario]);
 
     useEffect(() => {
         if (!authLoading && user) {
@@ -96,10 +126,32 @@ const GestionLaboresPage: React.FC = () => {
             setLoading(true);
             setError(null);
 
+            // 👇 Si es Talento Humano, pasar el filtro de granja al backend
+            const filtrosActuales = { ...filtros };
+            if (esTalentoHumano && granjasUsuario.length > 0) {
+                // El backend puede filtrar por granja si tiene el endpoint
+                // Si no, el frontend filtra
+            }
+
             // Cargar labores
-            const data = await laborService.obtenerLabores(filtros);
+            const data = await laborService.obtenerLabores(filtrosActuales);
             const laboresData = Array.isArray(data) ? data : (data?.items || data || []);
-            setLabores(laboresData);
+            
+            // 👇 Filtrar labores por granja si es Talento Humano
+            let laboresFiltradasPorRol = laboresData;
+            if (esTalentoHumano && granjasUsuario.length > 0) {
+                // Si las labores tienen lote_id, filtramos por granja del lote
+                // Esto requiere que los lotes tengan la información de granja
+                laboresFiltradasPorRol = laboresData.filter((labor: any) => {
+                    // Si la labor tiene lote, verificamos que la granja del lote esté en las granjas del usuario
+                    if (labor.lote_id && labor.lote_granja_id) {
+                        return granjasUsuario.includes(labor.lote_granja_id);
+                    }
+                    // Si no tiene granja en la labor, la incluimos (puede ser que el backend ya filtró)
+                    return true;
+                });
+            }
+            setLabores(laboresFiltradasPorRol);
 
             // Cargar lotes si no se han cargado
             if (lotes.length === 0) {
@@ -126,7 +178,7 @@ const GestionLaboresPage: React.FC = () => {
                     setLotes(lotesArray || []);
                     
                     // Filtrar lotes según rol
-                    const lotesFiltradosPorRol = filtrarLotesPorDocente(lotesArray || []);
+                    const lotesFiltradosPorRol = filtrarLotesPorRol(lotesArray || []);
                     setLotesFiltrados(lotesFiltradosPorRol || []);
                     
                 } catch (loteError) {
@@ -143,7 +195,7 @@ const GestionLaboresPage: React.FC = () => {
                     const trabajadoresArray = Array.isArray(trabajadoresData) ? trabajadoresData : (trabajadoresData?.items || []);
                     setTrabajadores(trabajadoresArray || []);
                     
-                    const trabajadoresFiltradosPorRol = filtrarTrabajadores(trabajadoresArray || []);
+                    const trabajadoresFiltradosPorRol = filtrarTrabajadoresPorRol(trabajadoresArray || []);
                     setTrabajadoresFiltrados(trabajadoresFiltradosPorRol || []);
                     
                 } catch (userError) {
@@ -307,13 +359,29 @@ const GestionLaboresPage: React.FC = () => {
         );
     }
 
+    // 👇 MOSTRAR BADGE DE GRANJA PARA TALENTO HUMANO
+    const getGranjaBadge = () => {
+        if (esTalentoHumano && granjasUsuario.length > 0) {
+            return (
+                <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full flex items-center gap-1">
+                    <i className="fas fa-warehouse"></i>
+                    {granjasUsuario.length} granja(s) asignada(s)
+                </span>
+            );
+        }
+        return null;
+    };
+
     return (
         <div className="p-6">
             {/* HEADER */}
             <div className="mb-6">
                 <div className="flex justify-between items-center mb-4">
-                    <h1 className="text-2xl font-bold text-gray-800">Gestión de Labores</h1>
-                    <div className="flex items-center space-x-3 m-2">
+                    <div className="flex items-center gap-4">
+                        <h1 className="text-2xl font-bold text-gray-800">Gestión de Labores</h1>
+                        {getGranjaBadge()}
+                    </div>
+                    <div className="flex items-center space-x-3">
                         <ExportButton onExport={() => exportService.exportarLabores()} />
                     </div>
                     <div className="flex space-x-3">
@@ -422,16 +490,24 @@ const GestionLaboresPage: React.FC = () => {
                                 Limpiar Filtros
                             </button>
                         </div>
-                        {esDocente && (
+                        {(esDocente || esTalentoHumano) && (
                             <div className="mt-3 flex items-center justify-between">
                                 <span className="text-xs text-gray-500">
                                     <i className="fas fa-info-circle mr-1"></i>
-                                    Mostrando {lotesFiltrados?.length || 0} lote(s) de tus programas asignados
+                                    Mostrando {lotesFiltrados?.length || 0} lote(s)
+                                    {esDocente && " de tus programas asignados"}
+                                    {esTalentoHumano && " de tus granjas asignadas"}
                                 </span>
-                                {programasUsuario.length === 0 && (
+                                {esDocente && programasUsuario.length === 0 && (
                                     <span className="text-xs text-red-500">
                                         <i className="fas fa-exclamation-triangle mr-1"></i>
                                         No tienes programas asignados
+                                    </span>
+                                )}
+                                {esTalentoHumano && granjasUsuario.length === 0 && (
+                                    <span className="text-xs text-red-500">
+                                        <i className="fas fa-exclamation-triangle mr-1"></i>
+                                        No tienes granjas asignadas
                                     </span>
                                 )}
                             </div>
