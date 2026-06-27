@@ -1,5 +1,5 @@
 // src/pages/Labores/GestionLaboresPage.tsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import laborService from '../../services/laboresService';
 import usuarioService from '../../services/usuarioService';
@@ -25,7 +25,7 @@ type LaboresTab = 'labores' | 'tipos' | 'recomendaciones-pendientes';
 
 const GestionLaboresPage: React.FC = () => {
     const [tabActivo, setTabActivo] = useState<LaboresTab>('labores');
-    const { user } = useAuth();
+    const { user, loading: authLoading } = useAuth();
     const [labores, setLabores] = useState<Labor[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -55,110 +55,96 @@ const GestionLaboresPage: React.FC = () => {
     // Verificar si el usuario es Talento Humano o Jefe Talento Humano
     const esTalentoHumano = user?.rol_id === 6 || user?.rol_id === 7 || user?.rol === 'jefe_talento_humano';
 
-    // 👇 DETERMINAR ROL Y PROGRAMAS DEL USUARIO
+    // 👇 DETERMINAR ROL Y PROGRAMAS DEL USUARIO (con seguridad)
     const esAdmin = user?.rol_id === 1;
     const esDocente = user?.rol_id === 2 || user?.rol_id === 5;
     const programasUsuario = useMemo(
-        () => user?.programas?.map((p: any) => p.id) || [],
-        [user?.id]
+        () => (user?.programas?.map((p: any) => p.id) || []) as number[],
+        [user?.id, user?.programas]
     );
 
     // 👇 FUNCIÓN PARA FILTRAR LOTES POR PROGRAMAS DEL DOCENTE
     const filtrarLotesPorDocente = useCallback((lotesArray: any[]) => {
-        if (esAdmin) {
-            return lotesArray; // Admin ve todos
-        }
+        if (!lotesArray) return [];
+        if (esAdmin) return lotesArray;
         if (esDocente) {
-            if (programasUsuario.length === 0) {
-                return []; // Docente sin programas no ve lotes
-            }
-            return lotesArray.filter(lote => programasUsuario.includes(lote.programa_id));
+            if (programasUsuario.length === 0) return [];
+            return lotesArray.filter(lote => programasUsuario.includes(lote?.programa_id));
         }
-        return lotesArray; // Otros roles ven todos
+        return lotesArray;
     }, [esAdmin, esDocente, programasUsuario]);
 
-    // 👇 FUNCIÓN PARA FILTRAR TRABAJADORES (solo docentes con programas)
+    // 👇 FUNCIÓN PARA FILTRAR TRABAJADORES
     const filtrarTrabajadores = useCallback((trabajadoresArray: any[]) => {
-        if (esAdmin) {
-            return trabajadoresArray; // Admin ve todos
-        }
+        if (!trabajadoresArray) return [];
+        if (esAdmin) return trabajadoresArray;
         if (esDocente) {
-            if (programasUsuario.length === 0) {
-                return []; // Docente sin programas no ve trabajadores
-            }
-            return trabajadoresArray; // Docente con programas ve todos los trabajadores
+            if (programasUsuario.length === 0) return [];
+            return trabajadoresArray;
         }
-        return trabajadoresArray; // Otros roles ven todos
+        return trabajadoresArray;
     }, [esAdmin, esDocente, programasUsuario]);
 
     useEffect(() => {
-        cargarDatos();
-    }, [filtros]);
+        if (!authLoading && user) {
+            cargarDatos();
+        }
+    }, [filtros, authLoading, user]);
 
     const cargarDatos = async () => {
         try {
             setLoading(true);
             setError(null);
 
-            // Cargar labores - El backend ya filtra según el rol del usuario autenticado
+            // Cargar labores
             const data = await laborService.obtenerLabores(filtros);
             const laboresData = Array.isArray(data) ? data : (data?.items || data || []);
             setLabores(laboresData);
 
-            // Cargar lotes y filtrar según rol
+            // Cargar lotes si no se han cargado
             if (lotes.length === 0) {
                 try {
                     const lotesData = await loteService.obtenerLotes();
                     let lotesArray = Array.isArray(lotesData) ? lotesData : (lotesData?.items || []);
 
-                    // Obtener nombres de granjas para cada lote
+                    // Obtener nombres de granjas
                     lotesArray = await Promise.all(
-                        lotesArray.map(async (lote) => {
+                        (lotesArray || []).map(async (lote) => {
+                            if (!lote) return lote;
                             try {
                                 if (lote.granja_id) {
                                     const granja = await granjaService.obtenerGranjaPorId(lote.granja_id);
-                                    return {
-                                        ...lote,
-                                        granja_nombre: granja.nombre || 'Sin nombre'
-                                    };
+                                    return { ...lote, granja_nombre: granja?.nombre || 'Sin nombre' };
                                 }
-                                return {
-                                    ...lote,
-                                    granja_nombre: 'Sin granja'
-                                };
-                            } catch (error) {
-                                console.error(`Error obteniendo granja ${lote.granja_id}:`, error);
-                                return {
-                                    ...lote,
-                                    granja_nombre: 'Error al cargar'
-                                };
+                                return { ...lote, granja_nombre: 'Sin granja' };
+                            } catch {
+                                return { ...lote, granja_nombre: 'Error al cargar' };
                             }
                         })
                     );
 
-                    setLotes(lotesArray);
+                    setLotes(lotesArray || []);
                     
-                    // 👇 Filtrar lotes según rol
-                    const lotesFiltradosPorRol = filtrarLotesPorDocente(lotesArray);
-                    setLotesFiltrados(lotesFiltradosPorRol);
+                    // Filtrar lotes según rol
+                    const lotesFiltradosPorRol = filtrarLotesPorDocente(lotesArray || []);
+                    setLotesFiltrados(lotesFiltradosPorRol || []);
                     
                 } catch (loteError) {
                     console.error('Error cargando lotes:', loteError);
-                    toast.error('Error al cargar los lotes');
                     setLotes([]);
                     setLotesFiltrados([]);
                 }
             }
 
-            // Cargar trabajadores y filtrar según rol
+            // Cargar trabajadores si no se han cargado
             if (trabajadores.length === 0) {
                 try {
                     const trabajadoresData = await usuarioService.obtenerTrabajadores();
-                    setTrabajadores(trabajadoresData);
+                    const trabajadoresArray = Array.isArray(trabajadoresData) ? trabajadoresData : (trabajadoresData?.items || []);
+                    setTrabajadores(trabajadoresArray || []);
                     
-                    // 👇 Filtrar trabajadores según rol
-                    const trabajadoresFiltradosPorRol = filtrarTrabajadores(trabajadoresData);
-                    setTrabajadoresFiltrados(trabajadoresFiltradosPorRol);
+                    const trabajadoresFiltradosPorRol = filtrarTrabajadores(trabajadoresArray || []);
+                    setTrabajadoresFiltrados(trabajadoresFiltradosPorRol || []);
                     
                 } catch (userError) {
                     console.error('Error cargando trabajadores:', userError);
@@ -167,11 +153,12 @@ const GestionLaboresPage: React.FC = () => {
                 }
             }
 
+            // Cargar recomendaciones
             if (recomendaciones.length === 0) {
                 try {
                     const recData = await recomendacionService.obtenerRecomendaciones();
                     const recArray = Array.isArray(recData) ? recData : (recData?.items || []);
-                    setRecomendaciones(recArray);
+                    setRecomendaciones(recArray || []);
                 } catch (recError) {
                     console.error('Error cargando recomendaciones:', recError);
                     setRecomendaciones([]);
@@ -181,9 +168,8 @@ const GestionLaboresPage: React.FC = () => {
             // Cargar tipos de labor
             if (tiposLabor.length === 0) {
                 try {
-                    // Intentar cargar tipos de labor desde el servicio
                     const tipos = await laborService.obtenerTiposLabor?.() || [];
-                    setTiposLabor(tipos);
+                    setTiposLabor(tipos || []);
                 } catch (error) {
                     console.error('Error cargando tipos de labor:', error);
                     setTiposLabor([]);
@@ -279,14 +265,13 @@ const GestionLaboresPage: React.FC = () => {
         setLaborACompletar(labor);
         setProductosRecomendados([]);
         setShowCompletarModal(true);
-        // Load recommended products from the recomendacion
         if ((labor as any).recomendacion_id) {
             try {
                 const rec = await recomendacionService.obtenerRecomendacionPorId((labor as any).recomendacion_id);
-                const items = (rec as any).items_sugeridos || [];
+                const items = (rec as any)?.items_sugeridos || [];
                 if (items.length > 0) {
                     setProductosRecomendados(items);
-                } else if ((rec as any).inventario_item_id) {
+                } else if ((rec as any)?.inventario_item_id) {
                     setProductosRecomendados([{
                         id: (rec as any).inventario_item_id,
                         inventario_item_id: (rec as any).inventario_item_id,
@@ -299,8 +284,28 @@ const GestionLaboresPage: React.FC = () => {
         }
     };
 
-    // ✅ EL BACKEND YA FILTRA POR ROL AUTOMÁTICAMENTE
     const laboresFiltradas = Array.isArray(labores) ? labores : [];
+
+    // Mostrar loading mientras se carga el auth
+    if (authLoading) {
+        return (
+            <div className="flex justify-center items-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                <span className="ml-4 text-gray-600">Cargando...</span>
+            </div>
+        );
+    }
+
+    // Si no hay usuario, mostrar mensaje
+    if (!user) {
+        return (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-8 text-center">
+                <i className="fas fa-exclamation-triangle text-4xl text-yellow-600 mb-3 block"></i>
+                <h3 className="text-lg font-semibold text-yellow-800 mb-2">No autenticado</h3>
+                <p className="text-yellow-700">Por favor, inicia sesión para acceder a esta página.</p>
+            </div>
+        );
+    }
 
     return (
         <div className="p-6">
@@ -348,7 +353,6 @@ const GestionLaboresPage: React.FC = () => {
                             <i className="fas fa-tag mr-2"></i>Tipos de Labor
                         </button>
                     )}
-                    {/* Nueva pestaña para Talento Humano */}
                     {esTalentoHumano && (
                         <button 
                             onClick={() => setTabActivo('recomendaciones-pendientes')}
@@ -383,11 +387,15 @@ const GestionLaboresPage: React.FC = () => {
                                 onChange={(e) => setFiltros({ ...filtros, trabajador_id: e.target.value ? parseInt(e.target.value) : undefined })}
                             >
                                 <option value="">Todos los trabajadores</option>
-                                {Array.isArray(trabajadoresFiltrados) && trabajadoresFiltrados.map(trab => (
-                                    <option key={trab.id} value={trab.id}>
-                                        {trab.nombre}
-                                    </option>
-                                ))}
+                                {Array.isArray(trabajadoresFiltrados) && trabajadoresFiltrados.length > 0 ? (
+                                    trabajadoresFiltrados.map(trab => (
+                                        <option key={trab.id} value={trab.id}>
+                                            {trab.nombre}
+                                        </option>
+                                    ))
+                                ) : (
+                                    <option value="" disabled>No hay trabajadores disponibles</option>
+                                )}
                             </select>
 
                             <select
@@ -396,11 +404,15 @@ const GestionLaboresPage: React.FC = () => {
                                 onChange={(e) => setFiltros({ ...filtros, lote_id: e.target.value ? parseInt(e.target.value) : undefined })}
                             >
                                 <option value="">Todos los lotes</option>
-                                {Array.isArray(lotesFiltrados) && lotesFiltrados.map(lote => (
-                                    <option key={lote.id} value={lote.id}>
-                                        {lote.nombre} ({lote.granja_nombre || 'Sin granja'})
-                                    </option>
-                                ))}
+                                {Array.isArray(lotesFiltrados) && lotesFiltrados.length > 0 ? (
+                                    lotesFiltrados.map(lote => (
+                                        <option key={lote.id} value={lote.id}>
+                                            {lote.nombre} ({lote.granja_nombre || 'Sin granja'})
+                                        </option>
+                                    ))
+                                ) : (
+                                    <option value="" disabled>No hay lotes disponibles</option>
+                                )}
                             </select>
 
                             <button
@@ -410,12 +422,11 @@ const GestionLaboresPage: React.FC = () => {
                                 Limpiar Filtros
                             </button>
                         </div>
-                        {/* 👇 Mensaje informativo para docentes */}
                         {esDocente && (
                             <div className="mt-3 flex items-center justify-between">
                                 <span className="text-xs text-gray-500">
                                     <i className="fas fa-info-circle mr-1"></i>
-                                    Mostrando {lotesFiltrados.length} lote(s) de tus programas asignados
+                                    Mostrando {lotesFiltrados?.length || 0} lote(s) de tus programas asignados
                                 </span>
                                 {programasUsuario.length === 0 && (
                                     <span className="text-xs text-red-500">
@@ -434,12 +445,12 @@ const GestionLaboresPage: React.FC = () => {
                 <GestionTiposLabores />
             )}
 
-            {/* TAB: Recomendaciones sin labores (Talento Humano) */}
+            {/* TAB: Recomendaciones sin labores */}
             {tabActivo === 'recomendaciones-pendientes' && esTalentoHumano && (
                 <RecomendacionesSinLabores onLaborCreada={cargarDatos} />
             )}
 
-            {/* TAB: Labores tabla */}
+            {/* TAB: Labores */}
             {tabActivo === 'labores' && (
                 <>
                     {loading ? (
@@ -469,8 +480,6 @@ const GestionLaboresPage: React.FC = () => {
             )}
 
             {/* MODALES */}
-
-            {/* MODAL CREAR */}
             <Modal isOpen={showCrearModal} onClose={() => setShowCrearModal(false)} width="max-w-2xl">
                 <LaborForm
                     onSubmit={handleCrearLabor}
@@ -483,7 +492,6 @@ const GestionLaboresPage: React.FC = () => {
                 />
             </Modal>
 
-            {/* MODAL EDITAR */}
             <Modal isOpen={showEditarModal} onClose={() => setShowEditarModal(false)} width="max-w-2xl">
                 {selectedLabor && (
                     <LaborForm
@@ -500,7 +508,6 @@ const GestionLaboresPage: React.FC = () => {
                 )}
             </Modal>
 
-            {/* MODAL DETALLES */}
             {selectedLabor && (
                 <DetallesLaborModal
                     isOpen={showDetallesModal}
@@ -512,13 +519,11 @@ const GestionLaboresPage: React.FC = () => {
                 />
             )}
 
-            {/* MODAL ESTADÍSTICAS */}
             <EstadisticasLaboresModal
                 isOpen={showEstadisticasModal}
                 onClose={() => setShowEstadisticasModal(false)}
             />
 
-            {/* MODAL ASIGNAR RECURSOS */}
             {selectedLabor && (
                 <AsignarRecursosModal
                     isOpen={showAsignarRecursosModal}
@@ -531,7 +536,6 @@ const GestionLaboresPage: React.FC = () => {
                 />
             )}
 
-            {/* MODAL COMPLETAR LABOR */}
             {laborACompletar && (
                 <CompletarLaborModal
                     isOpen={showCompletarModal}
