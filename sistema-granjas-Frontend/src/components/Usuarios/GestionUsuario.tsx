@@ -274,7 +274,6 @@ export default function GestionUsuarios() {
                 roles
             );
             
-            // Mostrar mensaje de éxito según la acción
             if (nuevoEstado) {
                 alert(`✅ Usuario "${usuario.nombre}" reactivado exitosamente`);
             } else {
@@ -297,11 +296,6 @@ export default function GestionUsuarios() {
             email: "",
             activo: true
         });
-    };
-
-    const obtenerNombreRol = (rolId: number) => {
-        const rol = roles.find(r => r.id === rolId);
-        return rol ? rol.nombre : `Rol ${rolId}`;
     };
 
     const usuariosFiltrados = usuarios.filter(usuario => {
@@ -327,38 +321,43 @@ export default function GestionUsuarios() {
     }
 
     return (
-        <div className="p-6">
+        <div className="p-6 space-y-6">
             {/* Error */}
             {error && (
-                <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
-                    <i className="fas fa-exclamation-circle mr-2"></i>
-                    {error}
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <i className="fas fa-exclamation-circle text-xl"></i>
+                        <span>{error}</span>
+                    </div>
                     <button
                         onClick={() => setError(null)}
-                        className="ml-4 text-sm text-red-500 hover:text-red-700"
+                        className="text-red-500 hover:text-red-700 transition-colors"
                     >
                         <i className="fas fa-times"></i>
                     </button>
                 </div>
             )}
 
-            {/* Estadísticas por Rol */}
-            {Object.keys(estadisticas.porRol).length > 0 && (
-                <div className="mb-6 bg-white rounded-lg shadow p-4">
-                    <h3 className="text-lg font-medium text-gray-900 mb-3">Distribución por Roles</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {Object.entries(estadisticas.porRol).map(([rol, cantidad]) => (
-                            <div key={rol} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                <span className="text-sm font-medium text-gray-700">{rol}</span>
-                                <span className="text-lg font-bold text-purple-600">{cantidad}</span>
-                            </div>
-                        ))}
-                    </div>
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-800">Gestión de Usuarios</h1>
+                    <p className="text-sm text-gray-500 mt-1">
+                        Administra los usuarios del sistema, sus roles y asignaciones
+                    </p>
                 </div>
-            )}
+                <button
+                    onClick={handleExportUsuarios}
+                    disabled={exporting}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
+                >
+                    <i className={`fas ${exporting ? 'fa-spinner fa-spin' : 'fa-file-export'}`}></i>
+                    {exporting ? 'Exportando...' : 'Exportar'}
+                </button>
+            </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatsCard
                     title="Total Usuarios"
                     value={estadisticas.total}
@@ -377,49 +376,111 @@ export default function GestionUsuarios() {
                     icon="fa-user-slash"
                     color="red"
                 />
+                <StatsCard
+                    title="Roles Disponibles"
+                    value={roles.length}
+                    icon="fa-tags"
+                    color="purple"
+                />
             </div>
 
-            {/* Barra de herramientas */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <div className="text-sm text-gray-600">
-                    <i className="fas fa-info-circle mr-1"></i>
-                    Los usuarios se registran mediante el sistema de autenticación
+            {/* Distribución por Roles */}
+            {Object.keys(estadisticas.porRol).length > 0 && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                        <i className="fas fa-chart-pie text-purple-500"></i>
+                        Distribución por Roles
+                    </h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                        {Object.entries(estadisticas.porRol)
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([rol, cantidad]) => (
+                                <div key={rol} className="flex items-center justify-between px-4 py-2.5 bg-gray-50 rounded-lg border border-gray-100">
+                                    <span className="text-sm font-medium text-gray-700 capitalize">{rol}</span>
+                                    <span className="text-sm font-bold text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full min-w-[24px] text-center">
+                                        {cantidad}
+                                    </span>
+                                </div>
+                            ))}
+                    </div>
                 </div>
+            )}
 
-                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                    <div className="relative">
+            {/* Barra de herramientas */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <div className="flex flex-col md:flex-row gap-4">
+                    {/* Búsqueda */}
+                    <div className="flex-1 relative">
+                        <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
                         <input
                             type="text"
                             placeholder="Buscar por nombre o email..."
                             value={busqueda}
                             onChange={(e) => setBusqueda(e.target.value)}
-                            className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent w-full md:w-64"
+                            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                         />
-                        <i className="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                        {busqueda && (
+                            <button
+                                onClick={() => setBusqueda('')}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                                <i className="fas fa-times-circle"></i>
+                            </button>
+                        )}
                     </div>
 
-                    <select
-                        value={filtroRol}
-                        onChange={(e) => setFiltroRol(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                        <option value="todos">Todos los roles</option>
-                        {roles.map((rol) => (
-                            <option key={rol.id} value={rol.id}>
-                                {rol.nombre}
-                            </option>
-                        ))}
-                    </select>
+                    {/* Filtros */}
+                    <div className="flex flex-wrap gap-3">
+                        <select
+                            value={filtroRol}
+                            onChange={(e) => setFiltroRol(e.target.value)}
+                            className="px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
+                        >
+                            <option value="todos">Todos los roles</option>
+                            {roles.map((rol) => (
+                                <option key={rol.id} value={rol.id}>
+                                    {rol.nombre}
+                                </option>
+                            ))}
+                        </select>
 
-                    <select
-                        value={filtroEstado}
-                        onChange={(e) => setFiltroEstado(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    >
-                        <option value="todos">Todos los estados</option>
-                        <option value="activos">Activos</option>
-                        <option value="inactivos">Inactivos</option>
-                    </select>
+                        <select
+                            value={filtroEstado}
+                            onChange={(e) => setFiltroEstado(e.target.value)}
+                            className="px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-sm"
+                        >
+                            <option value="todos">Todos los estados</option>
+                            <option value="activos">🟢 Activos</option>
+                            <option value="inactivos">🔴 Inactivos</option>
+                        </select>
+
+                        {(filtroRol !== "todos" || filtroEstado !== "todos" || busqueda) && (
+                            <button
+                                onClick={() => {
+                                    setFiltroRol("todos");
+                                    setFiltroEstado("todos");
+                                    setBusqueda("");
+                                }}
+                                className="px-4 py-2.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                                <i className="fas fa-times mr-1"></i>
+                                Limpiar
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {/* Información de resultados */}
+                <div className="mt-3 text-sm text-gray-500 flex items-center gap-2">
+                    <i className="fas fa-info-circle text-gray-400"></i>
+                    <span>
+                        Mostrando <strong className="text-gray-700">{usuariosFiltrados.length}</strong> de <strong className="text-gray-700">{usuarios.length}</strong> usuarios
+                        {filtroEstado === "activos" && " (solo activos)"}
+                        {filtroEstado === "inactivos" && " (solo inactivos)"}
+                    </span>
+                    <span className="text-xs text-gray-400 ml-2">
+                        {estadisticas.activos} activos · {estadisticas.inactivos} inactivos
+                    </span>
                 </div>
             </div>
 
@@ -436,7 +497,7 @@ export default function GestionUsuarios() {
                 totalUsuarios={usuarios.length}
             />
 
-            {/* MODAL Editar */}
+            {/* MODALES */}
             <EditarUsuarioModal
                 isOpen={modalEditar}
                 onClose={cerrarModales}
@@ -446,7 +507,6 @@ export default function GestionUsuarios() {
                 usuario={usuarioSeleccionado}
             />
 
-            {/* MODAL Cambiar Rol */}
             <CambiarRolModal
                 isOpen={modalCambiarRol}
                 onClose={() => setModalCambiarRol(false)}
@@ -456,14 +516,12 @@ export default function GestionUsuarios() {
                 onCambiarRol={cambiarRol}
             />
 
-            {/* MODAL Asignar Programa */}
             <AsignarProgramaModal
                 isOpen={modalAsignarPrograma}
                 onClose={cerrarModales}
                 usuario={usuarioSeleccionado}
             />
 
-            {/* MODAL Asignar Granja */}
             <AsignarGranjaModal
                 isOpen={modalAsignarGranja}
                 onClose={cerrarModales}
