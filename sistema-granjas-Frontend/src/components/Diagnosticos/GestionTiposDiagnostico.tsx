@@ -22,6 +22,7 @@ const TIPOS_DATO_LABELS: Record<string, string> = {
   date: 'Fecha',
   select: 'Lista (Opción única)',
   multiselect: 'Lista (Múltiple)',
+  multiselect_required: 'Lista (Todas obligatorias)', // ← NUEVO
   boolean: 'Sí / No',
   matrix: 'Matriz (Tabla de evaluación)',
 };
@@ -31,7 +32,6 @@ type CampoTab = 'diagnostico' | 'recomendacion';
 const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre, monitoreosIniciales = [] }) => {
   const { user } = useAuth();
   
-  // Esperar a que user esté cargado
   const [loading, setLoading] = useState(true);
   
   useEffect(() => {
@@ -44,17 +44,14 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre, 
   const esDocente = user?.rol_id === 2 || user?.rol_id === 5;
   const programasDocente = user?.programas?.map((p: any) => p.id) || [];
   
-  // Verificar permisos después de que user esté cargado
   const puedeGestionarPrograma = esAdmin || (esDocente && programasDocente.includes(programaId));
   
-  // ── Monitoreos (usar los que vienen del padre) ────────────────────────────
   const [monitoreos] = useState<Monitoreo[]>(monitoreosIniciales);
   const [monitoreoSel, setMonitoreoSel] = useState<Monitoreo | null>(null);
   const [modalMonitoreo, setModalMonitoreo] = useState(false);
   const [editMonitoreo, setEditMonitoreo] = useState<Monitoreo | null>(null);
   const [formMonitoreo, setFormMonitoreo] = useState({ nombre: '' });
 
-  // ── Subtipos (nivel 2) ────────────────────────────────────────────────────
   const [subtipos, setSubtipos] = useState<DiagnosticoTipo[]>([]);
   const [loadingSubtipos, setLoadingSubtipos] = useState(false);
   const [subtipoSel, setSubtipoSel] = useState<DiagnosticoTipo | null>(null);
@@ -62,7 +59,6 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre, 
   const [editSubtipo, setEditSubtipo] = useState<DiagnosticoTipo | null>(null);
   const [formSubtipo, setFormSubtipo] = useState({ nombre: '', descripcion: '', orden: 0, activo: true });
 
-  // ── Campos (nivel 3) ──────────────────────────────────────────────────────
   const [campoTab, setCampoTab] = useState<CampoTab>('diagnostico');
   const [camposDiag, setCamposDiag] = useState<DiagnosticoCampo[]>([]);
   const [camposRec, setCamposRec] = useState<CampoRecomendacion[]>([]);
@@ -88,18 +84,19 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre, 
     orden: 0, campo_padre_id: null, opciones_padre_texto: '',
   });
 
-  // ── Actualizar lista de campos padre disponibles ──────────────────────────
-  // IMPORTANTE: este useEffect debe estar ANTES de cualquier return condicional
   useEffect(() => {
     if (subtipoSel) {
       const currentFields = campoTab === 'diagnostico' ? camposDiag : camposRec;
-      setCamposPadre(currentFields.filter(c => c.tipo_dato === 'select' || c.tipo_dato === 'multiselect'));
+      setCamposPadre(currentFields.filter(c => 
+        c.tipo_dato === 'select' || 
+        c.tipo_dato === 'multiselect' || 
+        c.tipo_dato === 'multiselect_required' // ← NUEVO: también puede ser padre
+      ));
     } else {
       setCamposPadre([]);
     }
   }, [camposDiag, camposRec, campoTab, subtipoSel]);
 
-  // Mostrar loading mientras se verifica usuario
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -109,7 +106,6 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre, 
     );
   }
 
-  // Si el usuario no puede gestionar este programa
   if (!puedeGestionarPrograma) {
     return (
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-8 text-center">
@@ -140,7 +136,6 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre, 
     finally { setLoadingSubtipos(false); }
   };
 
-  // ── Monitoreo CRUD ────────────────────────────────────────────────────────
   const abrirModalMonitoreo = (m?: Monitoreo) => {
     setEditMonitoreo(m || null);
     setFormMonitoreo({ nombre: m?.nombre || '' });
@@ -158,7 +153,6 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre, 
         toast.success('Tipo de monitoreo creado');
       }
       setModalMonitoreo(false);
-      // Recargar monitoreos desde el padre no es necesario, pero actualizamos la UI localmente
       toast.info('Recargue la página para ver los cambios en la lista de monitoreos');
     } catch (e: any) { toast.error(e?.response?.data?.detail || 'Error al guardar'); }
   };
@@ -173,7 +167,6 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre, 
     } catch (e: any) { toast.error(e?.response?.data?.detail || 'Error al eliminar'); }
   };
 
-  // ── Subtipos CRUD ─────────────────────────────────────────────────────────
   const abrirModalSubtipo = (s?: DiagnosticoTipo) => {
     setEditSubtipo(s || null);
     setFormSubtipo({ nombre: s?.nombre || '', descripcion: s?.descripcion || '', orden: s?.orden || 0, activo: s?.activo ?? true });
@@ -196,7 +189,6 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre, 
         toast.success('Subtipo creado');
       }
       setModalSubtipo(false);
-      // Recargar subtipos
       const data = await diagnosticoDinamicoService.listarSubtiposPorMonitoreo(monitoreoSel.id);
       setSubtipos(data);
     } catch (e: any) { toast.error(e?.response?.data?.detail || 'Error al guardar'); }
@@ -215,7 +207,6 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre, 
     } catch (e: any) { toast.error(e?.response?.data?.detail || 'Error al eliminar'); }
   };
 
-  // ── Campos ────────────────────────────────────────────────────────────────
   const cargarCampos = async (subtipoId: number) => {
     setLoadingCampos(true);
     try {
@@ -281,7 +272,9 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre, 
     if (!subtipoSel) return;
     if (!formCampo.etiqueta.trim()) { toast.warning('La etiqueta es requerida'); return; }
 
-    const esTipoLista = formCampo.tipo_dato === 'select' || formCampo.tipo_dato === 'multiselect';
+    const esTipoLista = formCampo.tipo_dato === 'select' || 
+                         formCampo.tipo_dato === 'multiselect' || 
+                         formCampo.tipo_dato === 'multiselect_required'; // ← NUEVO
     const esMatriz = formCampo.tipo_dato === 'matrix';
     let opciones: any = undefined;
 
@@ -355,7 +348,6 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre, 
     } catch (e: any) { toast.error(e?.response?.data?.detail || 'Error al eliminar campo'); }
   };
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
   const getNombrePadre = (campo: DiagnosticoCampo | CampoRecomendacion): string | null => {
     if (!campo.campo_padre_id) return null;
     const lista = campoTab === 'diagnostico' ? camposDiag : camposRec;
@@ -363,17 +355,27 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre, 
     return padre ? padre.etiqueta : `Campo #${campo.campo_padre_id}`;
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
   const renderCampoCard = (campo: DiagnosticoCampo | CampoRecomendacion, tab: CampoTab) => {
     const nombrePadre = getNombrePadre(campo);
+    const esMultiselectRequired = campo.tipo_dato === 'multiselect_required';
+    
     return (
       <div key={campo.id} className="border border-gray-200 rounded-lg p-3 bg-white flex items-center justify-between">
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-sm text-gray-800">{campo.etiqueta}</p>
+          <p className="font-medium text-sm text-gray-800">
+            {campo.etiqueta}
+            {esMultiselectRequired && (
+              <span className="ml-1.5 text-xs font-semibold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">
+                <i className="fas fa-check-double mr-0.5"></i> Todas
+              </span>
+            )}
+          </p>
           <div className="flex flex-wrap gap-1.5 mt-1">
-            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{TIPOS_DATO_LABELS[campo.tipo_dato] || campo.tipo_dato}</span>
+            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
+              {TIPOS_DATO_LABELS[campo.tipo_dato] || campo.tipo_dato}
+            </span>
             {campo.requerido && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Requerido</span>}
-            {(campo.tipo_dato === 'select' || campo.tipo_dato === 'multiselect') && campo.opciones && (
+            {(campo.tipo_dato === 'select' || campo.tipo_dato === 'multiselect' || campo.tipo_dato === 'multiselect_required') && campo.opciones && (
               <span className="text-xs text-gray-500">{campo.opciones.length} opciones</span>
             )}
             {campo.tipo_dato === 'matrix' && campo.opciones && typeof campo.opciones === 'object' && !Array.isArray(campo.opciones) && (
@@ -392,6 +394,12 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre, 
               Visible cuando <span className="font-medium">{nombrePadre}</span> = {campo.opciones_padre?.join(', ')}
             </p>
           )}
+          {esMultiselectRequired && (
+            <p className="text-xs text-purple-600 mt-0.5">
+              <i className="fas fa-info-circle mr-0.5"></i>
+              El usuario debe seleccionar todas las opciones
+            </p>
+          )}
         </div>
         <div className="flex gap-2 ml-2 flex-shrink-0">
           <button onClick={() => abrirModalCampo(campo)} className="text-blue-600 hover:text-blue-800 p-1.5 rounded"><i className="fas fa-edit text-sm"></i></button>
@@ -401,7 +409,9 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre, 
     );
   };
 
-  const esTipoListaActual = formCampo.tipo_dato === 'select' || formCampo.tipo_dato === 'multiselect';
+  const esTipoListaActual = formCampo.tipo_dato === 'select' || 
+                            formCampo.tipo_dato === 'multiselect' || 
+                            formCampo.tipo_dato === 'multiselect_required';
   const camposPadreFiltrados = camposPadre.filter(c => editCampo ? c.id !== editCampo.id : true);
   const campoPadreSeleccionado = camposPadre.find(c => c.id === formCampo.campo_padre_id);
 
@@ -533,7 +543,6 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre, 
             </div>
           ) : (
             <>
-              {/* Tabs */}
               <div className="flex border-b border-gray-200 mb-3">
                 <button onClick={() => setCampoTab('diagnostico')}
                   className={`flex-1 py-1.5 text-xs font-medium border-b-2 transition ${campoTab === 'diagnostico' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}>
@@ -573,7 +582,7 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre, 
         </div>
       </div>
 
-      {/* Modales (se mantienen igual) */}
+      {/* Modal Monitoreo */}
       {modalMonitoreo && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-sm p-6">
@@ -595,6 +604,7 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre, 
         </div>
       )}
 
+      {/* Modal Subtipo */}
       {modalSubtipo && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-md p-6">
@@ -633,6 +643,7 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre, 
         </div>
       )}
 
+      {/* Modal Campo */}
       {modalCampo && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
@@ -661,6 +672,12 @@ const GestionTiposDiagnostico: React.FC<Props> = ({ programaId, programaNombre, 
                   <label className="block text-sm font-medium mb-1">Opciones (separadas por coma) *</label>
                   <input value={formCampo.opciones_texto} onChange={e => setFormCampo(p => ({ ...p, opciones_texto: e.target.value }))}
                     className="w-full border rounded-lg p-2.5" placeholder="Ej: Alto, Medio, Bajo" />
+                  {formCampo.tipo_dato === 'multiselect_required' && (
+                    <p className="text-xs text-purple-600 mt-1">
+                      <i className="fas fa-info-circle mr-0.5"></i>
+                      El usuario deberá seleccionar TODAS las opciones obligatoriamente
+                    </p>
+                  )}
                 </div>
               )}
 

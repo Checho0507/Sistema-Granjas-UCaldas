@@ -429,16 +429,30 @@ const FormularioDinamicoSection: React.FC<Props> = ({
           const valorHijo = getValorCampo(hijo.nombre_campo);
           const etiquetaConContexto = getCampoContexto(hijo, valorSeleccionado);
           
-          if (hijo.tipo_dato === 'multiselect') {
+          if (hijo.tipo_dato === 'multiselect' || hijo.tipo_dato === 'multiselect_required') {  // ← NUEVO
             const valoresHijoSeleccionados = Array.isArray(valorHijo) ? valorHijo : [];
+            const opciones = Array.isArray(hijo.opciones) ? hijo.opciones : [];
+            const esRequired = hijo.tipo_dato === 'multiselect_required';
+            const todasSeleccionadas = esRequired && valoresHijoSeleccionados.length === opciones.length;
+            
             return (
               <div key={hijo.id} className="mb-3">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {etiquetaConContexto}
                   {hijo.requerido && <span className="text-red-500 ml-1">*</span>}
                 </label>
+                {esRequired && (
+                  <div className="text-xs text-purple-600 mb-1">
+                    <i className="fas fa-check-double mr-1"></i>
+                    Debes seleccionar todas las opciones
+                    {todasSeleccionadas && <span className="text-green-600"> ✅</span>}
+                    {!todasSeleccionadas && valoresHijoSeleccionados.length > 0 && (
+                      <span className="text-orange-500"> ({valoresHijoSeleccionados.length}/{opciones.length})</span>
+                    )}
+                  </div>
+                )}
                 <div className="space-y-1.5">
-                  {(Array.isArray(hijo.opciones) ? hijo.opciones : []).map((op: string) => (
+                  {opciones.map((op: string) => (
                     <label key={op} className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
@@ -563,7 +577,8 @@ const FormularioDinamicoSection: React.FC<Props> = ({
   const getHijosNormalesDirectos = (campo: DiagnosticoCampo): DiagnosticoCampo[] => {
     return campos.filter(c => 
       c.campo_padre_id === campo.id && 
-      c.tipo_dato !== 'multiselect'
+      c.tipo_dato !== 'multiselect' && 
+      c.tipo_dato !== 'multiselect_required'  // ← NUEVO
     );
   };
 
@@ -572,9 +587,11 @@ const FormularioDinamicoSection: React.FC<Props> = ({
     const valor = valores[campo.nombre_campo] ?? '';
     const etiquetaConContexto = getCampoContexto(campo);
 
-    if (campo.tipo_dato === 'multiselect') {
+    if (campo.tipo_dato === 'multiselect' || campo.tipo_dato === 'multiselect_required') {  // ← NUEVO
       const seleccionados: string[] = Array.isArray(valor) ? valor : [];
       const opciones = Array.isArray(campo.opciones) ? campo.opciones : [];
+      const esRequired = campo.tipo_dato === 'multiselect_required';
+      const todasSeleccionadas = esRequired && seleccionados.length === opciones.length;
       
       return (
         <div className="mb-4">
@@ -582,6 +599,19 @@ const FormularioDinamicoSection: React.FC<Props> = ({
             {etiquetaConContexto}
             {campo.requerido && <span className="text-red-500 ml-1">*</span>}
           </label>
+          {esRequired && (
+            <div className="text-xs text-purple-600 mb-1">
+              <i className="fas fa-check-double mr-1"></i>
+              Debes seleccionar todas las opciones
+              {todasSeleccionadas && <span className="text-green-600"> ✅</span>}
+              {!todasSeleccionadas && seleccionados.length > 0 && (
+                <span className="text-orange-500"> ({seleccionados.length}/{opciones.length})</span>
+              )}
+              {!todasSeleccionadas && seleccionados.length === 0 && (
+                <span className="text-gray-400"> (0/{opciones.length})</span>
+              )}
+            </div>
+          )}
           <div className="space-y-1.5">
             {opciones.map((op: string) => (
               <label key={op} className="flex items-center gap-2 cursor-pointer">
@@ -618,7 +648,8 @@ const FormularioDinamicoSection: React.FC<Props> = ({
     }
 
     const tienePadreMultiselect = campos.some(c => 
-      c.id === campo.campo_padre_id && c.tipo_dato === 'multiselect'
+      c.id === campo.campo_padre_id && 
+      (c.tipo_dato === 'multiselect' || c.tipo_dato === 'multiselect_required')  // ← NUEVO
     );
     
     if (tienePadreMultiselect) {

@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Any, Union, Dict
 from datetime import datetime
 
-TIPOS_DATO_PERMITIDOS = ["text", "number", "date", "select", "multiselect", "boolean", "textarea", "matrix"]
+TIPOS_DATO_PERMITIDOS = ["text", "number", "date", "select", "multiselect", "multiselect_required", "boolean", "textarea", "matrix"]  # ← NUEVO: agregar multiselect_required
 
 
 # ---------- DiagnosticoCampo ----------
@@ -13,7 +13,7 @@ class DiagnosticoCampoCreate(BaseModel):
     etiqueta: str = Field(..., min_length=1, max_length=150)
     tipo_dato: str = Field(..., description=f"Uno de: {', '.join(TIPOS_DATO_PERMITIDOS)}")
     requerido: bool = False
-    opciones: Optional[Union[List[str], Dict[str, Any]]] = None  # ← Acepta lista o dict (matrix)
+    opciones: Optional[Union[List[str], Dict[str, Any]]] = None
     orden: int = 0
     campo_padre_id: Optional[int] = None
     opciones_padre: Optional[List[str]] = None
@@ -31,7 +31,7 @@ class DiagnosticoCampoCreate(BaseModel):
     @validator("opciones")
     def validar_opciones(cls, v, values):
         tipo = values.get("tipo_dato")
-        if tipo in ("select", "multiselect"):
+        if tipo in ("select", "multiselect", "multiselect_required"):  # ← NUEVO: incluir multiselect_required
             if not v or (isinstance(v, list) and len(v) == 0):
                 raise ValueError(f"Para tipo '{tipo}', las opciones son requeridas y deben ser una lista no vacía")
             if not isinstance(v, list):
@@ -47,7 +47,7 @@ class DiagnosticoCampoUpdate(BaseModel):
     etiqueta: Optional[str] = Field(None, min_length=1, max_length=150)
     tipo_dato: Optional[str] = None
     requerido: Optional[bool] = None
-    opciones: Optional[Union[List[str], Dict[str, Any]]] = None  # ← Acepta lista o dict
+    opciones: Optional[Union[List[str], Dict[str, Any]]] = None
     orden: Optional[int] = None
     campo_padre_id: Optional[int] = None
     opciones_padre: Optional[List[str]] = None
@@ -66,7 +66,7 @@ class DiagnosticoCampoResponse(BaseModel):
     etiqueta: str
     tipo_dato: str
     requerido: bool
-    opciones: Optional[Union[List[str], Dict[str, Any]]] = None  # ← Acepta lista o dict
+    opciones: Optional[Union[List[str], Dict[str, Any]]] = None
     orden: int
     campo_padre_id: Optional[int] = None
     opciones_padre: Optional[List[str]] = None
@@ -83,7 +83,7 @@ class CampoRecomendacionCreate(BaseModel):
     etiqueta: str = Field(..., min_length=1, max_length=150)
     tipo_dato: str = Field(..., description=f"Uno de: {', '.join(TIPOS_DATO_PERMITIDOS)}")
     requerido: bool = False
-    opciones: Optional[Union[List[str], Dict[str, Any]]] = None  # ← Acepta lista o dict
+    opciones: Optional[Union[List[str], Dict[str, Any]]] = None
     orden: int = 0
     campo_padre_id: Optional[int] = None
     opciones_padre: Optional[List[str]] = None
@@ -101,7 +101,7 @@ class CampoRecomendacionCreate(BaseModel):
     @validator("opciones")
     def validar_opciones(cls, v, values):
         tipo = values.get("tipo_dato")
-        if tipo in ("select", "multiselect"):
+        if tipo in ("select", "multiselect", "multiselect_required"):  # ← NUEVO: incluir multiselect_required
             if not v or (isinstance(v, list) and len(v) == 0):
                 raise ValueError(f"Para tipo '{tipo}', las opciones son requeridas y deben ser una lista no vacía")
             if not isinstance(v, list):
@@ -117,7 +117,7 @@ class CampoRecomendacionUpdate(BaseModel):
     etiqueta: Optional[str] = Field(None, min_length=1, max_length=150)
     tipo_dato: Optional[str] = None
     requerido: Optional[bool] = None
-    opciones: Optional[Union[List[str], Dict[str, Any]]] = None  # ← Acepta lista o dict
+    opciones: Optional[Union[List[str], Dict[str, Any]]] = None
     orden: Optional[int] = None
     campo_padre_id: Optional[int] = None
     opciones_padre: Optional[List[str]] = None
@@ -136,7 +136,7 @@ class CampoRecomendacionResponse(BaseModel):
     etiqueta: str
     tipo_dato: str
     requerido: bool
-    opciones: Optional[Union[List[str], Dict[str, Any]]] = None  # ← Acepta lista o dict
+    opciones: Optional[Union[List[str], Dict[str, Any]]] = None
     orden: int
     campo_padre_id: Optional[int] = None
     opciones_padre: Optional[List[str]] = None
@@ -197,7 +197,7 @@ class CampoLaborCreate(BaseModel):
     etiqueta: str = Field(..., min_length=1, max_length=150)
     tipo_dato: str = Field(..., description=f"Uno de: {', '.join(TIPOS_DATO_PERMITIDOS)}")
     requerido: bool = False
-    opciones: Optional[Union[List[str], Dict[str, Any]]] = None  # ← Acepta lista o dict
+    opciones: Optional[Union[List[str], Dict[str, Any]]] = None
     orden: int = 0
     campo_padre_id: Optional[int] = None
     opciones_padre: Optional[List[str]] = None
@@ -215,7 +215,7 @@ class CampoLaborCreate(BaseModel):
     @validator("opciones")
     def validar_opciones(cls, v, values):
         tipo = values.get("tipo_dato")
-        if tipo in ("select", "multiselect"):
+        if tipo in ("select", "multiselect", "multiselect_required"):  # ← NUEVO: incluir multiselect_required
             if not v or (isinstance(v, list) and len(v) == 0):
                 raise ValueError(f"Para tipo '{tipo}', las opciones son requeridas y deben ser una lista no vacía")
             if not isinstance(v, list):
@@ -231,7 +231,7 @@ class CampoLaborUpdate(BaseModel):
     etiqueta: Optional[str] = Field(None, min_length=1, max_length=150)
     tipo_dato: Optional[str] = None
     requerido: Optional[bool] = None
-    opciones: Optional[Union[List[str], Dict[str, Any]]] = None  # ← Acepta lista o dict
+    opciones: Optional[Union[List[str], Dict[str, Any]]] = None
     orden: Optional[int] = None
     campo_padre_id: Optional[int] = None
     opciones_padre: Optional[List[str]] = None
@@ -250,7 +250,7 @@ class CampoLaborResponse(BaseModel):
     etiqueta: str
     tipo_dato: str
     requerido: bool
-    opciones: Optional[Union[List[str], Dict[str, Any]]] = None  # ← Acepta lista o dict
+    opciones: Optional[Union[List[str], Dict[str, Any]]] = None
     orden: int
     campo_padre_id: Optional[int] = None
     opciones_padre: Optional[List[str]] = None

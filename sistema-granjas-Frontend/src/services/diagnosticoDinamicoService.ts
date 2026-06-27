@@ -19,7 +19,7 @@ export interface DiagnosticoCampo {
   tipo_id: number;
   nombre_campo: string;
   etiqueta: string;
-  tipo_dato: 'text' | 'number' | 'date' | 'select' | 'multiselect' | 'boolean' | 'textarea';
+  tipo_dato: 'text' | 'number' | 'date' | 'select' | 'multiselect' | 'multiselect_required' | 'boolean' | 'textarea' | 'matrix';  // ← NUEVO: agregar multiselect_required y matrix
   requerido: boolean;
   opciones?: string[];
   orden: number;
@@ -32,7 +32,7 @@ export interface CampoRecomendacion {
   subtipo_id: number;
   nombre_campo: string;
   etiqueta: string;
-  tipo_dato: 'text' | 'number' | 'date' | 'select' | 'multiselect' | 'boolean' | 'textarea';
+  tipo_dato: 'text' | 'number' | 'date' | 'select' | 'multiselect' | 'multiselect_required' | 'boolean' | 'textarea';  // ← NUEVO: agregar multiselect_required
   requerido: boolean;
   opciones?: string[];
   orden: number;
@@ -45,7 +45,7 @@ export interface CampoLabor {
   subtipo_id: number;
   nombre_campo: string;
   etiqueta: string;
-  tipo_dato: 'text' | 'number' | 'date' | 'select' | 'multiselect' | 'boolean' | 'textarea' | 'matrix';
+  tipo_dato: 'text' | 'number' | 'date' | 'select' | 'multiselect' | 'multiselect_required' | 'boolean' | 'textarea' | 'matrix';  // ← NUEVO: agregar multiselect_required
   requerido: boolean;
   opciones?: string[] | any;
   orden: number;

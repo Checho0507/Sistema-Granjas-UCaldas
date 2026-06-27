@@ -137,6 +137,39 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         return parsed;
     };
 
+    // ── Validar campos multiselect_required ─────────────────────────────────────
+    const validarMultiselectRequired = useCallback((campos: DiagnosticoCampo[], valores: Record<string, any>): boolean => {
+        for (const campo of campos) {
+            if (campo.tipo_dato === 'multiselect_required') {
+                const valor = valores[campo.nombre_campo];
+                const opciones = Array.isArray(campo.opciones) ? campo.opciones : [];
+                
+                // Si el campo tiene un padre y no es visible, saltar validación
+                if (campo.campo_padre_id) {
+                    if (!valor || (Array.isArray(valor) && valor.length === 0)) {
+                        continue;
+                    }
+                }
+                
+                // Validar que todas las opciones estén seleccionadas
+                if (Array.isArray(valor)) {
+                    if (valor.length !== opciones.length) {
+                        toast.warning(`El campo "${campo.etiqueta}" requiere seleccionar todas las opciones (${opciones.length} opciones, seleccionó ${valor.length})`);
+                        return false;
+                    }
+                    if (valor.some(v => !opciones.includes(v))) {
+                        toast.warning(`El campo "${campo.etiqueta}" contiene opciones inválidas`);
+                        return false;
+                    }
+                } else if (campo.requerido) {
+                    toast.warning(`El campo "${campo.etiqueta}" requiere seleccionar todas las opciones`);
+                    return false;
+                }
+            }
+        }
+        return true;
+    }, []);
+
     // ── Función para obtener plantas elegibles ────────────────────────────────
     const cargarPlantasElegibles = useCallback(async () => {
         if (!loteId || !tipoDiagnostico) {
@@ -381,6 +414,22 @@ const DiagnosticoForm: React.FC<DiagnosticoFormProps> = ({
         if (submitting) return;
         if (!tipoDiagnostico) { toast.error('No se pudo determinar el tipo de diagnóstico'); return; }
         if (!condicionesDia) { toast.error('Selecciona condiciones del día'); return; }
+
+        // ── Validar campos multiselect_required ──────────────────────────────
+        if (camposDinamicos.length > 0 && !mostrarPorPlanta) {
+            if (!validarMultiselectRequired(camposDinamicos, caracterizacion)) {
+                return;
+            }
+        }
+        
+        if (camposDinamicos.length > 0 && mostrarPorPlanta) {
+            for (const planta of plantas) {
+                const valoresPlanta = formulariosPorPlanta[planta.id] || {};
+                if (!validarMultiselectRequired(camposDinamicos, valoresPlanta)) {
+                    return;
+                }
+            }
+        }
 
         setSubmitting(true);
         const formData = new FormData();
