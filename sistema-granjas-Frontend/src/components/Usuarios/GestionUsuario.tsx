@@ -18,11 +18,9 @@ export default function GestionUsuarios() {
     const [roles, setRoles] = useState<any[]>([]);
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    // Estados específicos para exportación
     const [exporting, setExporting] = useState(false);
     const [exportMessage, setExportMessage] = useState('');
 
-    // Handler para exportar usuarios
     const handleExportUsuarios = async () => {
         if (exporting) return;
         setExporting(true);
@@ -41,7 +39,6 @@ export default function GestionUsuarios() {
         }
     };
 
-    // Estadísticas
     const [estadisticas, setEstadisticas] = useState({
         total: 0,
         activos: 0,
@@ -81,7 +78,6 @@ export default function GestionUsuarios() {
 
             console.log('🔄 Cargando datos de usuarios y roles...');
 
-            // Cargar usuarios y roles en paralelo
             const [datosUsuarios, datosRoles] = await Promise.all([
                 usuarioService.obtenerUsuarios(),
                 usuarioService.obtenerRoles()
@@ -107,13 +103,11 @@ export default function GestionUsuarios() {
         let activos = 0;
         let inactivos = 0;
 
-        // Inicializar todos los roles con 0
         rolesList.forEach(rol => {
             porRol[rol.nombre] = 0;
         });
 
         usuariosList.forEach(usuario => {
-            // Encontrar el nombre del rol basado en rol_id
             const rol = rolesList.find(r => r.id === usuario.rol_id);
             const rolNombre = rol ? rol.nombre : `Rol ${usuario.rol_id}`;
 
@@ -164,7 +158,6 @@ export default function GestionUsuarios() {
             await usuarioService.actualizarUsuario(usuarioSeleccionado.id, datosActualizacion);
             console.log('✅ Usuario actualizado');
 
-            // Actualizar localmente
             const usuarioActualizado = {
                 ...usuarioSeleccionado,
                 ...datosActualizacion
@@ -174,7 +167,6 @@ export default function GestionUsuarios() {
                 u.id === usuarioSeleccionado.id ? usuarioActualizado : u
             ));
 
-            // Recalcular estadísticas
             calcularEstadisticas(
                 usuarios.map(u =>
                     u.id === usuarioSeleccionado.id ? usuarioActualizado : u
@@ -212,11 +204,8 @@ export default function GestionUsuarios() {
             await usuarioService.eliminarUsuario(id);
             console.log('✅ Usuario eliminado');
 
-            // Actualizar localmente
             const nuevosUsuarios = usuarios.filter(u => u.id !== id);
             setUsuarios(nuevosUsuarios);
-
-            // Recalcular estadísticas
             calcularEstadisticas(nuevosUsuarios, roles);
 
         } catch (error: any) {
@@ -231,11 +220,9 @@ export default function GestionUsuarios() {
             await usuarioService.actualizarUsuario(usuarioSeleccionado.id, { rol_id });
             console.log('✅ Rol cambiado a:', rol_id);
 
-            // Obtener el nombre del nuevo rol
             const nuevoRol = roles.find(r => r.id === rol_id);
             const rolNombre = nuevoRol ? nuevoRol.nombre : `Rol ${rol_id}`;
 
-            // Actualizar localmente
             const usuarioActualizado = {
                 ...usuarioSeleccionado,
                 rol_id: rol_id,
@@ -246,7 +233,6 @@ export default function GestionUsuarios() {
                 u.id === usuarioSeleccionado.id ? usuarioActualizado : u
             ));
 
-            // Recalcular estadísticas
             calcularEstadisticas(
                 usuarios.map(u =>
                     u.id === usuarioSeleccionado.id ? usuarioActualizado : u
@@ -262,30 +248,38 @@ export default function GestionUsuarios() {
     };
 
     const toggleActivo = async (usuario: any) => {
-        if (!confirm(`¿Estás seguro de ${usuario.activo ? 'desactivar' : 'activar'} este usuario?`)) return;
+        const nuevoEstado = !usuario.activo;
+        const accion = nuevoEstado ? 'activar' : 'desactivar';
+        
+        if (!confirm(`¿Estás seguro de ${accion} el usuario "${usuario.nombre}"?`)) return;
 
         try {
             setError(null);
-            await usuarioService.actualizarUsuario(usuario.id, { activo: !usuario.activo });
-            console.log(`✅ Usuario ${usuario.activo ? 'desactivado' : 'activado'}`);
+            await usuarioService.actualizarUsuario(usuario.id, { activo: nuevoEstado });
+            console.log(`✅ Usuario ${accion}do`);
 
-            // Actualizar localmente
             const usuarioActualizado = {
                 ...usuario,
-                activo: !usuario.activo
+                activo: nuevoEstado
             };
 
             setUsuarios(prev => prev.map(u =>
                 u.id === usuario.id ? usuarioActualizado : u
             ));
 
-            // Recalcular estadísticas
             calcularEstadisticas(
                 usuarios.map(u =>
                     u.id === usuario.id ? usuarioActualizado : u
                 ),
                 roles
             );
+            
+            // Mostrar mensaje de éxito según la acción
+            if (nuevoEstado) {
+                alert(`✅ Usuario "${usuario.nombre}" reactivado exitosamente`);
+            } else {
+                alert(`✅ Usuario "${usuario.nombre}" desactivado exitosamente`);
+            }
         } catch (error: any) {
             console.error('❌ Error al cambiar estado:', error);
             setError(error.message || 'Error al cambiar el estado del usuario');
@@ -305,13 +299,11 @@ export default function GestionUsuarios() {
         });
     };
 
-    // Función para obtener nombre del rol por ID
     const obtenerNombreRol = (rolId: number) => {
         const rol = roles.find(r => r.id === rolId);
         return rol ? rol.nombre : `Rol ${rolId}`;
     };
 
-    // Filtrar usuarios
     const usuariosFiltrados = usuarios.filter(usuario => {
         const cumpleRol = filtroRol === "todos" || usuario.rol_id.toString() === filtroRol;
         const cumpleEstado = filtroEstado === "todos" ||
@@ -336,6 +328,20 @@ export default function GestionUsuarios() {
 
     return (
         <div className="p-6">
+            {/* Error */}
+            {error && (
+                <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+                    <i className="fas fa-exclamation-circle mr-2"></i>
+                    {error}
+                    <button
+                        onClick={() => setError(null)}
+                        className="ml-4 text-sm text-red-500 hover:text-red-700"
+                    >
+                        <i className="fas fa-times"></i>
+                    </button>
+                </div>
+            )}
+
             {/* Estadísticas por Rol */}
             {Object.keys(estadisticas.porRol).length > 0 && (
                 <div className="mb-6 bg-white rounded-lg shadow p-4">
@@ -351,17 +357,36 @@ export default function GestionUsuarios() {
                 </div>
             )}
 
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <StatsCard
+                    title="Total Usuarios"
+                    value={estadisticas.total}
+                    icon="fa-users"
+                    color="blue"
+                />
+                <StatsCard
+                    title="Usuarios Activos"
+                    value={estadisticas.activos}
+                    icon="fa-user-check"
+                    color="green"
+                />
+                <StatsCard
+                    title="Usuarios Inactivos"
+                    value={estadisticas.inactivos}
+                    icon="fa-user-slash"
+                    color="red"
+                />
+            </div>
+
             {/* Barra de herramientas */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                {/* Información */}
                 <div className="text-sm text-gray-600">
                     <i className="fas fa-info-circle mr-1"></i>
                     Los usuarios se registran mediante el sistema de autenticación
                 </div>
 
-                {/* Filtros y búsqueda */}
                 <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                    {/* Búsqueda */}
                     <div className="relative">
                         <input
                             type="text"
@@ -373,7 +398,6 @@ export default function GestionUsuarios() {
                         <i className="fas fa-search absolute left-3 top-3 text-gray-400"></i>
                     </div>
 
-                    {/* Filtro por Rol */}
                     <select
                         value={filtroRol}
                         onChange={(e) => setFiltroRol(e.target.value)}
@@ -387,7 +411,6 @@ export default function GestionUsuarios() {
                         ))}
                     </select>
 
-                    {/* Filtro por Estado */}
                     <select
                         value={filtroEstado}
                         onChange={(e) => setFiltroEstado(e.target.value)}
