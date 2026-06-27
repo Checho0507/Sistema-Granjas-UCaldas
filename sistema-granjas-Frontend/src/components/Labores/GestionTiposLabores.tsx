@@ -7,6 +7,7 @@ import {
 } from '../../services/diagnosticoDinamicoService';
 import { monitoreoService, type Monitoreo } from '../../services/monitoreoService';
 import { programaService } from '../../services/programaService';
+import { granjaService } from '../../services/granjaService';
 import type { Programa } from '../../types/granjaTypes';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -68,30 +69,75 @@ const GestionTiposLabores: React.FC = () => {
   const cargarProgramas = async () => {
     setLoadingProgramas(true);
     try {
+      // Obtener todos los programas
       const data = await programaService.obtenerProgramas();
       let lista = Array.isArray(data) ? data : [];
       
       // 👇 FILTRAR SEGÚN ROL
       if (esAdmin) {
         // Admin ve todos los programas
+        // No hacemos nada, lista queda como está
       } else if (esDocente && programasDocente.length > 0) {
         // Docente solo ve sus programas
         lista = lista.filter((p: Programa) => programasDocente.includes(p.id));
-      } else if (esTalentoHumano && granjasUsuario.length > 0) {
-        // Talento Humano solo ve programas de sus granjas
-        // Esto requiere que los programas tengan información de granja
-        // Alternativa: filtrar por granja después de cargar
-        lista = lista.filter((p: Programa) => {
-          // Si el programa tiene granjas asociadas, verificar que alguna esté en las granjas del usuario
-          if (p.granjas && Array.isArray(p.granjas)) {
-            return p.granjas.some((g: any) => granjasUsuario.includes(g.id));
+      } else if (esTalentoHumano) {
+        // 👇 Talento Humano: filtrar programas por granjas asignadas usando tabla granja_programa
+        if (granjasUsuario.length === 0) {
+          // Si no tiene granjas asignadas, no ve ningún programa
+          lista = [];
+        } else {
+          // Obtener los programas asociados a las granjas del usuario
+          try {
+            // Opción 1: Si el servicio tiene un método para obtener programas por granja
+            // Usar granjaService.obtenerProgramasPorGranja()
+            const programasIdsSet = new Set<number>();
+            
+            for (const granjaId of granjasUsuario) {
+              try {
+                // Si existe este endpoint
+                const programasPorGranja = await granjaService.obtenerProgramasPorGranja?.(granjaId);
+                if (programasPorGranja && Array.isArray(programasPorGranja)) {
+                  programasPorGranja.forEach((p: any) => {
+                    if (p.id) programasIdsSet.add(p.id);
+                  });
+                }
+              } catch (error) {
+                console.error(`Error obteniendo programas de la granja ${granjaId}:`, error);
+              }
+            }
+            
+            // Si no se encontraron programas por granja, intentar con lotes
+            if (programasIdsSet.size === 0) {
+              // Opción 2: Usar la tabla granja_programa directamente via API
+              // Esto requiere un endpoint que devuelva los programas de una granja
+              // Por ahora, filtramos manualmente si los programas tienen granjas_ids
+              lista = lista.filter((p: Programa) => {
+                // Si el programa tiene la propiedad granjas_ids o granjas
+                const granjasPrograma = (p as any).granjas_ids || (p as any).granjas || [];
+                if (Array.isArray(granjasPrograma)) {
+                  return granjasPrograma.some((g: any) => granjasUsuario.includes(g.id || g));
+                }
+                return false;
+              });
+            } else {
+              // Filtrar programas por los IDs obtenidos
+              lista = lista.filter((p: Programa) => programasIdsSet.has(p.id));
+            }
+          } catch (error) {
+            console.error('Error filtrando programas por granjas:', error);
+            lista = [];
           }
-          return false;
-        });
+        }
       }
       
       setProgramas(lista);
-    } catch {
+      
+      // Si solo hay un programa, seleccionarlo automáticamente
+      if (lista.length === 1) {
+        seleccionarPrograma(lista[0]);
+      }
+    } catch (error) {
+      console.error('Error cargando programas:', error);
       toast.error('Error al cargar programas');
     } finally {
       setLoadingProgramas(false);
@@ -305,6 +351,9 @@ const GestionTiposLabores: React.FC = () => {
     if (esTalentoHumano && granjasUsuario.length === 0) {
       return <p className="text-sm text-yellow-600 mt-1"><i className="fas fa-exclamation-triangle mr-1"></i>No tienes granjas asignadas</p>;
     }
+    if (esTalentoHumano && programas.length === 0 && granjasUsuario.length > 0) {
+      return <p className="text-sm text-yellow-600 mt-1"><i className="fas fa-info-circle mr-1"></i>No hay programas asociados a tus granjas</p>;
+    }
     return null;
   };
 
@@ -342,8 +391,9 @@ const GestionTiposLabores: React.FC = () => {
           ) : programas.length === 0 ? (
             <div className="text-center py-6 text-gray-400 text-xs">
               <i className="fas fa-folder-open text-xl block mb-1"></i>
-              {esDocente && programasDocente.length === 0 ? 'No tienes programas asignados' :
-               esTalentoHumano && granjasUsuario.length === 0 ? 'No tienes granjas asignadas' :
+              {esTalentoHumano && granjasUsuario.length === 0 ? 'No tienes granjas asignadas' :
+               esTalentoHumano ? 'No hay programas en tus granjas' :
+               esDocente && programasDocente.length === 0 ? 'No tienes programas asignados' :
                'No hay programas disponibles'}
             </div>
           ) : (
