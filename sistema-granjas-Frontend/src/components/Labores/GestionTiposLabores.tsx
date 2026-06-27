@@ -29,8 +29,15 @@ const emptyFormCampo = {
 
 const GestionTiposLabores: React.FC = () => {
   const { user } = useAuth();
+  
+  // 👇 DETERMINAR ROLES
+  const esAdmin = user?.rol_id === 1;
   const esDocente = user?.rol_id === 2 || user?.rol_id === 5;
+  const esTalentoHumano = user?.rol_id === 6 || user?.rol_id === 7 || user?.rol === 'jefe_talento_humano';
+  
+  // 👇 OBTENER PROGRAMAS Y GRANJAS DEL USUARIO
   const programasDocente = user?.programas?.map((p: any) => p.id) || [];
+  const granjasUsuario = user?.granjas?.map((g: any) => g.id) || [];
 
   // Estado para la estructura por subtipo
   const [programas, setProgramas] = useState<Programa[]>([]);
@@ -63,10 +70,26 @@ const GestionTiposLabores: React.FC = () => {
     try {
       const data = await programaService.obtenerProgramas();
       let lista = Array.isArray(data) ? data : [];
-      // Docente solo puede gestionar la estructura de sus propios programas
-      if (esDocente && programasDocente.length > 0) {
+      
+      // 👇 FILTRAR SEGÚN ROL
+      if (esAdmin) {
+        // Admin ve todos los programas
+      } else if (esDocente && programasDocente.length > 0) {
+        // Docente solo ve sus programas
         lista = lista.filter((p: Programa) => programasDocente.includes(p.id));
+      } else if (esTalentoHumano && granjasUsuario.length > 0) {
+        // Talento Humano solo ve programas de sus granjas
+        // Esto requiere que los programas tengan información de granja
+        // Alternativa: filtrar por granja después de cargar
+        lista = lista.filter((p: Programa) => {
+          // Si el programa tiene granjas asociadas, verificar que alguna esté en las granjas del usuario
+          if (p.granjas && Array.isArray(p.granjas)) {
+            return p.granjas.some((g: any) => granjasUsuario.includes(g.id));
+          }
+          return false;
+        });
       }
+      
       setProgramas(lista);
     } catch {
       toast.error('Error al cargar programas');
@@ -260,18 +283,49 @@ const GestionTiposLabores: React.FC = () => {
     return padre ? padre.etiqueta : `Campo #${campo.campo_padre_id}`;
   };
 
+  // 👇 MOSTRAR BADGE DE ROL
+  const getRoleBadge = () => {
+    if (esAdmin) {
+      return <span className="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded-full flex items-center gap-1"><i className="fas fa-shield-alt"></i> Administrador</span>;
+    }
+    if (esDocente) {
+      return <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full flex items-center gap-1"><i className="fas fa-chalkboard-teacher"></i> Docente</span>;
+    }
+    if (esTalentoHumano) {
+      return <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full flex items-center gap-1"><i className="fas fa-users-cog"></i> Talento Humano</span>;
+    }
+    return null;
+  };
+
+  // 👇 MOSTRAR INFORMACIÓN DE PERMISOS
+  const getPermisosInfo = () => {
+    if (esDocente && programasDocente.length === 0) {
+      return <p className="text-sm text-yellow-600 mt-1"><i className="fas fa-exclamation-triangle mr-1"></i>No tienes programas asignados</p>;
+    }
+    if (esTalentoHumano && granjasUsuario.length === 0) {
+      return <p className="text-sm text-yellow-600 mt-1"><i className="fas fa-exclamation-triangle mr-1"></i>No tienes granjas asignadas</p>;
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 pb-4">
-        <div className="flex items-center gap-2">
-          <i className="fas fa-layer-group text-blue-600 text-xl"></i>
-          <h1 className="text-xl font-bold text-gray-800">Estructura de Labores por Subtipo</h1>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <i className="fas fa-layer-group text-blue-600 text-xl"></i>
+            <h1 className="text-xl font-bold text-gray-800">Estructura de Labores por Subtipo</h1>
+          </div>
+          {getRoleBadge()}
         </div>
         <p className="text-sm text-gray-500 mt-1">
           <i className="fas fa-info-circle mr-1 text-blue-400"></i>
           Define campos adicionales que aparecerán en el formulario de labor para cada subtipo de diagnóstico específico.
+          {esDocente && " (Solo programas asignados)"}
+          {esTalentoHumano && " (Solo programas de tus granjas)"}
         </p>
+        {getPermisosInfo()}
       </div>
 
       {/* Grid principal de selección */}
@@ -286,7 +340,12 @@ const GestionTiposLabores: React.FC = () => {
               <div className="animate-spin h-5 w-5 border-2 border-indigo-500 border-t-transparent rounded-full"></div>
             </div>
           ) : programas.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-4">No hay programas</p>
+            <div className="text-center py-6 text-gray-400 text-xs">
+              <i className="fas fa-folder-open text-xl block mb-1"></i>
+              {esDocente && programasDocente.length === 0 ? 'No tienes programas asignados' :
+               esTalentoHumano && granjasUsuario.length === 0 ? 'No tienes granjas asignadas' :
+               'No hay programas disponibles'}
+            </div>
           ) : (
             <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
               {programas.map(p => (
