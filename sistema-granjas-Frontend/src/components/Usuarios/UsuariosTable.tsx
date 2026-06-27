@@ -64,6 +64,9 @@ const UsuariosTable: React.FC<UsuariosTableProps> = ({
                         <h3 className="text-lg font-medium text-gray-900">Lista de Usuarios</h3>
                         <p className="text-sm text-gray-500">
                             Mostrando {usuarios.length} de {totalUsuarios} usuarios
+                            <span className="ml-2 text-xs text-gray-400">
+                                ({usuarios.filter(u => u.activo).length} activos, {usuarios.filter(u => !u.activo).length} inactivos)
+                            </span>
                         </p>
                     </div>
                 </div>
@@ -95,14 +98,18 @@ const UsuariosTable: React.FC<UsuariosTableProps> = ({
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                         {usuarios.map((usuario) => (
-                            <tr key={usuario.id} className="hover:bg-gray-50 transition-colors">
+                            <tr key={usuario.id} className={`hover:bg-gray-50 transition-colors ${!usuario.activo ? 'bg-gray-50/50' : ''}`}>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                     {usuario.id}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div>
-                                        <p className="text-sm font-medium text-gray-900">{usuario.nombre}</p>
-                                        <p className="text-sm text-gray-500">{usuario.email}</p>
+                                        <p className={`text-sm font-medium ${!usuario.activo ? 'text-gray-400' : 'text-gray-900'}`}>
+                                            {usuario.nombre}
+                                        </p>
+                                        <p className={`text-sm ${!usuario.activo ? 'text-gray-400' : 'text-gray-500'}`}>
+                                            {usuario.email}
+                                        </p>
                                         {usuario.rol_nombre && (
                                             <p className="text-xs text-gray-400">Rol actual: {usuario.rol_nombre}</p>
                                         )}
@@ -134,10 +141,10 @@ const UsuariosTable: React.FC<UsuariosTableProps> = ({
                                         </span>
                                         <button
                                             onClick={() => onToggleActivo(usuario)}
-                                            className="ml-2 text-gray-600 hover:text-gray-800 transition"
-                                            title={usuario.activo ? 'Desactivar' : 'Activar'}
+                                            className={`ml-2 transition p-1 rounded hover:bg-gray-100 ${usuario.activo ? 'text-red-600 hover:text-red-800' : 'text-green-600 hover:text-green-800'}`}
+                                            title={usuario.activo ? 'Desactivar' : 'Reactivar'}
                                         >
-                                            <i className={`fas fa-power-off text-xs ${usuario.activo ? 'text-green-600' : 'text-red-600'}`}></i>
+                                            <i className={`fas ${usuario.activo ? 'fa-user-slash' : 'fa-user-check'} text-sm`}></i>
                                         </button>
                                     </div>
                                 </td>
@@ -176,7 +183,7 @@ const UsuariosTable: React.FC<UsuariosTableProps> = ({
                                         {/* Botón Eliminar */}
                                         <button
                                             onClick={() => onEliminar(usuario.id)}
-                                            className="text-red-600 hover:text-red-900 transition-colors p-1.5 rounded hover:bg-red-50"
+                                            className={`transition-colors p-1.5 rounded hover:bg-red-50 ${!usuario.activo ? 'text-red-400 hover:text-red-600' : 'text-red-600 hover:text-red-900'}`}
                                             title="Eliminar usuario"
                                         >
                                             <i className="fas fa-trash"></i>
