@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 from typing import List
+import re
 from app.db.database import get_db
 from app.core.security import verify_token
 from app.schemas.auth_schema import (
@@ -20,6 +21,9 @@ import logging
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
+# Expresión regular para validar el dominio @ucaldas.edu.co
+UCLADAS_EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]+@ucaldas\.edu\.co$', re.IGNORECASE)
+
 # *********************************
 # RUTAS DE AUTENTICACIÓN
 # *********************************
@@ -31,7 +35,6 @@ def login_tradicional(data: LoginRequest, db: Session = Depends(get_db)):
     """
     try:
         logger.info(f"Intentando login tradicional para: {data.email}")
-        # Llama al servicio para manejar toda la lógica
         response = AuthService.login_user(db, data)
         return response
     except HTTPException:
@@ -47,21 +50,26 @@ def login_tradicional(data: LoginRequest, db: Session = Depends(get_db)):
 def register_tradicional(data: RegisterRequest, db: Session = Depends(get_db)):
     """
     Registra un nuevo usuario con email y contraseña.
+    Solo se permiten correos del dominio @ucaldas.edu.co
     """
     try:
         logger.info(f"Intentando registro tradicional para: {data.email}")
+        
+        # 👇 VALIDAR DOMINIO DEL CORREO
+        if not UCLADAS_EMAIL_REGEX.match(data.email):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Solo se permiten correos institucionales @ucaldas.edu.co"
+            )
+        
         # Llama al servicio para manejar toda la lógica
         response = AuthService.register_user(db, data)
-        
-        # Añadir el mensaje extra si es necesario, aunque se usa el response_model de TokenResponse
-        # Aquí devolvemos el TokenResponse directamente, la UI manejará el mensaje
         return response 
         
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error inesperado en registro: {str(e)}")
-        # El servicio debe manejar el rollback, pero se incluye un rollback de seguridad
         db.rollback() 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -73,15 +81,12 @@ def logout(data: LogoutRequest = Depends(LogoutRequest)):
     """
     Logout - principal función para el frontend para notificar el cierre.
     """
-    # Nota: El logout en JWT es principalmente un cierre de sesión del lado del cliente.
-    # No se requiere lógica de base de datos aquí.
     if data and data.token:
         try:
             payload = verify_token(data.token)
             if payload:
                 logger.info(f"Logout solicitado para usuario: {payload.get('sub')}")
         except Exception:
-            # Si el token no es válido, no importa, la intención es cerrar sesión.
             pass
     
     logger.info("Logout exitoso")
@@ -114,7 +119,6 @@ def verify_token_endpoint(token: str, db: Session = Depends(get_db)):
             detail="Token inválido o expirado"
         )
     
-    # Obtener el usuario completo de la base de datos para incluir sus programas
     from app.db.models import Usuario
     user_id = payload.get("id")
     usuario = db.query(Usuario).filter(Usuario.id == user_id).first()
@@ -125,7 +129,6 @@ def verify_token_endpoint(token: str, db: Session = Depends(get_db)):
             detail="Usuario no encontrado"
         )
     
-    # Obtener programas asociados
     programas = []
     for programa in usuario.programas:
         programas.append({
@@ -143,6 +146,6 @@ def verify_token_endpoint(token: str, db: Session = Depends(get_db)):
             "rol": usuario.rol.nombre if usuario.rol else None,
             "rol_id": usuario.rol_id,
             "nombre": usuario.nombre,
-            "programas": programas  # 👈 NUEVO: incluir programas
+            "programas": programas
         }
     )

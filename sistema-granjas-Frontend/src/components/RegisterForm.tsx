@@ -18,10 +18,9 @@ type FieldErrors = {
     general?: string;
 };
 
-// Expresión regular para validar el nombre (misma que en el backend)
 const NAME_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s\-'.]+$/;
+const UCLADAS_EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@ucaldas\.edu\.co$/i;
 
-// 👇 ROLES PERMITIDOS PARA REGISTRO (excluyendo admin y asesor)
 const ROLES_PERMITIDOS_REGISTRO = ["estudiante", "docente", "talento_humano", "trabajador"];
 
 export default function RegisterForm({ roles, onSwitch }: Props) {
@@ -34,7 +33,6 @@ export default function RegisterForm({ roles, onSwitch }: Props) {
     const [loading, setLoading] = useState(false);
     const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
-    // 👇 FILTRAR ROLES PERMITIDOS PARA REGISTRO
     const rolesFiltrados = roles.filter(rol => 
         ROLES_PERMITIDOS_REGISTRO.includes(rol.nombre.toLowerCase())
     );
@@ -59,7 +57,6 @@ export default function RegisterForm({ roles, onSwitch }: Props) {
 
         const fullName = `${nombre} ${apellido}`.trim();
 
-        // Validaciones del frontend
         if (!fullName) {
             setFieldErrors({ nombre: "El nombre es obligatorio" });
             return;
@@ -68,6 +65,11 @@ export default function RegisterForm({ roles, onSwitch }: Props) {
             setFieldErrors({
                 nombre: "El nombre solo puede contener letras, espacios, guiones, apóstrofes y puntos.",
             });
+            return;
+        }
+        // 👇 VALIDACIÓN DE EMAIL INSTITUCIONAL
+        if (!UCLADAS_EMAIL_REGEX.test(email)) {
+            setFieldErrors({ email: "Solo se permiten correos institucionales @ucaldas.edu.co" });
             return;
         }
         if (password !== confirm) {
@@ -125,7 +127,6 @@ export default function RegisterForm({ roles, onSwitch }: Props) {
         }
     };
 
-    // 👇 Si no hay roles disponibles para registro, mostrar mensaje
     if (rolesFiltrados.length === 0) {
         return (
             <div className="space-y-5">
@@ -163,6 +164,13 @@ export default function RegisterForm({ roles, onSwitch }: Props) {
                 {fieldErrors.role_id && (
                     <p className="mt-1 text-sm text-red-600">{fieldErrors.role_id}</p>
                 )}
+                <p className="mt-1 text-xs text-gray-400">
+                    <i className="fas fa-info-circle mr-1"></i>
+                    Solo están disponibles los roles que pueden registrarse desde esta página.
+                    {roles.length > rolesFiltrados.length && (
+                        <span className="text-amber-600"> Admin y Asesor no están disponibles para registro.</span>
+                    )}
+                </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -204,7 +212,7 @@ export default function RegisterForm({ roles, onSwitch }: Props) {
             <div>
                 <input
                     type="email"
-                    placeholder="Correo electrónico"
+                    placeholder="Correo electrónico (@ucaldas.edu.co)"
                     value={email}
                     onChange={(e) => {
                         setEmail(e.target.value);
