@@ -18,6 +18,7 @@ interface LoteSimple {
   nombre: string;
   surcos: number;
   plantas_por_surco: number;
+  programa_id?: number; // ← NUEVO para filtrado
 }
 
 export default function GestionPlantas() {
@@ -33,11 +34,17 @@ export default function GestionPlantas() {
   const [error, setError] = useState<string | null>(null);
   const [erroresValidacion, setErroresValidacion] = useState<Record<string, string>>({});
 
+  // 👇 DETERMINAR ROL Y PROGRAMAS DEL USUARIO
+  const esAdmin = user?.rol_id === 1;
+  const esDocente = user?.rol_id === 2 || user?.rol_id === 5;
+  const programasDocente = user?.programas?.map((p: any) => p.id) || [];
+
   const [estadisticas, setEstadisticas] = useState({
     total: 0,
     productivo: 0,
     para_eliminar: 0,
     punto_vacio: 0,
+    observacion: 0, // ← NUEVO estado observacion
   });
 
   const [modalCrear, setModalCrear] = useState(false);
@@ -52,18 +59,36 @@ export default function GestionPlantas() {
     estado: "productivo",
   });
 
+  // 👇 FILTRAR LOTES POR ROL
+  const lotesFiltrados = (lotes: LoteSimple[]): LoteSimple[] => {
+    if (esAdmin) {
+      return lotes;
+    }
+    if (esDocente) {
+      return lotes.filter(lote => programasDocente.includes(lote.programa_id || 0));
+    }
+    return lotes; // otros roles ven todos
+  };
+
   // Cargar lotes disponibles
   useEffect(() => {
     const cargarLotes = async () => {
       try {
         const data = await loteService.obtenerLotes();
         setLotes(data);
+        
         // Si hay loteId en la URL, seleccionarlo automáticamente
         if (loteIdParam) {
           const lote = data.find((l: LoteSimple) => l.id === Number(loteIdParam));
+          // 👇 Verificar que el lote esté en los programas del docente si es docente
           if (lote) {
-            setLoteSeleccionado(lote);
-            cargarPlantas(lote.id);
+            const estaEnProgramas = esAdmin || (esDocente && programasDocente.includes(lote.programa_id || 0));
+            if (estaEnProgramas) {
+              setLoteSeleccionado(lote);
+              cargarPlantas(lote.id);
+            } else {
+              toast.error("No tienes acceso a este lote");
+            }
           } else {
             toast.error("Lote no encontrado");
           }
@@ -74,7 +99,7 @@ export default function GestionPlantas() {
       }
     };
     cargarLotes();
-  }, [loteIdParam]);
+  }, [loteIdParam, esAdmin, esDocente, programasDocente]);
 
   const cargarPlantas = async (loteId: number) => {
     try {
@@ -88,6 +113,7 @@ export default function GestionPlantas() {
         productivo: datos.filter((p) => p.estado === "productivo").length,
         para_eliminar: datos.filter((p) => p.estado === "para_eliminar").length,
         punto_vacio: datos.filter((p) => p.estado === "punto_vacio").length,
+        observacion: datos.filter((p) => p.estado === "observacion").length, // ← NUEVO
       });
     } catch (err: any) {
       const mensaje = err?.message || "Error al cargar plantas";
@@ -196,18 +222,20 @@ export default function GestionPlantas() {
 
   const cambiarLote = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const id = Number(e.target.value);
-    const lote = lotes.find((l) => l.id === id);
+    const lote = lotesFiltrados(lotes).find((l) => l.id === id);
     setLoteSeleccionado(lote || null);
     if (id && lote) {
       cargarPlantas(id);
       setDatosFormulario((prev) => ({ ...prev, lote_id: id }));
     } else {
-      // Si se selecciona la opción vacía, limpiar tabla y estadísticas
       setPlantas([]);
-      setEstadisticas({ total: 0, productivo: 0, para_eliminar: 0, punto_vacio: 0 });
+      setEstadisticas({ total: 0, productivo: 0, para_eliminar: 0, punto_vacio: 0, observacion: 0 });
       setDatosFormulario((prev) => ({ ...prev, lote_id: 0 }));
     }
   };
+
+  // 👇 OBTENER NOMBRES DE PROGRAMAS DEL DOCENTE
+  const programasDocenteNombres = user?.programas?.map((p: any) => p.nombre).join(', ') || '';
 
   if (cargando && plantas.length === 0) {
     return (
@@ -221,31 +249,47 @@ export default function GestionPlantas() {
   return (
     <div className="p-6">
       {/* Filtro por lote */}
-      <div className="mb-4 flex items-center gap-4 flex-wrap">
-        <div>
-          <label className="block text-sm font-medium mb-1">Seleccionar lote</label>
-          <select
-            value={loteSeleccionado?.id || ""}
-            onChange={cambiarLote}
-            className="border rounded px-3 py-2 w-full max-w-xs sm:max-w-sm md:max-w-md"
-          >
-            <option value="">-- Selecciona un lote --</option>
-            {lotes.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.nombre}
-              </option>
-            ))}
-          </select>
+      <div className="mb-4">
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-sm font-medium mb-1">Seleccionar lote</label>
+            <select
+              value={loteSeleccionado?.id || ""}
+              onChange={cambiarLote}
+              className="border rounded px-3 py-2 w-full max-w-xs sm:max-w-sm md:max-w-md"
+            >
+              <option value="">-- Selecciona un lote --</option>
+              {lotesFiltrados(lotes).map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.nombre}
+                </option>
+              ))}
+            </select>
+            {esDocente && (
+              <p className="text-xs text-gray-500 mt-1">
+                <i className="fas fa-info-circle mr-1"></i>
+                Mostrando lotes de tus programas asignados
+              </p>
+            )}
+          </div>
+
+          {loteSeleccionado && canWrite && (
+            <button
+              onClick={generarPlantasParaLote}
+              disabled={generando}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg mt-5 disabled:opacity-50"
+            >
+              {generando ? "Generando..." : "Generar plantas desde lote"}
+            </button>
+          )}
         </div>
 
-        {loteSeleccionado && canWrite && (
-          <button
-            onClick={generarPlantasParaLote}
-            disabled={generando}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg mt-5 disabled:opacity-50"
-          >
-            {generando ? "Generando..." : "Generar plantas desde lote"}
-          </button>
+        {/* Badge informativo para docentes */}
+        {esDocente && lotesFiltrados(lotes).length === 0 && (
+          <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-700">
+            <i className="fas fa-exclamation-triangle mr-2"></i>
+            No tienes lotes asignados en tus programas. Contacta con un administrador.
+          </div>
         )}
       </div>
 
@@ -288,7 +332,7 @@ export default function GestionPlantas() {
         setDatosFormulario={setDatosFormulario}
         onSubmit={manejarCrear}
         editando={editando}
-        lotes={lotes}
+        lotes={lotesFiltrados(lotes)}
         erroresValidacion={erroresValidacion}
       />
     </div>
