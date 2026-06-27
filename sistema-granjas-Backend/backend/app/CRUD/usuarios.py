@@ -4,14 +4,21 @@ from app.db.models import Usuario
 from app.schemas.usuario_schema import UsuarioCreate, UsuarioUpdate
 from app.core.security import get_password_hash
 
-def get_usuario_by_id(db: Session, usuario_id: int):
-    return db.query(Usuario).filter(Usuario.id == usuario_id, Usuario.activo == True).first()
+def get_usuario_by_id(db: Session, usuario_id: int, incluir_inactivos: bool = True):
+    query = db.query(Usuario).filter(Usuario.id == usuario_id)
+    if not incluir_inactivos:
+        query = query.filter(Usuario.activo == True)
+    return query.first()
 
 def get_usuario_by_email(db: Session, email: str):
-    return db.query(Usuario).filter(Usuario.email == email, Usuario.activo == True).first()
+    # Para autenticación, siempre buscar incluso si está inactivo
+    return db.query(Usuario).filter(Usuario.email == email).first()
 
-def get_usuarios(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(Usuario).filter(Usuario.activo == True).offset(skip).limit(limit).all()
+def get_usuarios(db: Session, skip: int = 0, limit: int = 100, incluir_inactivos: bool = True):
+    query = db.query(Usuario)
+    if not incluir_inactivos:
+        query = query.filter(Usuario.activo == True)
+    return query.offset(skip).limit(limit).all()
 
 def create_usuario(db: Session, usuario: UsuarioCreate, password: str = None, auth_provider: str = "traditional"):
     db_usuario = Usuario(
@@ -22,7 +29,6 @@ def create_usuario(db: Session, usuario: UsuarioCreate, password: str = None, au
         auth_provider=auth_provider
     )
     
-    # Si se proporciona password, hashearlo
     if password:
         db_usuario.password_hash = get_password_hash(password)
     
@@ -32,7 +38,8 @@ def create_usuario(db: Session, usuario: UsuarioCreate, password: str = None, au
     return db_usuario
 
 def update_usuario(db: Session, usuario_id: int, usuario_update: UsuarioUpdate):
-    db_usuario = get_usuario_by_id(db, usuario_id)
+    # Usar get_usuario_by_id con incluir_inactivos=True para poder actualizar inactivos
+    db_usuario = get_usuario_by_id(db, usuario_id, incluir_inactivos=True)
     if db_usuario:
         update_data = usuario_update.dict(exclude_unset=True)
         for field, value in update_data.items():
@@ -42,7 +49,8 @@ def update_usuario(db: Session, usuario_id: int, usuario_update: UsuarioUpdate):
     return db_usuario
 
 def delete_usuario(db: Session, usuario_id: int):
-    db_usuario = get_usuario_by_id(db, usuario_id)
+    # Usar get_usuario_by_id con incluir_inactivos=True para poder eliminar inactivos
+    db_usuario = get_usuario_by_id(db, usuario_id, incluir_inactivos=True)
     if db_usuario:
         db_usuario.activo = False
         db.commit()
@@ -50,7 +58,8 @@ def delete_usuario(db: Session, usuario_id: int):
     return False
 
 def cambiar_rol_usuario(db: Session, usuario_id: int, nuevo_rol_id: int):
-    db_usuario = get_usuario_by_id(db, usuario_id)
+    # Usar get_usuario_by_id con incluir_inactivos=True para poder cambiar rol de inactivos
+    db_usuario = get_usuario_by_id(db, usuario_id, incluir_inactivos=True)
     if db_usuario:
         db_usuario.rol_id = nuevo_rol_id
         db.commit()
@@ -58,28 +67,32 @@ def cambiar_rol_usuario(db: Session, usuario_id: int, nuevo_rol_id: int):
         return db_usuario
     return None
 
-def search_usuarios(db: Session, query: str):
-    return db.query(Usuario).filter(
-        Usuario.activo == True,
+def search_usuarios(db: Session, query: str, incluir_inactivos: bool = True):
+    db_query = db.query(Usuario).filter(
         or_(
             Usuario.nombre.ilike(f"%{query}%"),
             Usuario.email.ilike(f"%{query}%")
         )
-    ).all()
+    )
+    if not incluir_inactivos:
+        db_query = db_query.filter(Usuario.activo == True)
+    return db_query.all()
 
-def get_trabajadores(db: Session, programa_ids: list = None):
+def get_trabajadores(db: Session, programa_ids: list = None, incluir_inactivos: bool = True):
     from app.db.models import Rol, usuario_programa
     query = db.query(Usuario).join(Rol, Usuario.rol_id == Rol.id).filter(
-        Usuario.activo == True,
         Rol.nombre == "trabajador"
     )
+    if not incluir_inactivos:
+        query = query.filter(Usuario.activo == True)
     if programa_ids is not None and len(programa_ids) > 0:
         query = query.join(usuario_programa, Usuario.id == usuario_programa.c.usuario_id)\
                      .filter(usuario_programa.c.programa_id.in_(programa_ids))
     return query.all()
 
 def update_password(db: Session, usuario_id: int, new_password: str):
-    db_usuario = get_usuario_by_id(db, usuario_id)
+    # Usar get_usuario_by_id con incluir_inactivos=True para poder actualizar contraseña de inactivos
+    db_usuario = get_usuario_by_id(db, usuario_id, incluir_inactivos=True)
     if db_usuario:
         db_usuario.password_hash = get_password_hash(new_password)
         db.commit()
