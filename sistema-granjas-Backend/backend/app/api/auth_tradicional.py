@@ -19,6 +19,8 @@ from app.schemas.auth_schema import (
 from app.schemas.rol_schema import RolParaRegistro
 from app.CRUD.roles import get_roles_para_registro
 from app.services.auth_service import AuthService
+from app.core.dependencies import get_current_user
+from app.db.models import Usuario
 
 import logging
 
